@@ -1,0 +1,42 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- AWS CDK ---
+cdk.out/
+cdk.context.json
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs / coverage ---
+logs/
+*.log
+coverage/
+.coverage
+htmlcov/

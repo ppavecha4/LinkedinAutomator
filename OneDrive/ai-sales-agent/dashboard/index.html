@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>AI Sales Agent — Dashboard</title>
+
+    <!-- Inter: the default shadcn/ui typeface. Preconnect + WOFF2 only. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!--
+      Theme flash guard: applies .dark to <html> BEFORE React hydrates so
+      users on dark mode never see a white flash on first paint. Reads
+      the same localStorage key the React useTheme() hook writes to.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('ai-sales-agent-theme');
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme =
+            stored === 'dark' || stored === 'light'
+              ? stored
+              : prefersDark
+                ? 'dark'
+                : 'light';
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+        } catch (_e) {
+          /* non-fatal */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: salesagent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: devpassword
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/flyway/sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d salesagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  flyway:
+    image: flyway/flyway:9
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/salesagent
+      FLYWAY_USER: agent
+      FLYWAY_PASSWORD: devpassword
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./database/migrations:/flyway/sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./services/api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agent:devpassword@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+    ports: ["3000:3000"]
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    volumes:
+      - ./services/api/src:/app/src
+
+  orchestrator:
+    build: ./services/orchestrator
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agent:devpassword@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+    depends_on: [postgres, redis]
+    volumes:
+      - ./services/orchestrator/src:/app/src
+
+  outreach-worker:
+    build: ./services/outreach-worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agent:devpassword@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+    depends_on: [postgres, redis]
+    volumes:
+      - ./services/outreach-worker/src:/app/src
+
+  reply-processor:
+    build: ./services/reply-processor
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agent:devpassword@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+    ports: ["3001:3001"]
+    depends_on: [postgres, redis]
+    volumes:
+      - ./services/reply-processor/src:/app/src
+
+  dashboard:
+    build: ./dashboard
+    environment:
+      VITE_API_URL: http://localhost:3000
+    ports: ["5173:5173"]
+    volumes:
+      - ./dashboard/src:/app/src
+
+volumes:
+  postgres_data:
