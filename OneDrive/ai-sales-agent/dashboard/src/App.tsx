@@ -15,6 +15,7 @@ import Layout from './components/Layout';
 import ActiveCampaigns from './pages/ActiveCampaigns';
 import Analytics from './pages/Analytics';
 import CampaignBuilder from './pages/CampaignBuilder';
+import LinkedInDrafts from './pages/LinkedInDrafts';
 import Overview from './pages/Overview';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="/campaigns" element={<ActiveCampaigns />} />
             <Route path="/campaigns/new" element={<CampaignBuilder />} />
             <Route path="/prospects" element={<ProspectPipeline />} />
+            <Route path="/linkedin-drafts" element={<LinkedInDrafts />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

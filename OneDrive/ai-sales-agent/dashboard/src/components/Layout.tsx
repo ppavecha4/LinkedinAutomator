@@ -20,6 +20,7 @@ import {
   Command,
   HelpCircle,
   LayoutDashboard,
+  Briefcase,
   LogOut,
   Moon,
   PanelLeft,
@@ -70,6 +71,7 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Overview', end: true, icon: LayoutDashboard, section: 'Workspace' },
   { to: '/campaigns', label: 'Campaigns', end: false, icon: Sparkles, section: 'Workspace' },
   { to: '/prospects', label: 'Prospects', end: false, icon: Users, section: 'Workspace' },
+  { to: '/linkedin-drafts', label: 'LinkedIn Drafts', end: false, icon: Briefcase, section: 'Operator' },
   { to: '/analytics', label: 'Analytics', end: false, icon: BarChart3, section: 'Insights' },
   { to: '/settings', label: 'Settings', end: false, icon: SettingsIcon, section: 'Account' },
 ];

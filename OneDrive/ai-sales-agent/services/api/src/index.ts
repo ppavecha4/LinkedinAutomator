@@ -25,6 +25,7 @@ import { requestLogger } from './middleware/requestLogger';
 import analyticsRouter from './routes/analytics';
 import campaignsRouter from './routes/campaigns';
 import internalRouter from './routes/internal';
+import messagesRouter from './routes/messages';
 import prospectsRouter from './routes/prospects';
 import settingsRouter from './routes/settings';
 import webhooksRouter from './routes/webhooks';
@@ -134,6 +135,7 @@ app.use(internalRouter);
 app.use('/api', auth);
 app.use(campaignsRouter);
 app.use(prospectsRouter);
+app.use(messagesRouter);
 app.use(analyticsRouter);
 app.use(settingsRouter);
 

@@ -1,13 +1,29 @@
 """Apollo.io v1 REST API integration.
 
 Covers:
-    - search_companies(icp_criteria) — paginated /organizations/search
-    - search_decision_makers(org_ids, titles) — /people/search
-    - enrich_contact(apollo_contact_id) — /people/match with 24h Redis cache
+    - search_companies(icp_criteria)        — /mixed_companies/search
+    - search_decision_makers(org_ids, ...)  — /mixed_people/api_search
+    - enrich_contact(apollo_contact_id)     — /people/match (24h Redis cache)
     - Exponential backoff on 429 / 5xx (max 3 retries, respects Retry-After)
     - Daily credit counter in Redis (Apollo free = 300/day)
 
 Reads APOLLO_API_KEY from env.
+
+NOTE on endpoint paths (April 2026 audit):
+  Apollo deprecated `/v1/people/search` and `/v1/organizations/search`. The
+  current API base is `/api/v1` (NOT `/v1`). For programmatic prospecting
+  use the dedicated API-only endpoints:
+      POST /api/v1/mixed_companies/search        (companies)
+      POST /api/v1/mixed_people/api_search       (people, API-only variant)
+      POST /api/v1/people/match                  (enrichment)
+  The legacy paths return HTTP 422 with a "deprecated for API callers"
+  body, so we use the new ones.
+
+NOTE on Cloudflare:
+  api.apollo.io sits behind Cloudflare which blocks requests with the
+  default Python `python-urllib`/`python-httpx` user agents (response is
+  HTTP 403 with Cloudflare error code 1010). We send an explicit
+  `User-Agent` header to bypass that filter.
 """
 from __future__ import annotations
 
@@ -28,7 +44,8 @@ class ApolloError(Exception):
 
 
 class ApolloTool:
-    BASE_URL = "https://api.apollo.io/v1"
+    BASE_URL = "https://api.apollo.io/api/v1"
+    USER_AGENT = "AiSalesAgent-Orchestrator/0.1"
     DEFAULT_PER_PAGE = 25
     MAX_PAGES = 40          # defensive cap so pagination bugs don't burn credits
     MAX_RETRIES = 3
@@ -65,7 +82,10 @@ class ApolloTool:
         headers = {
             "Cache-Control": "no-cache",
             "Content-Type": "application/json",
+            "Accept": "application/json",
             "X-Api-Key": self._api_key,
+            # Cloudflare blocks the default httpx User-Agent (error 1010).
+            "User-Agent": self.USER_AGENT,
         }
 
         for attempt in range(self.MAX_RETRIES):
@@ -179,7 +199,9 @@ class ApolloTool:
         results: list[dict] = []
         for page in range(1, self.MAX_PAGES + 1):
             body["page"] = page
-            data = await self._post("/organizations/search", body)
+            # `/mixed_companies/search` is Apollo's current company-search
+            # endpoint. The legacy `/organizations/search` is gone.
+            data = await self._post("/mixed_companies/search", body)
             orgs = data.get("organizations") or data.get("accounts") or []
             if not orgs:
                 break
@@ -205,8 +227,12 @@ class ApolloTool:
         results: list[dict] = []
         for page in range(1, self.MAX_PAGES + 1):
             body["page"] = page
-            data = await self._post("/people/search", body)
-            people = data.get("people") or []
+            # `/mixed_people/api_search` is the API-only people-search
+            # endpoint. The legacy `/people/search` returns 422 with a
+            # "deprecated for API callers" body now — not 200 with a
+            # silent migration, a hard error.
+            data = await self._post("/mixed_people/api_search", body)
+            people = data.get("people") or data.get("contacts") or []
             if not people:
                 break
             results.extend(self._normalise_person(p) for p in people)
@@ -271,14 +297,26 @@ class ApolloTool:
 
     @staticmethod
     def _normalise_person(p: dict) -> dict:
+        # Apollo's API returns first_name + last_name separately and an
+        # already-stitched `name` field. Prefer the stitched value when
+        # present, fall back to building it from the parts so we don't
+        # end up with `None None` if only one half is set.
+        full_name = p.get("name")
+        if not full_name:
+            parts = [p.get("first_name") or "", p.get("last_name") or ""]
+            full_name = " ".join(s for s in parts if s).strip() or None
         return {
             "apollo_contact_id": p.get("id"),
-            "full_name": p.get("name"),
+            "first_name": p.get("first_name"),
+            "last_name": p.get("last_name"),
+            "full_name": full_name,
             "title": p.get("title"),
             "email": p.get("email"),
+            "email_status": p.get("email_status"),
             "linkedin_url": p.get("linkedin_url"),
             "phone_numbers": p.get("phone_numbers") or [],
             "organization_id": (p.get("organization") or {}).get("id"),
+            "organization_name": (p.get("organization") or {}).get("name"),
         }
 
 

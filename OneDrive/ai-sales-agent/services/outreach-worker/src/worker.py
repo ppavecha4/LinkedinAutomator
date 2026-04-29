@@ -312,17 +312,54 @@ def _build_email_channel():
 
 
 def _build_linkedin_channel():
-    if not os.environ.get("LINKEDIN_ACCESS_TOKEN"):
+    """Pick the LinkedIn channel based on LINKEDIN_MODE.
+
+    Modes:
+      - 'draft' (default): generate the message and save it as DRAFTED
+        for an operator to send manually from the dashboard. Works with
+        ANY LinkedIn account (free, premium, business) — no API keys
+        needed beyond the optional LINKEDIN_PERSON_URN for inbox routing.
+      - 'api': hit the LinkedIn Sales Navigator REST API directly.
+        Requires an approved Marketing Developer Platform partnership
+        and a 60-day OAuth access token.
+
+    The default is 'draft' because Sales Navigator API access is gated
+    and most users start with a standard business account.
+    """
+    mode = (os.environ.get("LINKEDIN_MODE") or "draft").strip().lower()
+
+    if mode == "api":
+        if not os.environ.get("LINKEDIN_ACCESS_TOKEN"):
+            logger.warning(
+                "LINKEDIN_MODE=api but LINKEDIN_ACCESS_TOKEN is empty — "
+                "falling back to draft mode",
+            )
+            mode = "draft"
+        else:
+            try:
+                from channels.linkedin_channel import LinkedInChannel  # type: ignore
+                return LinkedInChannel.from_environment()  # type: ignore[attr-defined]
+            except Exception:
+                logger.exception(
+                    "LinkedInChannel API mode failed — falling back to draft",
+                )
+                mode = "draft"
+
+    # Draft mode (default).
+    try:
+        from channels.linkedin_draft_channel import LinkedInDraftChannel  # type: ignore
+    except Exception:
+        logger.exception("LinkedInDraftChannel import failed")
         return None
     try:
-        from channels.linkedin_channel import LinkedInChannel  # type: ignore
-    except Exception:
-        logger.exception("LinkedInChannel import failed")
+        if hasattr(LinkedInDraftChannel, "from_environment"):
+            return LinkedInDraftChannel.from_environment()  # type: ignore[attr-defined]
+        # Fallback: manual wiring with the same DI shape worker.py uses
+        # for the API channel. The placeholder None values are filled in
+        # by the worker's main DI plumbing if the factory isn't available.
         return None
-    try:
-        return LinkedInChannel.from_environment()  # type: ignore[attr-defined]
     except Exception:
-        logger.exception("LinkedInChannel.from_environment failed")
+        logger.exception("LinkedInDraftChannel.from_environment failed")
         return None
 
 
