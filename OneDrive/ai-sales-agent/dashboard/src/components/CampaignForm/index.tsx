@@ -1,6 +1,16 @@
 /**
  * 4-step campaign wizard shell — progress bar, step navigation,
- * validation, Save-as-Draft and Launch mutations.
+ * validation, and submit.
+ *
+ * Two modes:
+ *   - 'create' (default): wires Save-as-Draft and Launch mutations
+ *   - 'edit'           : wires PATCH /api/campaigns/:id, swaps the
+ *                         primary CTA to "Save changes" and removes
+ *                         the Launch path (use the campaign card's
+ *                         Pause/Resume after saving instead)
+ *
+ * Both modes share the same UI; the only differences are the mutation
+ * called on submit and the button labels at the Review step.
  */
 
 import { useMemo, useState } from 'react';
@@ -11,6 +21,7 @@ import clsx from 'clsx';
 import {
   useCreateCampaign,
   useLaunchCampaign,
+  useUpdateCampaign,
 } from '../../hooks/useCampaigns';
 
 import StepBasics from './StepBasics';
@@ -18,6 +29,15 @@ import StepICP from './StepICP';
 import StepReview from './StepReview';
 import StepSequence from './StepSequence';
 import { INITIAL_DRAFT, type WizardDraft } from './types';
+
+interface CampaignFormProps {
+  /** 'create' (new) or 'edit' (PATCH an existing campaign). */
+  mode?: 'create' | 'edit';
+  /** Pre-fill values; defaults to INITIAL_DRAFT in create mode. */
+  initialDraft?: WizardDraft;
+  /** Required when mode='edit' — campaign id to PATCH. */
+  editingId?: string;
+}
 
 const STEPS = [
   { label: 'Basics', description: 'Name, goal, sender, tone' },
@@ -59,17 +79,26 @@ function buildPayload(draft: WizardDraft) {
     })),
     daily_limits: draft.daily_limits,
     batch_size: draft.batch_size,
+    heyreach_campaign_id: draft.heyreach_campaign_id ?? null,
   };
 }
 
-export default function CampaignForm() {
+export default function CampaignForm({
+  mode = 'create',
+  initialDraft,
+  editingId,
+}: CampaignFormProps = {}) {
+  const isEdit = mode === 'edit';
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<WizardDraft>(INITIAL_DRAFT);
+  const [draft, setDraft] = useState<WizardDraft>(
+    initialDraft ?? INITIAL_DRAFT,
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const create = useCreateCampaign();
   const launch = useLaunchCampaign();
+  const update = useUpdateCampaign();
 
   const basicsErrors = useMemo(() => validateBasics(draft), [draft]);
 
@@ -89,8 +118,14 @@ export default function CampaignForm() {
     setSubmitError(null);
     try {
       const payload = buildPayload(draft);
-      const created = await create.mutateAsync(payload);
-      navigate(`/?drafted=${created.id}`);
+      if (isEdit && editingId) {
+        // Edit-mode submit: PATCH the existing campaign.
+        await update.mutateAsync({ id: editingId, patch: payload });
+        navigate(`/campaigns?updated=${editingId}`);
+      } else {
+        const created = await create.mutateAsync(payload);
+        navigate(`/?drafted=${created.id}`);
+      }
     } catch (err) {
       setSubmitError((err as Error).message);
     }
@@ -100,6 +135,13 @@ export default function CampaignForm() {
     setSubmitError(null);
     try {
       const payload = buildPayload(draft);
+      if (isEdit && editingId) {
+        // In edit mode, "Save and launch" doesn't apply — campaigns
+        // launch separately via the dashboard cards. Treat as plain save.
+        await update.mutateAsync({ id: editingId, patch: payload });
+        navigate(`/campaigns?updated=${editingId}`);
+        return;
+      }
       const created = await create.mutateAsync(payload);
       await launch.mutateAsync(created.id);
       navigate(`/?launched=${created.id}`);
@@ -108,7 +150,7 @@ export default function CampaignForm() {
     }
   }
 
-  const busy = create.isPending || launch.isPending;
+  const busy = create.isPending || launch.isPending || update.isPending;
 
   return (
     <div className="space-y-6">
@@ -165,10 +207,12 @@ export default function CampaignForm() {
         {step === 3 && (
           <StepReview
             draft={draft}
+            onChange={patch}
             onSaveDraft={onSaveDraft}
             onLaunch={onLaunch}
             busy={busy}
             error={submitError}
+            mode={mode}
           />
         )}
       </div>

@@ -4,3 +4,6 @@ asyncpg>=0.29.0
 httpx>=0.27.0
 twilio>=9.3.0
 phonenumbers>=8.13.0
+# Async SMTP — used by GoogleWorkspaceEmailChannel for SMTP+app-password
+# auth. Pinned to v3 to avoid v4 breaking-change drift.
+aiosmtplib>=3.0.0,<4

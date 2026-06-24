@@ -88,9 +88,15 @@ class MessageValidator:
                 raise ComplianceError(
                     "linkedin: cannot send a direct message before connection is accepted"
                 )
-            if len(body) > 280:
+            # LinkedIn raised the connection-note cap from 200 → 300 chars
+            # in 2023. We enforce 300 strictly: anything longer is a hard
+            # ComplianceError, NOT a silent truncation, because LinkedIn's
+            # API rejects oversize notes with a 422 and the message would
+            # never go out anyway. Catching it here means the orchestrator
+            # logs a clear reason instead of a cryptic LinkedIn 422.
+            if len(body) > 300:
                 raise ComplianceError(
-                    f"linkedin connection note too long: {len(body)} chars (max 280)"
+                    f"linkedin connection note too long: {len(body)} chars (max 300)"
                 )
 
     # ---------- dispatcher ----------

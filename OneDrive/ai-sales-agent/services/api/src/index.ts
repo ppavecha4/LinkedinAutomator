@@ -27,7 +27,9 @@ import campaignsRouter from './routes/campaigns';
 import internalRouter from './routes/internal';
 import messagesRouter from './routes/messages';
 import prospectsRouter from './routes/prospects';
+import timelineRouter from './routes/timeline';
 import settingsRouter from './routes/settings';
+import trackingRouter from './routes/tracking';
 import webhooksRouter from './routes/webhooks';
 import { dashboardHub } from './ws/server';
 
@@ -128,6 +130,11 @@ app.get('/health', async (_req, res) => {
 // Webhooks — mounted BEFORE auth (external callers, signature-gated).
 app.use(webhooksRouter);
 
+// Email open-tracking pixel — no auth, public URL. Mounted before
+// `auth` so the recipient's email client can fetch the gif without
+// credentials. Tested at GET /track/open/:id (UUID).
+app.use(trackingRouter);
+
 // Internal service-to-service events — token-gated, NOT under /api.
 app.use(internalRouter);
 
@@ -136,6 +143,7 @@ app.use('/api', auth);
 app.use(campaignsRouter);
 app.use(prospectsRouter);
 app.use(messagesRouter);
+app.use(timelineRouter);
 app.use(analyticsRouter);
 app.use(settingsRouter);
 

@@ -297,7 +297,56 @@ class OutreachWorker:
 
 
 def _build_email_channel():
-    if not os.environ.get("AWS_SES_FROM_EMAIL"):
+    """Pick the email channel based on EMAIL_PROVIDER.
+
+    Modes:
+      - 'google_workspace' (recommended for new operators): SMTP relay via
+        smtp.gmail.com:587 using the Workspace user's App Password. No
+        AWS keys, no SES sandbox-exit review, deliverability inherited
+        from the operator's existing mailbox reputation.
+      - 'ses' (production-scale path): AWS SES v2 via boto3. Required
+        for >2k/day per-sender or multi-sender setups.
+
+    Default is 'google_workspace' when GOOGLE_WORKSPACE_EMAIL is set,
+    otherwise falls back to 'ses' (preserving existing deployments).
+    The explicit env var takes precedence.
+    """
+    raw = (os.environ.get("EMAIL_PROVIDER") or "").strip().lower()
+    if raw in ("google", "gmail", "workspace"):
+        raw = "google_workspace"
+
+    # Auto-detect when EMAIL_PROVIDER is unset.
+    if not raw:
+        if os.environ.get("GOOGLE_WORKSPACE_EMAIL"):
+            raw = "google_workspace"
+        elif os.environ.get("SES_FROM_EMAIL") or os.environ.get(
+            "AWS_SES_FROM_EMAIL"
+        ):
+            raw = "ses"
+        else:
+            return None
+
+    if raw == "google_workspace":
+        if not os.environ.get("GOOGLE_WORKSPACE_EMAIL"):
+            logger.warning(
+                "EMAIL_PROVIDER=google_workspace but GOOGLE_WORKSPACE_EMAIL "
+                "is not set — email channel disabled",
+            )
+            return None
+        try:
+            from channels.google_email_channel import (  # type: ignore
+                GoogleWorkspaceEmailChannel,
+            )
+            return GoogleWorkspaceEmailChannel.from_environment()
+        except Exception:
+            logger.exception("GoogleWorkspaceEmailChannel build failed")
+            return None
+
+    # SES path.
+    if not (
+        os.environ.get("SES_FROM_EMAIL")
+        or os.environ.get("AWS_SES_FROM_EMAIL")
+    ):
         return None
     try:
         from channels.email_channel import EmailChannel  # type: ignore
@@ -319,12 +368,21 @@ def _build_linkedin_channel():
         for an operator to send manually from the dashboard. Works with
         ANY LinkedIn account (free, premium, business) — no API keys
         needed beyond the optional LINKEDIN_PERSON_URN for inbox routing.
+      - 'heyreach': delegate actual sending to a Heyreach Sales
+        automation campaign via their REST API. Operator pre-configures
+        a Heyreach campaign whose body template references
+        `{{customField1}}`; we push leads to it with the AI-personalised
+        body in that custom field. Requires HEYREACH_API_KEY +
+        HEYREACH_CAMPAIGN_ID (and optionally HEYREACH_CAMPAIGN_ID_FOLLOWUP
+        for the follow-up DM).
       - 'api': hit the LinkedIn Sales Navigator REST API directly.
         Requires an approved Marketing Developer Platform partnership
         and a 60-day OAuth access token.
 
     The default is 'draft' because Sales Navigator API access is gated
-    and most users start with a standard business account.
+    and most users start with a standard business account. Any
+    misconfigured mode falls back to draft so the orchestrator's
+    pipeline never produces zero output silently.
     """
     mode = (os.environ.get("LINKEDIN_MODE") or "draft").strip().lower()
 
@@ -342,6 +400,27 @@ def _build_linkedin_channel():
             except Exception:
                 logger.exception(
                     "LinkedInChannel API mode failed — falling back to draft",
+                )
+                mode = "draft"
+
+    if mode == "heyreach":
+        if not os.environ.get("HEYREACH_API_KEY") or not os.environ.get(
+            "HEYREACH_CAMPAIGN_ID"
+        ):
+            logger.warning(
+                "LINKEDIN_MODE=heyreach but HEYREACH_API_KEY or "
+                "HEYREACH_CAMPAIGN_ID is empty — falling back to draft mode",
+            )
+            mode = "draft"
+        else:
+            try:
+                from channels.linkedin_heyreach_channel import (  # type: ignore
+                    LinkedInHeyreachChannel,
+                )
+                return LinkedInHeyreachChannel.from_environment()
+            except Exception:
+                logger.exception(
+                    "LinkedInHeyreachChannel build failed — falling back to draft",
                 )
                 mode = "draft"
 

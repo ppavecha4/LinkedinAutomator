@@ -19,7 +19,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 
-import { query } from '../db/client';
+import { query, withTransaction } from '../db/client';
 import { ApiError } from '../lib/errors';
 import { buildPagination, ok, okPaginated, parsePageLimit } from '../lib/response';
 import { validate } from '../middleware/validate';
@@ -147,19 +147,43 @@ router.post(
         );
       }
 
-      const updated = await query<{ operator_sent_at: string }>(
-        `
-        UPDATE messages
-           SET status           = 'OPERATOR_SENT',
-               sent_at          = COALESCE(sent_at, now()),
-               operator_sent_at = now()
-         WHERE id = $1 AND status = 'DRAFTED'
-         RETURNING operator_sent_at
-        `,
-        [id],
-      );
+      // Update + timeline event in one transaction so the dashboard
+      // can never see a "sent" state without the corresponding
+      // timeline marker. The event verb is 'message_sent' regardless
+      // of channel; we tag the channel in the event row so per-channel
+      // analytics still work.
+      const updated = await withTransaction(async (client) => {
+        const u = await client.query<{ operator_sent_at: string }>(
+          `
+          UPDATE messages
+             SET status           = 'OPERATOR_SENT',
+                 sent_at          = COALESCE(sent_at, now()),
+                 operator_sent_at = now()
+           WHERE id = $1 AND status = 'DRAFTED'
+           RETURNING operator_sent_at
+          `,
+          [id],
+        );
+        if (u.rowCount === 0) return null;
+        await client.query(
+          `
+          INSERT INTO prospect_events (
+            campaign_id, prospect_id, contact_id, message_id,
+            channel, event_type, source, actor_id, payload
+          )
+          SELECT m.campaign_id, c.prospect_id, c.id, m.id,
+                 m.channel, 'message_sent', 'operator', $2,
+                 jsonb_build_object('via','dashboard_mark_sent')
+            FROM messages m
+            JOIN contacts c ON c.id = m.contact_id
+           WHERE m.id = $1
+          `,
+          [id, req.user?.id ?? null],
+        );
+        return u.rows[0];
+      });
 
-      if (updated.rowCount === 0) {
+      if (!updated) {
         // Race: someone else flipped it between our SELECT and UPDATE.
         // Fetch the new state and return it idempotently.
         const after = await query<{ status: string; operator_sent_at: string | null }>(
@@ -177,7 +201,7 @@ router.post(
       ok(res, {
         message_id: id,
         status: 'OPERATOR_SENT',
-        operator_sent_at: updated.rows[0].operator_sent_at,
+        operator_sent_at: updated.operator_sent_at,
         already_sent: false,
       });
     } catch (e) {

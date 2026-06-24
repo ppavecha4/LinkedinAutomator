@@ -26,7 +26,7 @@ class LinkedInError(Exception):
 class LinkedInChannel:
     BASE_URL = "https://api.linkedin.com/v2"
     MAX_RETRIES = 3
-    CONNECTION_NOTE_MAX = 280
+    CONNECTION_NOTE_MAX = 300
 
     def __init__(
         self,
@@ -72,7 +72,7 @@ class LinkedInChannel:
         # Enforces 100/week + 20/day at the limiter layer.
         await self._rate_limiter.check("linkedin", campaign_id)
 
-        # Compliance: validator raises if note > 280 chars etc.
+        # Compliance: validator raises if note > 300 chars etc.
         self._validator.validate_linkedin(
             {"action": "connection_request", "body": note},
             connection_accepted=False,

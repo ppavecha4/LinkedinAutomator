@@ -5,13 +5,24 @@
  *   Foot:  "Regenerate reply" button (wired but endpoint pending)
  */
 
+import {
+  Briefcase,
+  CheckCircle2,
+  Eye,
+  Inbox,
+  UserCheck,
+  UserMinus,
+} from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
+import { useConversation, useRegenerateReply } from '../../hooks/useProspects';
+import { useProspectTimeline, useRecordEvent } from '../../hooks/useTimeline';
 import { formatDateTime } from '../../lib/format';
 import type { Contact, Prospect } from '../../lib/types';
-import { useConversation, useRegenerateReply } from '../../hooks/useProspects';
 import Modal from '../Modal';
 import PitchBadge from '../PitchBadge';
+import { ProspectTimeline } from '../ProspectTimeline';
 
 interface Props {
   open: boolean;
@@ -31,6 +42,28 @@ export default function ConversationViewer({ open, onClose, contact, prospect }:
   const regenerate = useRegenerateReply();
   const [regenError, setRegenError] = useState<string | null>(null);
   const [regenText, setRegenText] = useState<string | null>(null);
+
+  // Timeline data + manual-event recorder.
+  const { data: timeline, isLoading: timelineLoading } = useProspectTimeline(
+    open && contact ? contact.id : undefined,
+  );
+  const recordEvent = useRecordEvent();
+
+  const fireEvent = (
+    type: Parameters<typeof recordEvent.mutate>[0]['event_type'],
+    channel: 'email' | 'linkedin' | 'whatsapp' | undefined,
+    label: string,
+  ) => {
+    if (!contact) return;
+    recordEvent.mutate(
+      { contactId: contact.id, event_type: type, channel },
+      {
+        onSuccess: () => toast.success(`${label} recorded`),
+        onError: (e) =>
+          toast.error(`Failed: ${(e as Error).message ?? 'unknown error'}`),
+      },
+    );
+  };
 
   async function onRegenerate() {
     if (!contact) return;
@@ -133,6 +166,80 @@ export default function ConversationViewer({ open, onClose, contact, prospect }:
                 <div className="text-sm text-slate-700 whitespace-pre-wrap">{msg.body}</div>
               </div>
             ))}
+          </div>
+
+          {/* Manual event recording. LinkedIn (no webhook for non-Sales-Nav
+              apps), Email (no SES/Workspace open-pixel wired yet), and
+              WhatsApp (no Twilio status callback wired) all require the
+              operator to mark events by hand. These buttons fire one event
+              per click and toast on success. */}
+          <div className="border-t border-slate-200 pt-3 mt-3">
+            <div className="text-xs uppercase text-slate-400 mb-2">
+              Record event for this prospect
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                className="btn-ghost text-xs h-7 px-2"
+                disabled={recordEvent.isPending || !contact}
+                onClick={() =>
+                  fireEvent('connection_accepted', 'linkedin', 'Connection accepted')
+                }
+              >
+                <UserCheck className="h-3 w-3" />
+                Connection accepted
+              </button>
+              <button
+                className="btn-ghost text-xs h-7 px-2"
+                disabled={recordEvent.isPending || !contact}
+                onClick={() =>
+                  fireEvent('message_opened', undefined, 'Marked as opened')
+                }
+              >
+                <Eye className="h-3 w-3" />
+                Marked opened
+              </button>
+              <button
+                className="btn-ghost text-xs h-7 px-2"
+                disabled={recordEvent.isPending || !contact}
+                onClick={() =>
+                  fireEvent('message_replied', undefined, 'Reply received')
+                }
+              >
+                <Inbox className="h-3 w-3" />
+                Reply received
+              </button>
+              <button
+                className="btn-ghost text-xs h-7 px-2"
+                disabled={recordEvent.isPending || !contact}
+                onClick={() =>
+                  fireEvent('meeting_booked', undefined, 'Meeting booked')
+                }
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                Meeting booked
+              </button>
+              <button
+                className="btn-ghost text-xs h-7 px-2 text-rose-600"
+                disabled={recordEvent.isPending || !contact}
+                onClick={() => fireEvent('opted_out', undefined, 'Opted out')}
+              >
+                <UserMinus className="h-3 w-3" />
+                Opted out
+              </button>
+            </div>
+          </div>
+
+          {/* Timeline — what we know happened, newest first. */}
+          <div className="border-t border-slate-200 pt-3 mt-3">
+            <div className="text-xs uppercase text-slate-400 mb-2 flex items-center gap-1">
+              <Briefcase className="h-3 w-3" />
+              Lifecycle timeline
+            </div>
+            <ProspectTimeline
+              events={timeline}
+              isLoading={timelineLoading}
+              className="text-xs"
+            />
           </div>
 
           <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">

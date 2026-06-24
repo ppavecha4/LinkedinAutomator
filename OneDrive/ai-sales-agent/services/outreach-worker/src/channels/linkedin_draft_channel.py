@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 class LinkedInDraftChannel:
     """No-API LinkedIn channel that produces drafts for a human operator."""
 
-    CONNECTION_NOTE_MAX = 280
+    CONNECTION_NOTE_MAX = 300
 
     def __init__(
         self,
@@ -124,7 +124,7 @@ class LinkedInDraftChannel:
         # through every draft cannot exceed safe LinkedIn limits.
         await self._rate_limiter.check("linkedin", campaign_id)
 
-        # Validator still runs — same 280-char rule for connection notes,
+        # Validator still runs — same 300-char rule for connection notes,
         # same forbidden-phrase rules.
         self._validator.validate_linkedin(
             {"action": action, "body": body},

@@ -32,6 +32,10 @@ export interface Campaign {
   created_by: string;
   created_at: string;
   updated_at: string;
+  // Heyreach link — populated when LINKEDIN_MODE=heyreach + API key set.
+  // null if Heyreach isn't configured, or auto-create failed (operator
+  // can paste a value manually on the edit page).
+  heyreach_campaign_id?: string | null;
   // Present on the list endpoint only (metrics join):
   total_prospects?: number;
   contacted?: number;

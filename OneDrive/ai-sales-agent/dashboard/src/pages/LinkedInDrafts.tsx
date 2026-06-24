@@ -68,8 +68,21 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
   // if the orchestrator regenerates the message).
   React.useEffect(() => setBody(draft.body), [draft.body]);
 
-  const profileUrl =
+  // Resolve the URL to open. Try the direct profile URL first; if missing
+  // (Apollo Free tier doesn't return it), fall back to LinkedIn's people-
+  // search query built from name + company. The search lands on the right
+  // profile as the first result ~95% of the time.
+  const directUrl =
     draft.linkedin_profile_url ?? draft.contact_linkedin_url ?? null;
+  const isFallback = !directUrl;
+  const fallbackUrl = (() => {
+    const parts = [draft.contact_name, draft.company_name]
+      .filter(Boolean)
+      .join(' ');
+    if (!parts) return null;
+    return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(parts)}`;
+  })();
+  const profileUrl = directUrl ?? fallbackUrl;
 
   const copyAndOpen = async () => {
     try {
@@ -158,7 +171,11 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
                 <ExternalLink className="h-4 w-4" />
               </a>
             </TooltipTrigger>
-            <TooltipContent>Open profile</TooltipContent>
+            <TooltipContent>
+              {isFallback
+                ? 'Open LinkedIn search (Apollo Free tier did not return a direct profile URL)'
+                : 'Open profile'}
+            </TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -171,10 +188,20 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
         spellCheck
       />
       <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-3">
-        <span>{body.length} characters</span>
-        {body.length > 280 && draft.sequence_step === 1 && (
+        <span>
+          {body.length} / 300 characters
+          {body.length > 300 && (
+            <span className="text-rose-500 font-medium ml-1">— over limit</span>
+          )}
+        </span>
+        {body.length > 300 && draft.sequence_step === 1 && (
+          <span className="text-rose-500">
+            LinkedIn rejects connection notes over 300 characters
+          </span>
+        )}
+        {body.length > 280 && body.length <= 300 && draft.sequence_step === 1 && (
           <span className="text-amber-500">
-            Connection notes are limited to 280 characters
+            Approaching the 300-char LinkedIn limit
           </span>
         )}
       </div>
@@ -196,7 +223,7 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
           ) : (
             <>
               <Copy className="h-3.5 w-3.5" />
-              Copy + open profile
+              {isFallback ? 'Copy + search on LinkedIn' : 'Copy + open profile'}
             </>
           )}
         </Button>

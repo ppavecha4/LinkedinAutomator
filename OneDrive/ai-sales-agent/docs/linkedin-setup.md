@@ -94,6 +94,151 @@ When you outgrow draft mode (~30/day), you have two options:
 
 ---
 
+## Part C — Heyreach mode (recommended for 30–200 sends/day)
+
+This is the pragmatic middle path: real LinkedIn automation without
+the MDP partner review. The orchestrator handles everything up to
+the send (Apollo discovery → enrichment → Claude personalisation →
+compliance gate), then pushes each lead into a Heyreach campaign via
+their REST API. Heyreach's browser automation does the actual
+connect / DM. Their software manages browser fingerprint, proxy,
+LinkedIn pacing, and dispatch — the things that get unmanaged
+automation accounts banned.
+
+### Setup (30 minutes)
+
+1. Sign up at <https://heyreach.io> and connect your LinkedIn account
+   (free trial is enough to validate the integration end-to-end).
+2. Heyreach → **Settings → API & Webhooks** → copy your **public API key**.
+3. Heyreach → **Campaigns → New Campaign**. Pick a name. For the
+   message template use **just** `{{customField1}}` — that's it. We
+   pre-personalise the full body in our orchestrator; Heyreach will
+   substitute our exact text without further templating.
+   - Sequence: pick "Connection request only" if you want one-touch,
+     or add a follow-up DM step that uses `{{customField2}}` if you
+     want our follow-up bodies too.
+4. Copy the **campaign id** from the URL bar
+   (`heyreach.io/campaigns/<UUID>`).
+5. Add to `.env`:
+   ```bash
+   LINKEDIN_MODE=heyreach
+   HEYREACH_API_KEY=hr_xxxxxxxxxxxxxxxxxxxx
+   HEYREACH_CAMPAIGN_ID=<campaign uuid from step 4>
+   # Optional — only if you have a separate Heyreach campaign for
+   # follow-up DMs (the orchestrator's send_message() uses this).
+   HEYREACH_CAMPAIGN_ID_FOLLOWUP=
+   ```
+6. Restart the outreach-worker so it picks up the new mode:
+   ```bash
+   docker compose up -d --force-recreate outreach-worker
+   ```
+
+### Linking platform campaigns to Heyreach campaigns
+
+We don't auto-create Heyreach campaigns. Heyreach's public API exposes
+a `/campaign/Create` endpoint, but the required payload couples to
+internal resources (sequence templates, list types, LinkedIn account
+assignments) that aren't reliably settable from outside their UI —
+even a 200 response often produces a campaign that can't accept leads
+until the operator finalises setup in Heyreach. We learned this the
+hard way on June 2026.
+
+What works much better in practice: **create the campaign in Heyreach
+UI once, then bind it to a platform campaign in 2 clicks.**
+
+The dashboard's campaign editor shows a Heyreach link panel above the
+form:
+
+1. **Dropdown of your Heyreach campaigns** — populated by
+   `GET /api/heyreach/campaigns` (which proxies to Heyreach's
+   `/campaign/GetAll`). Pick one to bind; the panel shows its name +
+   status + connected-account count so you can avoid empty / paused
+   campaigns.
+2. **Refresh** — re-fetches from Heyreach. Useful after you've just
+   created a new one in Heyreach UI.
+3. **Create in Heyreach →** — deeplinks to <https://app.heyreach.io/campaigns>
+   so you can spin up a new Heyreach campaign without leaving the flow.
+4. **Paste id manually** — fallback when the operator prefers typing.
+
+Once a Heyreach campaign is picked, `campaigns.heyreach_campaign_id`
+gets set. From that point on:
+- The orchestrator's `LinkedInHeyreachChannel` reads the per-campaign
+  id when sending automatically (when you create new campaigns and the
+  poller picks them up).
+- The standalone push script (`send_drafts_to_heyreach.py`) reads it
+  to know which Heyreach campaign to push backlogged drafts into.
+
+### How to set up a Heyreach campaign for first-touch outreach
+
+In Heyreach UI:
+
+1. **Campaigns → New Campaign**.
+2. Pick the LinkedIn account that should send (the operator's).
+3. Create or pick a lead list (we push our prospects into it).
+4. **Sequence**: add one step "Send connection request" with body
+   template `{{customField1}}` — that's it. We pre-personalise the
+   full body in our orchestrator; Heyreach substitutes our exact text
+   verbatim.
+5. (Optional) Add a follow-up DM step using `{{customField2}}` if you
+   want our follow-up bodies.
+6. Save the campaign. Copy the campaign id from the URL bar.
+7. Back in our dashboard, pick the campaign from the dropdown on the
+   edit page.
+
+### How to push existing drafts
+
+For LinkedIn drafts that were generated BEFORE you turned on Heyreach
+mode (e.g. the 33 drafts on `CTO Out Reach` + `Outreach for Logistic
+Companies in UK`), use the standalone driver:
+
+```bash
+docker exec ai-sales-agent-orchestrator-1 sh -c \
+  'python3 /app/src/scripts/send_drafts_to_heyreach.py <CAMPAIGN_ID>'
+```
+
+Flags:
+- `--dry-run` — show what would be pushed, no API calls
+- `--limit N` — cap pushes per run
+- `--campaign <heyreach_id>` — override `HEYREACH_CAMPAIGN_ID` for
+  this run (e.g. push to a follow-up campaign instead)
+
+On success each row flips `DRAFTED → OPERATOR_SENT` and writes a
+`message_sent` event with `source=system, via=heyreach_script` so the
+dashboard's prospect timeline reflects the actual send.
+
+### Cost note
+
+- Heyreach: $50–$200/mo per LinkedIn account (depends on plan + seats)
+- Sales Nav: $99–$149/mo (gives Heyreach access to richer lead data +
+  more InMail credits; not strictly required but recommended)
+- ~$250/mo total for one operator + 100 daily sends
+
+### TOS reality check
+
+LinkedIn doesn't endorse third-party browser-automation tools, but at
+sane volumes (<30 sends/day per LinkedIn account, no scraping at
+scale, no fake-account farms) Heyreach's risk-management is good
+enough that account bans for normal use are rare. The mainline risk
+is "growth-hack" usage — 100+ sends/day or aggressive scraping. The
+orchestrator's per-channel rate limiter already enforces a 20/day
+default cap; bump it if you need more, but warming the account up
+gradually matters more than headline volume.
+
+### Webhook integration (optional, recommended)
+
+Heyreach can webhook into your dashboard when:
+- A connection request is accepted
+- A reply lands on a DM
+- A bounce / decline occurs
+
+Configure the webhook URL inside Heyreach's settings, pointing it at
+your public API base + `/webhooks/heyreach`. We don't ship that route
+yet — it's a follow-up. Until then, manual "Mark connection accepted"
+and "Mark replied" buttons on the dashboard's prospect detail capture
+those events.
+
+---
+
 ## Part B — Sales Navigator API mode (advanced)
 
 > ⚠️  LinkedIn's partner APIs are gated. You must already have an approved

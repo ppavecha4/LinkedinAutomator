@@ -25,7 +25,7 @@ const CHANNEL_INFO: Record<
   linkedin: {
     label: 'LinkedIn',
     icon: '💼',
-    note: 'Partner API — 280-char connection note, daily quota enforced.',
+    note: 'Partner API — 300-char connection note (LinkedIn limit), daily quota enforced.',
   },
   whatsapp: {
     label: 'WhatsApp',

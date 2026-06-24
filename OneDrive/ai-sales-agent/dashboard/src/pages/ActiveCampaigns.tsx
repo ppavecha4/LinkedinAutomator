@@ -8,9 +8,15 @@
 import { motion } from 'framer-motion';
 import {
   Activity,
+  Archive,
   CalendarCheck,
+  Copy,
   Mail,
   MessageSquare,
+  MoreHorizontal,
+  Pause,
+  Pencil,
+  Play,
   PlusCircle,
   Radio,
   Sparkles,
@@ -19,13 +25,34 @@ import {
   Users,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import StatusBadge from '../components/StatusBadge';
 import { AnimatedNumber } from '../components/ui/animated-number';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { PageHeader } from '../components/ui/page-header';
 import { StatCard } from '../components/ui/stat-card';
-import { useCampaigns, useSetCampaignStatus } from '../hooks/useCampaigns';
+import {
+  useCampaigns,
+  useCloneCampaign,
+  useSetCampaignStatus,
+} from '../hooks/useCampaigns';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { cn } from '../lib/cn';
 import { formatNumber } from '../lib/format';
@@ -70,8 +97,55 @@ function MiniFunnel({ c }: { c: Campaign }) {
  * ──────────────────────────────────────────────────────────────── */
 function CampaignCard({ campaign, index }: { campaign: Campaign; index: number }) {
   const setStatus = useSetCampaignStatus();
+  const cloneCampaign = useCloneCampaign();
+  const navigate = useNavigate();
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const canPause = campaign.status === 'ACTIVE';
   const canResume = campaign.status === 'PAUSED';
+
+  // Action handlers — wrapped to fire toasts on success/error so the
+  // operator sees feedback for every menu action.
+  const handlePause = () =>
+    setStatus.mutate(
+      { id: campaign.id, status: 'PAUSED' },
+      {
+        onSuccess: () => toast.success(`Paused: ${campaign.name}`),
+        onError: (e) => toast.error(`Pause failed: ${(e as Error).message}`),
+      },
+    );
+  const handleResume = () =>
+    setStatus.mutate(
+      { id: campaign.id, status: 'ACTIVE' },
+      {
+        onSuccess: () => toast.success(`Resumed: ${campaign.name}`),
+        onError: (e) => toast.error(`Resume failed: ${(e as Error).message}`),
+      },
+    );
+  const handleClone = () =>
+    cloneCampaign.mutate(campaign.id, {
+      onSuccess: (newCampaign) => {
+        toast.success('Campaign duplicated', {
+          description: 'Renaming and sending you to the editor…',
+        });
+        navigate(`/campaigns/${newCampaign.id}/edit`);
+      },
+      onError: (e) =>
+        toast.error(`Duplicate failed: ${(e as Error).message}`),
+    });
+  const handleArchiveConfirmed = () =>
+    setStatus.mutate(
+      { id: campaign.id, status: 'ARCHIVED' },
+      {
+        onSuccess: () => {
+          toast.success(`Archived: ${campaign.name}`, {
+            description:
+              'It will no longer appear in the campaigns list. Reopen by changing status from the API.',
+          });
+          setConfirmArchive(false);
+        },
+        onError: (e) => toast.error(`Archive failed: ${(e as Error).message}`),
+      },
+    );
 
   return (
     <motion.div
@@ -135,20 +209,24 @@ function CampaignCard({ campaign, index }: { campaign: Campaign; index: number }
         <div className="flex-1 bg-pitch-consulting" title="Consulting" />
       </div>
 
-      <div className="flex gap-2 justify-end pt-2 border-t border-border/60">
+      <div className="flex items-center gap-2 justify-end pt-2 border-t border-border/60">
         {canPause && (
           <button
             className="btn-ghost text-xs h-7 px-3"
-            onClick={() => setStatus.mutate({ id: campaign.id, status: 'PAUSED' })}
+            onClick={handlePause}
+            disabled={setStatus.isPending}
           >
+            <Pause className="h-3 w-3" />
             Pause
           </button>
         )}
         {canResume && (
           <button
             className="btn-ghost text-xs h-7 px-3"
-            onClick={() => setStatus.mutate({ id: campaign.id, status: 'ACTIVE' })}
+            onClick={handleResume}
+            disabled={setStatus.isPending}
           >
+            <Play className="h-3 w-3" />
             Resume
           </button>
         )}
@@ -158,7 +236,73 @@ function CampaignCard({ campaign, index }: { campaign: Campaign; index: number }
         >
           View pipeline
         </Link>
+
+        {/* Kebab menu — Edit / Duplicate / Archive */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="More actions"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Manage</DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={() => navigate(`/campaigns/${campaign.id}/edit`)}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit campaign
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={handleClone}
+              disabled={cloneCampaign.isPending}
+            >
+              <Copy className="h-4 w-4" />
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => setConfirmArchive(true)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Archive className="h-4 w-4" />
+              Archive…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      {/* Archive confirmation — irreversible-ish, so always confirm */}
+      <Dialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive campaign?</DialogTitle>
+            <DialogDescription>
+              <strong className="text-foreground">{campaign.name}</strong> will
+              be removed from the campaigns list and stop processing prospects.
+              You can still see its data via direct URL but it won't appear in
+              the dashboard's lists or analytics by default.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2">
+            <button
+              className="btn-secondary text-sm h-9 px-4"
+              onClick={() => setConfirmArchive(false)}
+              disabled={setStatus.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn text-sm h-9 px-4 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleArchiveConfirmed}
+              disabled={setStatus.isPending}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              {setStatus.isPending ? 'Archiving…' : 'Archive'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

@@ -61,6 +61,10 @@ services:
     depends_on: [postgres, redis]
     volumes:
       - ./services/orchestrator/src:/app/src
+      # Read-only mount of the email signature + logo so edits to
+      # config/email_signature.{html,txt} or config/logo.png take effect
+      # on the next send without rebuilding the image.
+      - ./config:/app/config:ro
 
   outreach-worker:
     build: ./services/outreach-worker
@@ -71,6 +75,7 @@ services:
     depends_on: [postgres, redis]
     volumes:
       - ./services/outreach-worker/src:/app/src
+      - ./config:/app/config:ro
 
   reply-processor:
     build: ./services/reply-processor
