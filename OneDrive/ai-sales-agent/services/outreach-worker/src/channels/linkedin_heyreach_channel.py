@@ -330,11 +330,14 @@ class LinkedInHeyreachChannel:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         company_name: Optional[str] = None,
+        followup: str = "",
     ) -> dict:
         """Construct the Heyreach AddLeadsToCampaign payload.
 
-        `customField1` carries our pre-personalised body so the
-        operator's Heyreach template can reference it verbatim.
+        customField1 = Step 1 connection note (pre-personalised by us).
+        customField2 = Step 2 post-accept DM body with the meeting
+        link, also pre-personalised. Both reference verbatim in the
+        Heyreach template.
         """
         return {
             "campaignId": campaign_id,
@@ -345,6 +348,7 @@ class LinkedInHeyreachChannel:
                     "lastName": last_name or "",
                     "companyName": company_name or "",
                     "customField1": note,
+                    "customField2": followup,
                 }
             ],
         }

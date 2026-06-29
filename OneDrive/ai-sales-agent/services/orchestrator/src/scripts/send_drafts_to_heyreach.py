@@ -48,6 +48,14 @@ from typing import Optional
 import asyncpg
 import httpx
 
+# Local import — keeps the script runnable both inside the orchestrator
+# container (where /app/src is on PYTHONPATH) and via direct python -m
+# from the repo root.
+try:
+    from agents.followup_agent import generate_followup_body
+except ImportError:  # pragma: no cover — fallback for repo-root invocation
+    from src.agents.followup_agent import generate_followup_body  # type: ignore
+
 HEYREACH_BASE = "https://api.heyreach.io/api/public"
 
 
@@ -61,8 +69,13 @@ async def push_one_lead(
     last_name: str,
     company_name: str,
     note: str,
+    followup: str = "",
 ) -> tuple[bool, Optional[str], Optional[str]]:
-    """Returns (ok, heyreach_lead_id, error_text)."""
+    """Returns (ok, heyreach_lead_id, error_text).
+
+    customField1 = Step 1 connection note. customField2 = Step 2 DM
+    body with the meeting link, fired after the prospect accepts.
+    """
     payload = {
         "campaignId": heyreach_campaign_id,
         "leads": [
@@ -72,6 +85,7 @@ async def push_one_lead(
                 "lastName": last_name or "",
                 "companyName": company_name or "",
                 "customField1": note,
+                "customField2": followup,
             }
         ],
     }
@@ -153,10 +167,16 @@ async def main(args: argparse.Namespace) -> None:
                        c.id::text       AS contact_id,
                        c.full_name,
                        c.linkedin_url,
-                       p.company_name
+                       c.title,
+                       p.company_name,
+                       p.industry,
+                       p.pitch_type,
+                       camp.sender_name,
+                       camp.sender_company
                   FROM messages m
                   JOIN contacts  c ON c.id = m.contact_id
                   JOIN prospects p ON p.id = c.prospect_id
+                  JOIN campaigns camp ON camp.id = m.campaign_id
                  WHERE m.campaign_id = $1
                    AND m.channel     = 'linkedin'
                    AND m.status      = 'DRAFTED'
@@ -204,6 +224,27 @@ async def main(args: argparse.Namespace) -> None:
                 if args.dry_run:
                     continue
 
+                # Generate the post-accept DM body that lands in
+                # customField2 — used by Heyreach Step 2 (sent
+                # automatically after the prospect accepts the
+                # connection request). The function never raises; it
+                # falls back to a deterministic template on any error.
+                calendly_url = (
+                    os.environ.get("CALENDLY_MEETING_URL") or ""
+                ).strip()
+                followup_body = ""
+                if calendly_url:
+                    followup_body = await generate_followup_body(
+                        first_name=first_name,
+                        company_name=r["company_name"] or "",
+                        title=r["title"],
+                        industry=r["industry"],
+                        pitch_type=r["pitch_type"],
+                        sender_name=r["sender_name"] or "",
+                        sender_company=r["sender_company"] or "",
+                        calendly_url=calendly_url,
+                    )
+
                 ok, lead_id, error = await push_one_lead(
                     client,
                     api_key,
@@ -213,6 +254,7 @@ async def main(args: argparse.Namespace) -> None:
                     last_name=last_name,
                     company_name=r["company_name"] or "",
                     note=r["body"],
+                    followup=followup_body,
                 )
                 if not ok:
                     print(f"    ✗ FAILED: {error}")
