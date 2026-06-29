@@ -75,17 +75,29 @@ async def push_one_lead(
 
     customField1 = Step 1 connection note. customField2 = Step 2 DM
     body with the meeting link, fired after the prospect accepts.
+
+    As of June 2026 Heyreach's AddLeadsToCampaign requires the
+    `accountLeadPairs` shape — each lead paired with the LinkedIn
+    account id that should send it. HEYREACH_LINKEDIN_ACCOUNT_ID env
+    picks which connected account; if unset the API call fails with
+    "AccountLeadPairs field is required".
     """
+    li_account_id = (os.environ.get("HEYREACH_LINKEDIN_ACCOUNT_ID") or "").strip()
     payload = {
-        "campaignId": heyreach_campaign_id,
-        "leads": [
+        "campaignId": int(heyreach_campaign_id),
+        "accountLeadPairs": [
             {
-                "linkedInProfileUrl": linkedin_url,
-                "firstName": first_name or "",
-                "lastName": last_name or "",
-                "companyName": company_name or "",
-                "customField1": note,
-                "customField2": followup,
+                "linkedInAccountId": int(li_account_id) if li_account_id else None,
+                "lead": {
+                    "linkedInProfileUrl": linkedin_url,
+                    "firstName": first_name or "",
+                    "lastName": last_name or "",
+                    "companyName": company_name or "",
+                    "customUserFields": [
+                        {"name": "customField1", "value": note},
+                        {"name": "customField2", "value": followup},
+                    ],
+                },
             }
         ],
     }
@@ -108,11 +120,18 @@ async def push_one_lead(
         body = r.json()
     except ValueError:
         body = {}
-    lead_id = (
-        body.get("leadId")
-        or (body.get("leads") or [{}])[0].get("leadId")
-        or (body.get("data") or {}).get("leadId")
-    )
+    # Heyreach's AddLeadsToCampaign sometimes returns a plain integer
+    # (the count of leads added) rather than a JSON object. Be lenient:
+    # we don't strictly need the lead id — the campaign id is enough to
+    # trace the lead in Heyreach UI if anything goes wrong.
+    if isinstance(body, dict):
+        lead_id = (
+            body.get("leadId")
+            or (body.get("leads") or [{}])[0].get("leadId")
+            or (body.get("data") or {}).get("leadId")
+        )
+    else:
+        lead_id = None
     return True, lead_id, None
 
 
