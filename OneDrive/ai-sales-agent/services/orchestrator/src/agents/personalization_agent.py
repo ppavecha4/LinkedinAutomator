@@ -269,7 +269,7 @@ from typing import Any as _Any, Dict as _Dict, Iterable as _Iterable, List as _L
 
 _logger = _logging.getLogger(__name__)
 
-PERSONALIZATION_MODEL = "claude-sonnet-4-20250514"
+PERSONALIZATION_MODEL = "claude-sonnet-4-6"
 PERSONALIZATION_MAX_TOKENS = 2000
 
 

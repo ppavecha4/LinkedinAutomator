@@ -23,7 +23,7 @@ import textwrap
 import asyncpg
 import httpx
 
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 PROMPT = textwrap.dedent("""\
     You are writing a personalised outbound message on behalf of {sender_name}

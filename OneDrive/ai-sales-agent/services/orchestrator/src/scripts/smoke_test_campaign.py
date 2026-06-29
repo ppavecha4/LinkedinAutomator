@@ -38,7 +38,7 @@ APOLLO_BASE = "https://api.apollo.io/api/v1"
 APOLLO_UA = "AiSalesAgent-SmokeTest/0.1"
 
 # ─── Anthropic ──────────────────────────────────────────────────────────
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # ─── Channel order in the sequence ──────────────────────────────────────
 CHANNELS = ["linkedin", "email", "whatsapp"]

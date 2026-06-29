@@ -34,7 +34,7 @@ import textwrap
 import asyncpg
 import httpx
 
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # Long-form LinkedIn prompt. Asks for a substantive, multi-paragraph
 # message that reads naturally — not a connection-request note. ~300

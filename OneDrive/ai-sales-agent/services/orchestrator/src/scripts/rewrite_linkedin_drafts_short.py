@@ -26,7 +26,7 @@ import textwrap
 import asyncpg
 import httpx
 
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # Connection-note prompt — the same shape as the smoke-test prompt for
 # LinkedIn but pulled out as its own script so we can iterate on it
