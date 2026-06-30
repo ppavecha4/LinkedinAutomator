@@ -59,10 +59,44 @@ except ImportError:  # pragma: no cover — fallback for repo-root invocation
 HEYREACH_BASE = "https://api.heyreach.io/api/public"
 
 
-async def push_one_lead(
+async def _get_campaign_list_id(
     client: httpx.AsyncClient,
     api_key: str,
     heyreach_campaign_id: str,
+) -> Optional[int]:
+    """Fetch the `linkedInUserListId` for a Heyreach campaign.
+
+    Heyreach's V2 add-leads flow goes through the campaign's lead list
+    (NOT the campaign directly). The list id is on the campaign object
+    returned by GetAll/GetById.
+    """
+    try:
+        r = await client.post(
+            f"{HEYREACH_BASE}/campaign/GetAll",
+            headers={
+                "X-API-KEY": api_key,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json={"offset": 0, "limit": 100},
+            timeout=15.0,
+        )
+        if r.status_code != 200:
+            return None
+        body = r.json()
+        for item in body.get("items", []):
+            if str(item.get("id")) == str(heyreach_campaign_id):
+                lid = item.get("linkedInUserListId")
+                return int(lid) if lid is not None else None
+    except (httpx.RequestError, ValueError, KeyError):
+        return None
+    return None
+
+
+async def push_one_lead(
+    client: httpx.AsyncClient,
+    api_key: str,
+    heyreach_list_id: int,
     *,
     linkedin_url: str,
     first_name: str,
@@ -71,39 +105,40 @@ async def push_one_lead(
     note: str,
     followup: str = "",
 ) -> tuple[bool, Optional[str], Optional[str]]:
-    """Returns (ok, heyreach_lead_id, error_text).
+    """Push one lead into Heyreach. Returns (ok, lead_id, error).
 
-    customField1 = Step 1 connection note. customField2 = Step 2 DM
-    body with the meeting link, fired after the prospect accepts.
+    Calls `/list/AddLeadsToListV2` which is the only endpoint that
+    actually accepts leads programmatically — `/campaign/AddLeadsToCampaign`
+    accepts but silently drops everything because the field name
+    `linkedInProfileUrl` is wrong (must be `profileUrl`) and the campaign
+    must be IN_PROGRESS at the moment of the call. The list endpoint is
+    robust regardless of campaign state.
 
-    As of June 2026 Heyreach's AddLeadsToCampaign requires the
-    `accountLeadPairs` shape — each lead paired with the LinkedIn
-    account id that should send it. HEYREACH_LINKEDIN_ACCOUNT_ID env
-    picks which connected account; if unset the API call fails with
-    "AccountLeadPairs field is required".
+    customField1 = Step 1 connection note (Heyreach's `{{customField1}}`
+    template renders this verbatim). customField2 = Step 2 DM body with
+    the meeting link, fires after the prospect accepts the connection.
     """
-    li_account_id = (os.environ.get("HEYREACH_LINKEDIN_ACCOUNT_ID") or "").strip()
+    # Heyreach's V2 endpoint expects the URL with `https` scheme; `http`
+    # variants silently fail validation.
+    url = (linkedin_url or "").replace("http://", "https://", 1)
     payload = {
-        "campaignId": int(heyreach_campaign_id),
-        "accountLeadPairs": [
+        "listId": heyreach_list_id,
+        "leads": [
             {
-                "linkedInAccountId": int(li_account_id) if li_account_id else None,
-                "lead": {
-                    "linkedInProfileUrl": linkedin_url,
-                    "firstName": first_name or "",
-                    "lastName": last_name or "",
-                    "companyName": company_name or "",
-                    "customUserFields": [
-                        {"name": "customField1", "value": note},
-                        {"name": "customField2", "value": followup},
-                    ],
-                },
+                "profileUrl": url,
+                "firstName": first_name or "",
+                "lastName": last_name or "",
+                "companyName": company_name or "",
+                "customUserFields": [
+                    {"name": "customField1", "value": note},
+                    {"name": "customField2", "value": followup},
+                ],
             }
         ],
     }
     try:
         r = await client.post(
-            f"{HEYREACH_BASE}/campaign/AddLeadsToCampaign",
+            f"{HEYREACH_BASE}/list/AddLeadsToListV2",
             headers={
                 "X-API-KEY": api_key,
                 "Content-Type": "application/json",
@@ -120,19 +155,13 @@ async def push_one_lead(
         body = r.json()
     except ValueError:
         body = {}
-    # Heyreach's AddLeadsToCampaign sometimes returns a plain integer
-    # (the count of leads added) rather than a JSON object. Be lenient:
-    # we don't strictly need the lead id — the campaign id is enough to
-    # trace the lead in Heyreach UI if anything goes wrong.
-    if isinstance(body, dict):
-        lead_id = (
-            body.get("leadId")
-            or (body.get("leads") or [{}])[0].get("leadId")
-            or (body.get("data") or {}).get("leadId")
-        )
-    else:
-        lead_id = None
-    return True, lead_id, None
+    added = (body.get("addedLeadsCount") or 0) if isinstance(body, dict) else 0
+    updated = (body.get("updatedLeadsCount") or 0) if isinstance(body, dict) else 0
+    if added == 0 and updated == 0:
+        # Most common cause: profile URL is malformed or the lead
+        # already exists somewhere Heyreach considers a duplicate.
+        return False, None, "heyreach silently rejected (0/0/0)"
+    return True, None, None
 
 
 async def main(args: argparse.Namespace) -> None:
@@ -177,6 +206,21 @@ async def main(args: argparse.Namespace) -> None:
             f"(source: "
             f"{'--campaign flag' if args.campaign else 'campaigns.heyreach_campaign_id' if campaign_row['heyreach_campaign_id'] else 'HEYREACH_CAMPAIGN_ID env'})"
         )
+
+        # Heyreach's V2 lead-add endpoint targets a LIST, not the
+        # campaign directly. Look up the campaign's bound list id so the
+        # push lands somewhere the operator's campaign actually reads.
+        async with httpx.AsyncClient() as _client:
+            heyreach_list_id = await _get_campaign_list_id(
+                _client, api_key, heyreach_campaign_id,
+            )
+        if heyreach_list_id is None:
+            raise SystemExit(
+                f"Could not resolve linkedInUserListId for Heyreach campaign "
+                f"{heyreach_campaign_id}. Either the campaign doesn't exist "
+                "or the API key lacks read access."
+            )
+        print(f"  → bound lead list: {heyreach_list_id}")
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -267,7 +311,7 @@ async def main(args: argparse.Namespace) -> None:
                 ok, lead_id, error = await push_one_lead(
                     client,
                     api_key,
-                    heyreach_campaign_id,
+                    heyreach_list_id,
                     linkedin_url=r["linkedin_url"],
                     first_name=first_name,
                     last_name=last_name,
