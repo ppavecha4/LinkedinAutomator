@@ -37,6 +37,7 @@ import {
 import * as React from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
+import { useAuth } from '../lib/authContext';
 import { cn } from '../lib/cn';
 import { useSidebarCollapse } from '../lib/sidebar';
 import { useTheme } from '../lib/theme';
@@ -104,6 +105,7 @@ export default function Layout(): React.ReactElement {
   const { resolvedTheme, toggle: toggleTheme } = useTheme();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const { collapsed, toggle: toggleSidebar } = useSidebarCollapse();
   const palette = useCommandPalette();
 
@@ -402,7 +404,13 @@ export default function Layout(): React.ReactElement {
                   Help & docs
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={async () => {
+                    await logout();
+                    navigate('/login', { replace: true });
+                  }}
+                >
                   <LogOut className="h-4 w-4" />
                   Sign out
                 </DropdownMenuItem>

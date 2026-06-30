@@ -34,7 +34,13 @@ async function request<T>(
     headers.set('Content-Type', 'application/json');
   }
   headers.set('X-Dev-User', DEV_USER_ID);
-  const response = await fetch(url, { ...init, headers });
+  // Always send cookies — required for the local-auth session cookie.
+  // Harmless in dev (no cookie set) or Bearer-token deployments.
+  const response = await fetch(url, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
   let body: ApiResponseBody<T> | null = null;
   try {
     body = (await response.json()) as ApiResponseBody<T>;

@@ -41,12 +41,21 @@ export const env = {
   // Auth
   // AUTH_MODE:
   //   bypass   → local dev, trusts X-Dev-User header (or a fixed fake user)
+  //   local    → email + bcrypt-password gate, issues JWT in HttpOnly cookie
+  //              (single-user; suitable for solo-operator deployments)
   //   cognito  → production, verifies Bearer token via Cognito JWKS
-  authMode: str('AUTH_MODE', 'bypass') as 'bypass' | 'cognito',
+  authMode: str('AUTH_MODE', 'bypass') as 'bypass' | 'local' | 'cognito',
   cognitoRegion: str('COGNITO_REGION', str('AWS_REGION', 'ap-south-1')),
   cognitoUserPoolId: str('COGNITO_USER_POOL_ID', ''),
   cognitoClientId: str('COGNITO_CLIENT_ID', ''),
   devUserId: str('DEV_USER_ID', '00000000-0000-0000-0000-000000000001'),
+
+  // Local auth (only used when authMode='local')
+  authUserEmail: str('AUTH_USER_EMAIL', ''),
+  authUserPasswordBcrypt: str('AUTH_USER_PASSWORD_BCRYPT', ''),
+  authJwtSecret: str('AUTH_JWT_SECRET', ''),
+  authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
+  authCookieName: str('AUTH_COOKIE_NAME', 'sa_session'),
 
   // AWS / SQS
   awsRegion: str('AWS_REGION', 'ap-south-1'),

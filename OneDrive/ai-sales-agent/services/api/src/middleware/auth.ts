@@ -83,6 +83,38 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
     return next();
   }
 
+  if (env.authMode === 'local') {
+    // Cookie-based session: HS256 JWT minted by POST /api/auth/login.
+    // No JWKS round-trip, no Bearer header needed.
+    const token = (req as Request & { cookies?: Record<string, string> })
+      .cookies?.[env.authCookieName];
+    if (!token) {
+      return next(ApiError.unauthorized('not signed in'));
+    }
+    if (!env.authJwtSecret) {
+      return next(ApiError.internal('auth misconfigured'));
+    }
+    try {
+      const decoded = jwt.verify(token, env.authJwtSecret, {
+        algorithms: ['HS256'],
+      }) as jwt.JwtPayload & { email?: string };
+      const id = (decoded.sub as string | undefined) ?? '';
+      if (!id) return next(ApiError.unauthorized('session missing sub'));
+      req.user = {
+        id,
+        sub: id,
+        email: decoded.email,
+        token_use: 'local',
+      };
+      return next();
+    } catch (e) {
+      logger.warn('local session verify failed', {
+        error: (e as Error).message,
+      });
+      return next(ApiError.unauthorized('invalid session'));
+    }
+  }
+
   const header = req.header('authorization') || req.header('Authorization');
   if (!header || !header.toLowerCase().startsWith('bearer ')) {
     return next(ApiError.unauthorized('missing bearer token'));
