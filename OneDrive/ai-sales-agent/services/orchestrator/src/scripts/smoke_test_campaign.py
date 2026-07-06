@@ -78,9 +78,11 @@ async def find_prospects(
         # to do a separate companies search + org-id stitching, which is
         # unreliable because the org_ids returned from the company search
         # don't always match the org ids attached to people).
+        # Apollo caps per_page at 100. Over-fetch (want*3) to leave
+        # headroom for dedup-by-org, but clamp to Apollo's max.
         ppl_body: dict[str, Any] = {
             "page": 1,
-            "per_page": max(want * 3, 25),
+            "per_page": max(min(want * 3, 100), 25),
             "person_titles": titles,
             "person_seniorities": ["c_suite", "vp", "director"],
         }

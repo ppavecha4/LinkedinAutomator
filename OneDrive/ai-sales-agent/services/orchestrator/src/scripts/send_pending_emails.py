@@ -244,15 +244,33 @@ def build_message(
         if html_body:
             html_body = html_body.replace("{{unsubscribe_link}}", unsub_url)
 
-    # ── Compose the text + HTML versions, with signature appended ──
+    # ── Compose the text + HTML versions ──
     full_text = text_body or _strip_html(html_body or "")
-    if signature_text:
-        # RFC 3676 sigdash already in the file; just join with a blank line.
-        full_text = full_text.rstrip() + "\n\n" + signature_text.lstrip()
-
-    # Always emit an HTML alternative so the signature renders. If the
-    # caller only provided text, wrap it into minimal HTML.
     full_html = html_body or _wrap_text_as_html(text_body or "")
+
+    # Inject the meeting-link CTA above the signature. AI-drafted bodies
+    # occasionally forget to include the Calendly URL — this block
+    # guarantees every email carries a booking link. Skipped if the URL
+    # is already present in the body (idempotent).
+    calendly_url = (os.environ.get("CALENDLY_MEETING_URL") or "").strip()
+    if calendly_url and calendly_url not in full_text:
+        cta_text = (
+            f"\n\nIf a 15-min chat makes sense, here's my calendar:\n{calendly_url}\n"
+        )
+        cta_html = (
+            f'<p style="margin:16px 0;font-family:Arial,Helvetica,sans-serif;'
+            f'font-size:14px;line-height:1.5;color:#374151;">'
+            f'If a 15-min chat makes sense, here\'s my calendar: '
+            f'<a href="{calendly_url}" '
+            f'style="color:#0a66c2;text-decoration:underline;">'
+            f'{calendly_url}</a></p>'
+        )
+        full_text = full_text.rstrip() + cta_text
+        full_html = full_html + cta_html
+
+    # Append the signature block.
+    if signature_text:
+        full_text = full_text.rstrip() + "\n\n" + signature_text.lstrip()
     if signature_html:
         full_html = full_html + signature_html
 
