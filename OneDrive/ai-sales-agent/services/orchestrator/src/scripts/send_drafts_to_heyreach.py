@@ -59,6 +59,41 @@ except ImportError:  # pragma: no cover — fallback for repo-root invocation
 HEYREACH_BASE = "https://api.heyreach.io/api/public"
 
 
+async def _resume_campaign(
+    client: httpx.AsyncClient,
+    api_key: str,
+    heyreach_campaign_id: str,
+) -> tuple[bool, str]:
+    """POST /campaign/Resume to nudge Heyreach into sending mode.
+
+    Heyreach auto-completes campaigns whose list was empty at activation
+    time. After we push leads via the list-add endpoint the campaign is
+    still marked FINISHED and won't send anything until it's resumed.
+    This call fixes that for us so the operator doesn't need to click.
+
+    Returns (ok, note). `ok=True` for status transitions AND for the
+    benign "already running" 400 (which means Heyreach is happy).
+    """
+    try:
+        r = await client.post(
+            f"{HEYREACH_BASE}/campaign/Resume",
+            headers={"X-API-KEY": api_key, "Accept": "application/json"},
+            params={"campaignId": heyreach_campaign_id},
+            timeout=15.0,
+        )
+    except httpx.RequestError as e:
+        return False, f"network: {e}"
+    if r.status_code == 200:
+        return True, "resumed"
+    if r.status_code == 400:
+        # Common case: campaign is already IN_PROGRESS, which is fine.
+        body = r.text.lower()
+        if "not paused" in body or "not finished" in body or "already" in body:
+            return True, "already running"
+        return False, f"400: {r.text[:120]}"
+    return False, f"http {r.status_code}: {r.text[:120]}"
+
+
 async def _get_campaign_list_id(
     client: httpx.AsyncClient,
     api_key: str,
@@ -372,6 +407,17 @@ async def main(args: argparse.Namespace) -> None:
                             lead_id,
                         )
                 sent += 1
+
+        # Nudge Heyreach to resume — needed when the campaign auto-
+        # completed because its list was empty at activation time.
+        # No-op (returns "already running") when the campaign is
+        # already IN_PROGRESS.
+        if sent > 0 and not args.dry_run:
+            async with httpx.AsyncClient() as _client:
+                ok, note = await _resume_campaign(
+                    _client, api_key, heyreach_campaign_id,
+                )
+            print(f"[resume] heyreach {heyreach_campaign_id}: {note}")
 
         print(
             f"\n[done] sent={sent}  skipped={skipped}  failed={failed}"
