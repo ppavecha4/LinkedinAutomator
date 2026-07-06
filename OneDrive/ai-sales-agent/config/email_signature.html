@@ -1,0 +1,54 @@
+<!--
+  Email signature — HTML version.
+
+  Loaded at send time by send_pending_emails.py and the
+  GoogleWorkspaceEmailChannel. Edits take effect on next send.
+
+  Constraints:
+    - Use TABLES, not flexbox/grid. Outlook strips most CSS.
+    - Inline every style. <style> blocks get stripped by Gmail.
+    - No external fonts. Arial / Helvetica / sans-serif only.
+    - No remote images. Logo attached as inline MIME (cid:logo).
+    - Keep total footprint < 8KB. Gmail clips long messages.
+-->
+<table cellpadding="0" cellspacing="0" border="0"
+       style="border-collapse: collapse; font-family: Arial, Helvetica, sans-serif; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e5e5;">
+  <tr>
+    <td valign="middle" align="center" bgcolor="#0f172a"
+        style="background-color: #0f172a; padding: 12px 14px; border-radius: 8px;"
+        width="106">
+      <img src="cid:logo" alt="Appson Technologies"
+           width="86" height="auto"
+           style="display: block; border: 0; outline: none; max-width: 86px;" />
+    </td>
+    <td valign="top"
+        style="border-left: 2px solid #6366f1; padding-left: 18px; padding-top: 2px; line-height: 1.5;">
+      <div style="font-size: 14px; font-weight: 600; color: #111827; letter-spacing: -0.01em;">
+        Prateek Pavecha
+      </div>
+      <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+        CEO, Appson Technologies
+      </div>
+      <div style="font-size: 11.5px; color: #9ca3af; margin-top: 8px;">
+        A-101, Radhakrishna Complex, Geetabhawan Square<br />
+        Indore, India
+      </div>
+      <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+        Phone:
+        <a href="tel:+917314985315"
+           style="color: #6b7280; text-decoration: none;">+91 0731-4985315</a>
+        <span style="color: #d1d5db; margin: 0 6px;">|</span>
+        Mobile:
+        <a href="tel:+918871908038"
+           style="color: #6b7280; text-decoration: none;">+91 8871908038</a>
+      </div>
+      <div style="font-size: 12px; color: #6b7280; margin-top: 3px;">
+        <a href="mailto:prateek.pavecha@appsontechnologies.in"
+           style="color: #6366f1; text-decoration: none;">prateek.pavecha@appsontechnologies.in</a>
+        <span style="color: #d1d5db; margin: 0 6px;">|</span>
+        <a href="https://www.appsontechnologies.in"
+           style="color: #6366f1; text-decoration: none;">www.appsontechnologies.in</a>
+      </div>
+    </td>
+  </tr>
+</table>
