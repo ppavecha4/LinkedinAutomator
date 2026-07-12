@@ -113,6 +113,35 @@ def _referenced_message_ids(msg: Message) -> list[str]:
     return ids
 
 
+# Auto-reply / out-of-office detection. An OOO or vacation autoresponder
+# is NOT a real reply — it must not mark the prospect REPLIED or stop the
+# sequence (they're just away). RFC 3834 defines Auto-Submitted; most
+# clients also set one of the X-Auto* headers or a tell-tale subject.
+_AUTO_SUBJECT_RE = re.compile(
+    r"(out of (the )?office|automatic reply|auto[- ]?reply|autoreply|"
+    r"resposta autom|respuesta autom|r[eé]ponse automatique|"
+    r"automatische antwort|abwesen|vacation|on leave|annual leave|"
+    r"away from|ferienabwesenheit|f[eé]rias)",
+    re.IGNORECASE,
+)
+
+
+def _is_auto_reply(msg: Message) -> bool:
+    auto_sub = (msg.get("Auto-Submitted") or "").strip().lower()
+    if auto_sub and auto_sub != "no":
+        return True
+    for h in ("X-Autoreply", "X-Autorespond", "X-Auto-Response-Suppress",
+              "X-Autoreply-From", "X-POST-MessageClass"):
+        if msg.get(h):
+            return True
+    prec = (msg.get("Precedence") or "").strip().lower()
+    if prec in ("auto_reply", "bulk", "junk", "list"):
+        return True
+    if _AUTO_SUBJECT_RE.search(msg.get("Subject") or ""):
+        return True
+    return False
+
+
 # ─── IMAP (blocking — run in a thread) ──────────────────────────────────
 
 def _fetch_new_messages(
@@ -309,6 +338,11 @@ async def main(args: argparse.Namespace) -> None:
             sender = email.utils.parseaddr(from_hdr)[1].lower()
             # Ignore our own sent copies / automated noise.
             if not sender or sender == email_addr.lower():
+                skipped += 1
+                continue
+            # Out-of-office / vacation autoresponders are not real replies.
+            if _is_auto_reply(msg):
+                print(f"  skip auto-reply from {sender}")
                 skipped += 1
                 continue
             ref_ids = _referenced_message_ids(msg)
