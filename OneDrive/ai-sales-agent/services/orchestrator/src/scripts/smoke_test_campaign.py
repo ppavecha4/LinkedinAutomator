@@ -33,6 +33,15 @@ from typing import Any, Optional
 import asyncpg
 import httpx
 
+# Service-line routing + global market positioning. Import works both
+# inside the container (/app/src on path) and from repo root.
+try:
+    from agents.service_router import route_prospect
+    from agents.market_tiers import positioning_brief
+except ImportError:  # pragma: no cover
+    from src.agents.service_router import route_prospect  # type: ignore
+    from src.agents.market_tiers import positioning_brief  # type: ignore
+
 # ─── Apollo ─────────────────────────────────────────────────────────────
 APOLLO_BASE = "https://api.apollo.io/api/v1"
 APOLLO_UA = "AiSalesAgent-SmokeTest/0.1"
@@ -201,8 +210,16 @@ async def enrich_prospects(
 
 # ─── Anthropic personalisation ──────────────────────────────────────────
 PROMPT = textwrap.dedent("""\
-    You are writing a personalised outbound message on behalf of {sender_name}
-    at {sender_company}. Tone: {tone}. Goal: {goal}.
+    You are writing a personalised cold outbound message on behalf of
+    {sender_name} at {sender_company}. Tone: {tone}. Goal: {goal}.
+
+    {sender_company} offers TWO service lines from one talent pool:
+      - AI Consulting: AI/automation strategy + build (agents, RPA, GenAI)
+      - Staff Augmentation: contract developers + distributed remote
+        teams across DevOps, Microsoft, SAP, Salesforce, web, mobile, CMS,
+        and AI/ML.
+    USPs: speed to start, pre-vetted senior talent, cost advantage, and a
+    deep AI/ML niche.
 
     Sender's value proposition:
     {value_prop}
@@ -211,21 +228,38 @@ PROMPT = textwrap.dedent("""\
       - Name:    {contact_name}
       - Title:   {contact_title}
       - Company: {company_name} ({industry}, ~{employee_count} employees)
+      - Country: {country}
+
+    THIS MESSAGE'S STRATEGY (follow it precisely):
+      - Service line to pitch:  {service_line}
+      - Capability to lead with: {capability}
+      - Market positioning ({market_tier}): {positioning_angle}
+      - Proof points you may draw from: {proof_points}
+
+    HARD RULES:
+      - Do NOT quote any rate, price, hourly figure, or currency amount.
+        We sell the CONVERSATION, not a number. Position on value and
+        drive to a short call. Pricing is discussed live, with context.
+      - Ground the message in ONE specific, real detail about their
+        company or role. No generic "I came across your profile".
+      - Match the capability above to something plausibly relevant to
+        them — do not list all our services.
 
     Channel: {channel}
-    Pitch angle: {pitch_type}
-
-    Write ONE message. Constraints by channel:
+    Constraints by channel:
       - linkedin: connection-request note STRICTLY ≤ 300 characters
-        (count yourself; LinkedIn rejects oversize notes). Friendly,
-        mention 1 relevant detail about their company. NO sign-off
-        ("Best regards, X") — the operator's name is implicit.
-      - email: 80–120 words, professional, end with a clear single CTA
-        ("worth a 20-min call?"). No subject line in the body.
-      - whatsapp: ≤ 300 chars, conversational, include "Reply STOP to opt out."
+        (count yourself; LinkedIn rejects oversize notes). Warm, one
+        relevant detail, soft ask to connect. NO sign-off.
+      - email: 80–120 words, professional, ONE clear CTA
+        ("worth a quick 15-min call?"). No subject line in the body.
+        Do NOT add a sign-off ("Best regards, X" / "Warm regards, X") —
+        a full signature block is appended automatically; a sign-off
+        here would duplicate the sender's name.
+      - whatsapp: ≤ 300 chars, conversational, include
+        "Reply STOP to opt out."
 
-    Output ONLY the message body. No greeting prefix like "Here's the
-    message:". No surrounding quotes.
+    Output ONLY the message body. No preamble like "Here's the message:".
+    No surrounding quotes.
 """)
 
 
@@ -271,8 +305,17 @@ async def generate_message(
     prospect: dict,
     channel: str,
     pitch_type: str,
+    routing: Optional[dict] = None,
 ) -> tuple[str, str]:
-    """Returns (body, source) where source is 'anthropic' or 'fallback'."""
+    """Returns (body, source) where source is 'anthropic' or 'fallback'.
+
+    `routing` is the service_router decision (service_line, capability,
+    market_tier). When present we inject the market-tiered positioning
+    so the copy adapts per region + service line.
+    """
+    routing = routing or {}
+    country = prospect["company"].get("country") or "—"
+    brief = positioning_brief(prospect["company"].get("country"))
     body = PROMPT.format(
         sender_name=campaign["sender_name"],
         sender_company=campaign["sender_company"],
@@ -284,8 +327,13 @@ async def generate_message(
         company_name=prospect["company"]["company_name"] or "—",
         industry=prospect["company"]["industry"] or "—",
         employee_count=prospect["company"]["employee_count"] or "—",
+        country=country,
         channel=channel,
-        pitch_type=pitch_type,
+        service_line=routing.get("service_line", "staff_augmentation"),
+        capability=routing.get("capability", "general"),
+        market_tier=routing.get("market_tier", brief["tier"]),
+        positioning_angle=brief["angle"],
+        proof_points="; ".join(brief["proof_points"]),
     )
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
@@ -334,15 +382,21 @@ async def generate_message(
     ), "anthropic" if text else "fallback")
 
 
-# ─── Pitch-type assignment ──────────────────────────────────────────────
+# ─── Service-line + capability + market-tier routing ────────────────────
+def pick_route(prospect: dict) -> dict:
+    """Full routing decision. Returns the service_router dict:
+    {service_line, capability, market_tier, pitch_type}."""
+    return route_prospect(
+        title=prospect["contact"].get("title"),
+        industry=prospect["company"].get("industry"),
+        country=prospect["company"].get("country"),
+        hiring_signal=prospect.get("hiring_signal"),
+    )
+
+
 def pick_pitch(prospect: dict) -> str:
-    title = (prospect["contact"]["title"] or "").lower()
-    industry = (prospect["company"]["industry"] or "").lower()
-    if any(k in title for k in ["cto", "vp engineering", "engineering"]):
-        return "ai_agents"
-    if any(k in industry for k in ["manufacturing", "logistics", "retail"]):
-        return "rpa_workflow"
-    return "consulting"
+    """Back-compat shim — returns just the legacy pitch_type string."""
+    return pick_route(prospect)["pitch_type"]
 
 
 # ─── Postgres writes ────────────────────────────────────────────────────
@@ -353,9 +407,11 @@ async def upsert_and_queue(
     prospect: dict,
     messages: dict[str, str],
     pitch_type: str,
+    routing: Optional[dict] = None,
 ) -> None:
     company = prospect["company"]
     contact = prospect["contact"]
+    routing = routing or {}
     async with pool.acquire() as conn:
         async with conn.transaction():
             # 1. prospect (one row per company on this campaign).
@@ -375,14 +431,20 @@ async def upsert_and_queue(
                 INSERT INTO prospects (
                     campaign_id, company_name, company_domain, company_size,
                     industry, country, linkedin_company_url, apollo_org_id,
-                    status, pitch_type
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ENRICHED', $9)
+                    status, pitch_type,
+                    service_line, capability, market_tier, hiring_signal
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ENRICHED', $9,
+                          $10, $11, $12, $13::jsonb)
                 RETURNING id
                 """,
                 campaign_id, company["company_name"], company.get("domain"),
                 company_size, company["industry"], company["country"],
                 company["linkedin_url"], company.get("apollo_org_id"),
                 pitch_type,
+                routing.get("service_line"),
+                routing.get("capability"),
+                routing.get("market_tier"),
+                json.dumps(prospect.get("hiring_signal") or {}),
             )
             # 2. contact
             contact_id = await conn.fetchval(
@@ -582,13 +644,18 @@ async def process_campaign(
     prospects = await enrich_prospects(apollo_key, prospects)
     log(f"[prospects] {len(prospects)} enriched")
 
-    # 4. For each prospect: pick pitch, personalise per channel, insert.
+    # 4. For each prospect: route (service line + capability + market
+    #    tier), personalise per channel with the tiered positioning,
+    #    then insert.
     for i, p in enumerate(prospects, 1):
-        pitch_type = pick_pitch(p)
+        routing = pick_route(p)
+        pitch_type = routing["pitch_type"]
         log(
             f"  [{i}/{len(prospects)}] {p['contact']['full_name']} "
             f"({p['contact']['title']}) @ {p['company']['company_name']} "
-            f"— pitch: {pitch_type}"
+            f"[{p['company'].get('country') or '—'}] — "
+            f"{routing['service_line']}/{routing['capability']}/"
+            f"tier {routing['market_tier']}"
         )
         messages: dict[str, str] = {}
         for ch in CHANNELS:
@@ -598,6 +665,7 @@ async def process_campaign(
                 prospect=p,
                 channel=ch,
                 pitch_type=pitch_type,
+                routing=routing,
             )
             messages[ch] = msg
         await upsert_and_queue(
@@ -606,6 +674,7 @@ async def process_campaign(
             prospect=p,
             messages=messages,
             pitch_type=pitch_type,
+            routing=routing,
         )
 
     log(f"[done] {len(prospects)} prospects + {len(prospects) * 3} messages written")
