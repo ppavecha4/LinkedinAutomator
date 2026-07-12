@@ -38,9 +38,17 @@ import httpx
 try:
     from agents.service_router import route_prospect
     from agents.market_tiers import positioning_brief
+    from agents.research_agent import research_prospect
 except ImportError:  # pragma: no cover
     from src.agents.service_router import route_prospect  # type: ignore
     from src.agents.market_tiers import positioning_brief  # type: ignore
+    from src.agents.research_agent import research_prospect  # type: ignore
+
+# Research agent is opt-in (adds ~10-20s + ~$0.02 per prospect). Enable
+# with ENABLE_RESEARCH_AGENT=1 in the env.
+ENABLE_RESEARCH = (os.environ.get("ENABLE_RESEARCH_AGENT") or "").strip() in (
+    "1", "true", "yes", "on",
+)
 
 # ─── Apollo ─────────────────────────────────────────────────────────────
 APOLLO_BASE = "https://api.apollo.io/api/v1"
@@ -236,6 +244,10 @@ PROMPT = textwrap.dedent("""\
       - Market positioning ({market_tier}): {positioning_angle}
       - Proof points you may draw from: {proof_points}
 
+    LIVE RESEARCH (verified facts about this specific prospect — use the
+    hook to open; it is real and current, prefer it over generic detail):
+    {research_context}
+
     HARD RULES:
       - Do NOT quote any rate, price, hourly figure, or currency amount.
         We sell the CONVERSATION, not a number. Position on value and
@@ -316,6 +328,31 @@ async def generate_message(
     routing = routing or {}
     country = prospect["company"].get("country") or "—"
     brief = positioning_brief(prospect["company"].get("country"))
+
+    # Build the live-research context string. Empty/low-confidence
+    # research collapses to a "no verified research" note so the model
+    # falls back to company-detail personalisation rather than inventing.
+    research = prospect.get("research") or {}
+    hook = (research.get("personalization_hook") or "").strip()
+    signal = (research.get("recent_signal") or "").strip()
+    roles = research.get("roles") or []
+    stack = research.get("tech_stack") or []
+    if hook or signal or roles:
+        parts = []
+        if hook:
+            parts.append(f"Opening hook: {hook}")
+        if signal:
+            parts.append(f"Recent signal: {signal}")
+        if roles:
+            parts.append(f"Currently hiring: {', '.join(roles[:5])}")
+        if stack:
+            parts.append(f"Tech stack: {', '.join(stack[:6])}")
+        research_context = "\n    ".join(parts)
+    else:
+        research_context = (
+            "No verified research available — personalise from the company "
+            "name/industry above; do NOT invent specifics."
+        )
     body = PROMPT.format(
         sender_name=campaign["sender_name"],
         sender_company=campaign["sender_company"],
@@ -334,6 +371,7 @@ async def generate_message(
         market_tier=routing.get("market_tier", brief["tier"]),
         positioning_angle=brief["angle"],
         proof_points="; ".join(brief["proof_points"]),
+        research_context=research_context,
     )
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
@@ -644,18 +682,44 @@ async def process_campaign(
     prospects = await enrich_prospects(apollo_key, prospects)
     log(f"[prospects] {len(prospects)} enriched")
 
-    # 4. For each prospect: route (service line + capability + market
-    #    tier), personalise per channel with the tiered positioning,
-    #    then insert.
+    # 4. For each prospect: (optionally) run web research, route
+    #    (service line + capability + market tier), personalise per
+    #    channel with the tiered positioning + research hook, insert.
+    research_client = httpx.AsyncClient() if ENABLE_RESEARCH else None
     for i, p in enumerate(prospects, 1):
+        # 4a. Live research — populates hiring_signal (feeds routing) and
+        #     a personalisation hook (feeds copy). Gated by env flag.
+        if ENABLE_RESEARCH and research_client is not None:
+            brief = await research_prospect(
+                research_client,
+                full_name=p["contact"].get("full_name") or "",
+                title=p["contact"].get("title") or "",
+                company_name=p["company"].get("company_name") or "",
+                domain=p["company"].get("domain"),
+                country=p["company"].get("country"),
+            )
+            p["research"] = brief
+            p["hiring_signal"] = {
+                "hiring": brief.get("hiring", False),
+                "roles": brief.get("roles", []),
+                "source": brief.get("hiring_source", ""),
+            }
+
         routing = pick_route(p)
         pitch_type = routing["pitch_type"]
+        research_note = ""
+        if p.get("research"):
+            rb = p["research"]
+            if rb.get("hiring"):
+                research_note = f"  🔥hiring:{','.join(rb.get('roles', [])[:2])}"
+            elif rb.get("recent_signal"):
+                research_note = f"  ℹ️{rb['recent_signal'][:40]}"
         log(
             f"  [{i}/{len(prospects)}] {p['contact']['full_name']} "
             f"({p['contact']['title']}) @ {p['company']['company_name']} "
             f"[{p['company'].get('country') or '—'}] — "
             f"{routing['service_line']}/{routing['capability']}/"
-            f"tier {routing['market_tier']}"
+            f"tier {routing['market_tier']}{research_note}"
         )
         messages: dict[str, str] = {}
         for ch in CHANNELS:
@@ -676,6 +740,9 @@ async def process_campaign(
             pitch_type=pitch_type,
             routing=routing,
         )
+
+    if research_client is not None:
+        await research_client.aclose()
 
     log(f"[done] {len(prospects)} prospects + {len(prospects) * 3} messages written")
     return {"ok": True, "discovered": len(prospects), "skipped_reason": None}
