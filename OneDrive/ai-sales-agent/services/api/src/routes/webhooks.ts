@@ -32,6 +32,32 @@ const router = Router();
 // ---------------------------------------------------------------------------
 
 /**
+ * Persist an inbound webhook event to Postgres for the Python
+ * inbound-events processor to pick up. This replaces the SQS path on
+ * non-AWS (Hetzner) deploys — the processor drains `inbound_events` on
+ * a cron and records replies/acceptances. Best-effort: a DB hiccup must
+ * not fail the webhook (Twilio/Heyreach retry on non-2xx, which we don't
+ * want for a transient write error), so we log and move on.
+ */
+async function enqueueInbound(source: string, payload: unknown): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO inbound_events (source, payload) VALUES ($1, $2::jsonb)`,
+      [source, JSON.stringify(payload ?? {})],
+    );
+  } catch (err) {
+    logger.error('inbound_events insert failed', {
+      source,
+      error: (err as Error).message,
+    });
+  }
+  // Also publish to SQS when configured (AWS deploys keep working).
+  if (env.sqsReplyQueueUrl) {
+    await publishJson(env.sqsReplyQueueUrl, { source, payload });
+  }
+}
+
+/**
  * Verify Calendly's signature header.
  * Format: `t=<unix-ts>,v1=<hmac_sha256_hex>`
  * Signed payload: `<t>.<raw_body>`
@@ -291,10 +317,7 @@ router.post('/webhooks/whatsapp/inbound', async (req: Request, res: Response) =>
   if (!verified && env.nodeEnv === 'production') {
     return res.status(403).send('invalid signature');
   }
-  await publishJson(env.sqsReplyQueueUrl, {
-    source: 'whatsapp.inbound',
-    payload: req.body,
-  });
+  await enqueueInbound('whatsapp.inbound', req.body);
   return res.status(200).type('text/xml').send('<Response/>');
 });
 
@@ -310,10 +333,7 @@ router.post('/webhooks/whatsapp/status', async (req: Request, res: Response) => 
   if (!verified && env.nodeEnv === 'production') {
     return res.status(403).send('invalid signature');
   }
-  await publishJson(env.sqsReplyQueueUrl, {
-    source: 'whatsapp.status',
-    payload: req.body,
-  });
+  await enqueueInbound('whatsapp.status', req.body);
   return res.status(200).type('text/xml').send('<Response/>');
 });
 
@@ -332,10 +352,19 @@ router.post('/webhooks/linkedin', async (req: Request, res: Response) => {
   if (!verified && env.nodeEnv === 'production') {
     return res.status(403).send('invalid signature');
   }
-  await publishJson(env.sqsReplyQueueUrl, {
-    source: 'linkedin',
-    payload: req.body,
+  await enqueueInbound('linkedin', req.body);
+  return res.status(200).json({ data: { status: 'received' } });
+});
+
+// Heyreach webhook — connection accepted / message reply events from the
+// Heyreach automation SaaS. Heyreach signs nothing by default, so we
+// accept the event and let the processor validate against known leads.
+// Configure the URL in Heyreach → Settings → Webhooks.
+router.post('/webhooks/heyreach', async (req: Request, res: Response) => {
+  logger.info('webhook.heyreach', {
+    event: req.body?.eventType ?? req.body?.type ?? null,
   });
+  await enqueueInbound('heyreach', req.body);
   return res.status(200).json({ data: { status: 'received' } });
 });
 
