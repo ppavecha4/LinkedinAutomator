@@ -39,10 +39,14 @@ try:
     from agents.service_router import route_prospect
     from agents.market_tiers import positioning_brief
     from agents.research_agent import research_prospect
+    from agents.enrichment_waterfall import enrich_contact, configured_chain
 except ImportError:  # pragma: no cover
     from src.agents.service_router import route_prospect  # type: ignore
     from src.agents.market_tiers import positioning_brief  # type: ignore
     from src.agents.research_agent import research_prospect  # type: ignore
+    from src.agents.enrichment_waterfall import (  # type: ignore
+        enrich_contact, configured_chain,
+    )
 
 # Research agent is opt-in (adds ~10-20s + ~$0.02 per prospect). Enable
 # with ENABLE_RESEARCH_AGENT=1 in the env.
@@ -489,13 +493,14 @@ async def upsert_and_queue(
                 """
                 INSERT INTO contacts (
                     prospect_id, campaign_id, full_name, title, email,
-                    linkedin_url, apollo_contact_id, is_decision_maker,
-                    enriched_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, now())
+                    linkedin_url, whatsapp_number, apollo_contact_id,
+                    is_decision_maker, enriched_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, now())
                 RETURNING id
                 """,
                 prospect_id, campaign_id, contact["full_name"],
                 contact["title"], contact["email"], contact["linkedin_url"],
+                contact.get("whatsapp_number"),
                 contact.get("apollo_contact_id"),
             )
             # Event capture — record 'discovered' + 'enriched' on the
@@ -686,6 +691,9 @@ async def process_campaign(
     #    (service line + capability + market tier), personalise per
     #    channel with the tiered positioning + research hook, insert.
     research_client = httpx.AsyncClient() if ENABLE_RESEARCH else None
+    # Only spend mobile-enrichment credits when WhatsApp is a target
+    # channel for this campaign.
+    wants_whatsapp = "whatsapp" in CHANNELS
     for i, p in enumerate(prospects, 1):
         # 4a. Live research — populates hiring_signal (feeds routing) and
         #     a personalisation hook (feeds copy). Gated by env flag.
@@ -704,6 +712,28 @@ async def process_campaign(
                 "roles": brief.get("roles", []),
                 "source": brief.get("hiring_source", ""),
             }
+
+        # 4b. Mobile enrichment via the provider waterfall — only when the
+        #     campaign actually targets WhatsApp AND we don't already have
+        #     a number. No-op (returns unchanged) if no provider key is
+        #     configured, so this is always safe to call.
+        c = p["contact"]
+        if wants_whatsapp and not c.get("whatsapp_number") and configured_chain():
+            parts = (c.get("full_name") or "").strip().split(" ", 1)
+            enriched = await enrich_contact(
+                {
+                    "first_name": parts[0] if parts else "",
+                    "last_name": parts[1] if len(parts) > 1 else "",
+                    "full_name": c.get("full_name") or "",
+                    "company_name": p["company"].get("company_name") or "",
+                    "company_domain": p["company"].get("domain") or "",
+                    "linkedin_url": c.get("linkedin_url") or "",
+                    "country": p["company"].get("country") or "",
+                },
+                want={"mobile"},
+            )
+            if enriched.get("mobile"):
+                c["whatsapp_number"] = enriched["mobile"]
 
         routing = pick_route(p)
         pitch_type = routing["pitch_type"]
