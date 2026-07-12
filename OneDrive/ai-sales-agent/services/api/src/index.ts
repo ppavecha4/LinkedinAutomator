@@ -26,6 +26,7 @@ import { requestLogger } from './middleware/requestLogger';
 import analyticsRouter from './routes/analytics';
 import authRouter from './routes/auth';
 import campaignsRouter from './routes/campaigns';
+import inboxRouter from './routes/inbox';
 import internalRouter from './routes/internal';
 import messagesRouter from './routes/messages';
 import prospectsRouter from './routes/prospects';
@@ -159,6 +160,7 @@ app.use(prospectsRouter);
 app.use(messagesRouter);
 app.use(timelineRouter);
 app.use(analyticsRouter);
+app.use(inboxRouter);
 app.use(settingsRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).

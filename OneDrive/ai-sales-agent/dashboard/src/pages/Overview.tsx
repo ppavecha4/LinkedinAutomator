@@ -31,6 +31,7 @@ import {
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
+import { LifecycleFunnel } from '../components/LifecycleFunnel';
 import StatusBadge from '../components/StatusBadge';
 import { PageHeader } from '../components/ui/page-header';
 import { ProgressRing } from '../components/ui/progress';
@@ -317,6 +318,11 @@ export default function Overview(): React.ReactElement {
           />
         </div>
       )}
+
+      {/* ═══ Lifecycle funnel ═════════════════════════════════════ */}
+      <div className="mb-8">
+        <LifecycleFunnel />
+      </div>
 
       {/* ═══ Tabs: Snapshot | Live feed | Top performers ═════════ */}
       <Tabs defaultValue="snapshot" className="space-y-6">
