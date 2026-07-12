@@ -37,6 +37,13 @@ import { dashboardHub } from './ws/server';
 
 const app = express();
 
+// Trust the reverse proxy (Caddy) so req.protocol reflects the
+// X-Forwarded-Proto header. CRITICAL for Twilio webhook signature
+// verification: Twilio signs the public https:// URL, and without this
+// req.protocol would be the internal 'http', causing the signature to
+// mismatch and every real WhatsApp reply to be dropped with a 403.
+app.set('trust proxy', true);
+
 // ⚠️  Calendly webhook MUST parse the raw body so the signature check can
 // verify HMAC byte-exactly. This handler is mounted BEFORE the global
 // express.json() middleware so `req.body` is a Buffer for this one route.
