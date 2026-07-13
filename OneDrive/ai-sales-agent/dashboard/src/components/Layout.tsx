@@ -32,6 +32,7 @@ import {
   Sun,
   User,
   Users,
+  Wand2,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -72,6 +73,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/', label: 'Overview', end: true, icon: LayoutDashboard, section: 'Workspace' },
   { to: '/campaigns', label: 'Campaigns', end: false, icon: Sparkles, section: 'Workspace' },
+  { to: '/campaigns/plan', label: 'Plan with AI', end: true, icon: Wand2, section: 'Workspace' },
   { to: '/prospects', label: 'Prospects', end: false, icon: Users, section: 'Workspace' },
   { to: '/inbox', label: 'Inbox', end: false, icon: Inbox, section: 'Workspace' },
   { to: '/linkedin-drafts', label: 'LinkedIn Drafts', end: false, icon: Briefcase, section: 'Operator' },

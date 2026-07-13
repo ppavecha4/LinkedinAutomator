@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { query, withTransaction } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { planCampaign } from '../lib/campaignPlanner';
 import { listHeyreachCampaigns } from '../lib/heyreach';
 import { publishJson } from '../lib/sqs';
 import { buildPagination, ok, okPaginated, parsePageLimit } from '../lib/response';
@@ -238,6 +239,35 @@ interface MetricsRow {
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
+
+// AI campaign planner — turn a plain-English goal into a full,
+// ready-to-review campaign proposal. Does NOT create anything; the
+// dashboard shows the proposal, the operator approves, and the approved
+// plan is submitted to POST /api/campaigns like any other create.
+const planSchema = z.object({
+  goal: z.string().min(3).max(500),
+  sender_name: z.string().max(255).optional(),
+  sender_company: z.string().max(255).optional(),
+  value_proposition: z.string().max(1000).optional(),
+});
+
+router.post(
+  '/api/campaigns/plan',
+  validate({ body: planSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.validated!.body as z.infer<typeof planSchema>;
+      const plan = await planCampaign(body.goal, {
+        sender_name: body.sender_name,
+        sender_company: body.sender_company,
+        value_proposition: body.value_proposition,
+      });
+      return ok(res, { plan });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 router.post(
   '/api/campaigns',

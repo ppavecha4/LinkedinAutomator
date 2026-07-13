@@ -112,6 +112,51 @@ export function useLaunchCampaign() {
   });
 }
 
+// AI campaign planner — turn a goal into a full proposal for review.
+export interface CampaignPlan {
+  name: string;
+  goal: string;
+  tone: string;
+  sender_company: string;
+  sender_name: string;
+  value_proposition: string;
+  icp_criteria: {
+    industries: string[];
+    company_sizes: string[];
+    countries: string[];
+    titles: string[];
+    intent_keywords: string[];
+  };
+  channels_enabled: Array<'email' | 'linkedin' | 'whatsapp'>;
+  sequence_steps: Array<{
+    step_number: number;
+    channel: 'email' | 'linkedin' | 'whatsapp';
+    action: string;
+    delay_days: number;
+  }>;
+  daily_limits: { email: number; linkedin: number; whatsapp: number };
+  batch_size: number;
+  service_line: 'ai_consulting' | 'staff_augmentation' | 'mixed';
+  rationale: string;
+}
+
+export function usePlanCampaign() {
+  return useMutation({
+    mutationFn: async (input: {
+      goal: string;
+      sender_name?: string;
+      sender_company?: string;
+      value_proposition?: string;
+    }) => {
+      const { data } = await api.post<{ plan: CampaignPlan }>(
+        '/api/campaigns/plan',
+        input,
+      );
+      return data.plan;
+    },
+  });
+}
+
 export function useCloneCampaign() {
   const qc = useQueryClient();
   return useMutation({

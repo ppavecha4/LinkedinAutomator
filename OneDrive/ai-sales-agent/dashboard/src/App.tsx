@@ -23,6 +23,7 @@ import ActiveCampaigns from './pages/ActiveCampaigns';
 import Analytics from './pages/Analytics';
 import CampaignBuilder from './pages/CampaignBuilder';
 import CampaignEditor from './pages/CampaignEditor';
+import CampaignPlanner from './pages/CampaignPlanner';
 import Inbox from './pages/Inbox';
 import LinkedInDrafts from './pages/LinkedInDrafts';
 import LoginPage from './pages/LoginPage';
@@ -65,6 +66,7 @@ export default function App() {
             <Route element={<ProtectedRoutes />}>
               <Route path="/" element={<Overview />} />
               <Route path="/campaigns" element={<ActiveCampaigns />} />
+              <Route path="/campaigns/plan" element={<CampaignPlanner />} />
               <Route path="/campaigns/new" element={<CampaignBuilder />} />
               <Route path="/campaigns/:id/edit" element={<CampaignEditor />} />
               <Route path="/prospects" element={<ProspectPipeline />} />
