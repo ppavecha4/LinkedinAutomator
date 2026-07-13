@@ -30,6 +30,7 @@ nothing else changes.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Awaitable, Callable, Optional
@@ -69,38 +70,74 @@ class Provider:
 # Each returns a dict of the fields it found. Thin, env-keyed. Fill the
 # request/response mapping when you activate a provider.
 
+_FE_BASE = "https://app.fullenrich.com/api/v1"
+_FE_POLL_ATTEMPTS = int(os.environ.get("FULLENRICH_POLL_ATTEMPTS", "30"))
+_FE_POLL_INTERVAL = float(os.environ.get("FULLENRICH_POLL_INTERVAL", "4"))
+
+
 async def _fullenrich(client: httpx.AsyncClient, contact: dict) -> dict:
     """FullEnrich — waterfall-as-a-service across 15+ vendors.
 
-    NOTE: FullEnrich's real API is ASYNC (POST enrich → poll by id).
-    This adapter implements the documented single-call shape; wire the
-    poll loop when you activate it. Returns {} until FULLENRICH_API_KEY
-    is set.
+    Async flow (verified against the live API June 2026):
+      1. POST /contact/enrich/bulk {name, datas:[{firstname, lastname,
+         company_name, domain, linkedin_url, enrich_fields}]}
+         → {enrichment_id}
+      2. GET /contact/enrich/bulk/{id} until status == FINISHED
+         → datas[0].contact.{most_probable_phone, phones[], ...}
+
+    We request phones ONLY (enrich_fields=["contact.phones"]) because
+    Apollo already supplies the email — this halves the credit cost.
+    Returns {"mobile": "+..."} on a hit, {} otherwise. Never raises.
     """
     key = (os.environ.get("FULLENRICH_API_KEY") or "").strip()
     if not key:
         return {}
-    payload = {
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    lead = {
         "firstname": contact.get("first_name") or "",
         "lastname": contact.get("last_name") or "",
         "company_name": contact.get("company_name") or "",
         "domain": contact.get("company_domain") or "",
         "linkedin_url": contact.get("linkedin_url") or "",
-        "enrich_fields": ["contact.emails", "contact.phones"],
+        "enrich_fields": ["contact.phones"],
     }
+    # 1. submit
     r = await client.post(
-        "https://app.fullenrich.com/api/v1/contact/enrich/bulk",
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"},
-        json={"name": "sa", "datas": [payload]},
+        f"{_FE_BASE}/contact/enrich/bulk",
+        headers=headers,
+        json={"name": "sa", "datas": [lead]},
         timeout=30.0,
     )
     if r.status_code >= 400:
-        log.warning("fullenrich %s: %s", r.status_code, r.text[:160])
+        log.warning("fullenrich submit %s: %s", r.status_code, r.text[:160])
         return {}
-    # Async: response is an enrichment_id to poll. Poll loop goes here.
-    # Left as a TODO until the key is live so we don't guess the polling
-    # contract; returns {} for now.
+    eid = (r.json() or {}).get("enrichment_id")
+    if not eid:
+        return {}
+
+    # 2. poll
+    for _ in range(_FE_POLL_ATTEMPTS):
+        await asyncio.sleep(_FE_POLL_INTERVAL)
+        pr = await client.get(
+            f"{_FE_BASE}/contact/enrich/bulk/{eid}", headers=headers, timeout=20.0,
+        )
+        if pr.status_code >= 400:
+            continue
+        body = pr.json() or {}
+        status = body.get("status")
+        if status == "FINISHED":
+            datas = body.get("datas") or []
+            if not datas:
+                return {}
+            c = (datas[0] or {}).get("contact") or {}
+            phone = c.get("most_probable_phone")
+            if not phone:
+                phones = c.get("phones") or []
+                phone = phones[0].get("number") if phones else None
+            return {"mobile": phone} if phone else {}
+        if status in ("FAILED", "ERROR", "CANCELLED"):
+            return {}
+    log.warning("fullenrich poll timeout for %s", contact.get("company_name"))
     return {}
 
 
