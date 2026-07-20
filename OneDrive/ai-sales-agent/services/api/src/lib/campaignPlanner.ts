@@ -290,8 +290,10 @@ export async function planCampaign(
     return fallbackPlan(goal, ctx);
   }
   try {
+    // A full plan is ~3k tokens; 45s was too tight and aborted mid-flight
+    // ("This operation was aborted"), silently degrading to the fallback.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45_000);
+    const timer = setTimeout(() => controller.abort(), 120_000);
     const r = await fetch(ANTHROPIC_API, {
       method: 'POST',
       headers: {

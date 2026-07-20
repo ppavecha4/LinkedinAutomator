@@ -98,12 +98,17 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
       const decoded = jwt.verify(token, env.authJwtSecret, {
         algorithms: ['HS256'],
       }) as jwt.JwtPayload & { email?: string };
-      const id = (decoded.sub as string | undefined) ?? '';
-      if (!id) return next(ApiError.unauthorized('session missing sub'));
+      const subject = (decoded.sub as string | undefined) ?? '';
+      if (!subject) return next(ApiError.unauthorized('session missing sub'));
+      // In local mode the JWT subject is the operator's EMAIL, but
+      // `req.user.id` is written to uuid columns (campaigns.created_by,
+      // audit rows). Use the configured operator UUID for `id` and keep
+      // the email on `sub`/`email` for display. Without this every
+      // campaign INSERT fails with "invalid input syntax for type uuid".
       req.user = {
-        id,
-        sub: id,
-        email: decoded.email,
+        id: env.authUserId,
+        sub: subject,
+        email: decoded.email ?? subject,
         token_use: 'local',
       };
       return next();

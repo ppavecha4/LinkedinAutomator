@@ -52,6 +52,12 @@ export const env = {
 
   // Local auth (only used when authMode='local')
   authUserEmail: str('AUTH_USER_EMAIL', ''),
+  // The operator's UUID — written to uuid columns like
+  // campaigns.created_by. MUST be a valid uuid, never the email.
+  authUserId: str(
+    'AUTH_USER_ID',
+    str('DEV_USER_ID', '00000000-0000-0000-0000-000000000001'),
+  ),
   authUserPasswordBcrypt: str('AUTH_USER_PASSWORD_BCRYPT', ''),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
