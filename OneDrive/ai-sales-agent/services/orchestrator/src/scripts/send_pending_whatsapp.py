@@ -59,21 +59,21 @@ except ImportError:
 
 
 def _wa(e164: str) -> str:
-    """Format a number as whatsapp:+E164 for Twilio."""
+    """Format a number as whatsapp:+E164 for Twilio.
+
+    Twilio rejects spaces/dashes/parens, so strip to digits and re-apply
+    a leading '+'. Providers return '+1 613-858-5929' -> '+16138585929'.
+    """
     if not e164:
         return ""
-    n = e164.strip()
-    if n.startswith("whatsapp:"):
-        return n
-    if not n.startswith("+"):
-        # Best-effort — assume Indian country code if the number looks 10-digit.
-        # For LATAM prospects we depend on Apollo returning E.164 already.
-        digits = re.sub(r"\D", "", n)
-        if len(digits) == 10:
-            n = f"+91{digits}"
-        else:
-            n = f"+{digits}"
-    return f"whatsapp:{n}"
+    n = e164.strip().replace("whatsapp:", "")
+    had_plus = n.lstrip().startswith("+")
+    digits = re.sub(r"\D", "", n)
+    if not digits:
+        return ""
+    if not had_plus and len(digits) == 10:
+        digits = f"91{digits}"
+    return f"whatsapp:+{digits}"
 
 
 PITCH_TO_ENV = {
