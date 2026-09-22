@@ -12,6 +12,9 @@ export default defineConfig({
     // dashboard container — host validation belongs at the edge.
     allowedHosts: true,
     // Caddy fronts HMR over WSS at :443.
-    hmr: { clientPort: 443, protocol: 'wss' },
+    // Disable the error overlay — the public dev server gets hit by bot
+    // scans (e.g. /app/sweeper/signer.json) whose failed transforms
+    // would otherwise throw a full-screen overlay over the real page.
+    hmr: { clientPort: 443, protocol: 'wss', overlay: false },
   },
 });
