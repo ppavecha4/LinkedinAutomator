@@ -75,7 +75,7 @@ runbook](#v17-deploy-runbook).
 |---|---|---|
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
 | 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · **2.4 language-aware writing + multilingual opt-out (done)** · 2.5 dashboard screens |
-| 3 | Onboarding + connectors | Signup, invite flow, setup wizard: email → WhatsApp → phone number (voice), each with a "verify credential" step |
+| 3 | Onboarding + connectors | Signup + sign-in, invite flow, onboarding wizard that builds the **business profile** (see "Business profile and onboarding"), then connect email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
 | 6 | Per-tenant compliance | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
@@ -556,6 +556,81 @@ Not built, on purpose:
   WhatsApp template management (onboarding phase).
 
 ---
+
+## Business profile and onboarding
+
+**Designed (2026-11-14)** — screens A–C on the "Login & onboarding" page
+of the design canvas. **Backend built (slice 3.1, 2026-11-14)** — see
+"Slice 3.1 as built" below; the engine wiring (3.2) and the dashboard
+screens (3.3) are next. The profile is the org-wide
+knowledge the engine uses for every campaign; offerings (slice 2.3) stay
+per product/angle and are generated *from* it.
+
+**Flow**: sign in / create account (email + password, Google later) →
+5-step onboarding, starting from the website (the AI reads it and
+pre-fills, marked "from website") → review "how the AI understands you"
+with a sample first message in the prospect's language → connect accounts.
+Everything stays editable in Settings › Business profile, which shows a
+completeness score and a "Test it on a real prospect" fit check.
+
+**Data**: one `org_profiles` row per org (RLS like V17), JSONB sections:
+
+| Section | Fields | Used by |
+|---|---|---|
+| Company | name, website, industry, size, HQ country, one-paragraph description, languages the team can answer in | Offering generator context; `organizations.default_country`; **languages handled** limit the languages we write in (a reply nobody can read is a lost lead) |
+| What you sell | offers [name, description, typical buyer], value proposition, proof points each with *may the AI mention it*, price policy | Offering generator + writer: angles, proof (only allowed items), price guardrail |
+| Ideal customers | industries, roles, company sizes, countries, problems solved, buying signals, never-contact domains/companies (or uploaded customer list) | Discovery query (ICP), research agent ranking (signals), suppression at discovery / import / send (domains) |
+| Voice and sender | tone, formality (usted/tú, Sie/du…), sender name + title, meeting link, words/claims to avoid, one example message (style only) | Writer prompt in every language; CTA link |
+| Rules | contact hours (recipient local time), countries never to contact | Send gate (phase 6 quiet hours), discovery filter |
+
+Engine changes this implies (phase 3): the writer prompt gains the
+profile's voice / formality / avoid-list / allowed proof; `resolve_language`
+gets "only languages the team handles"; a domain-level never-contact list
+joins the suppression checks (discovery, import validation, send gate);
+signup creates org + user + owner membership through a SECURITY DEFINER
+function (RLS blocks direct inserts); "Read my website" fetches the
+homepage + about page server-side and extracts a draft profile on the
+customer's own AI key (no invented facts; every pre-filled field shown
+for confirmation).
+
+### Slice 3.1 as built
+
+- **V21**: `org_profiles` (one row per org, RLS); `organizations.
+  onboarding_ai_calls` + `onboarding_completed_at` (existing orgs marked
+  done); SECURITY DEFINER `signup_org` (user + org + owner membership +
+  profile in one step), `login_lookup`, `orgs_for_user`, `touch_login`,
+  EXECUTE for `sales_app` only.
+- **Auth** (`routes/auth.ts`, AUTH_MODE=local): `POST /api/auth/signup`
+  (only when `SIGNUP_ENABLED=true`; password ≥ 12 chars, bcrypt cost 12,
+  terms accepted), `POST /api/auth/login` (env operator unchanged, then
+  DB users; unknown emails still pay a bcrypt compare), `GET /api/auth/me`
+  (+ org and onboarding state), `GET /api/auth/orgs`, `POST
+  /api/auth/switch-org` (membership checked). Sessions carry `uid`.
+  Sign-in limited to 20/IP and 10/email per 15 min, sign-up to 5/IP per
+  hour (in memory — move to Redis with more than one API instance).
+- **Profile** (`lib/profile.ts`, `routes/profile.ts`): strict Zod schema
+  per section; `PUT /api/profile/:section`; `GET /api/profile` with a
+  weighted completeness score and concrete hints. `profileDescription()`
+  only ever includes proof marked "may mention".
+- **Onboarding AI** (`lib/onboardingAi.ts`): the org's own Anthropic key
+  if connected (operator: `.env`), else the platform key for at most
+  `ONBOARDING_AI_CAP` calls per org (atomic counter), then 409 "connect
+  your Anthropic account". Used only by: `POST /api/profile/read-website`
+  (SSRF-guarded fetch of homepage + one about page → draft fields, proof
+  always `may_mention: false` until the customer ticks it), `POST
+  /api/profile/understanding` (offering draft via the slice 2.3
+  generator), `POST /api/profile/sample-message`. Nothing they return is
+  saved until confirmed. `POST /api/onboarding/complete` saves the chosen
+  offering and stamps `onboarding_completed_at`.
+- **SSRF guard** (`lib/websiteReader.ts`): http/https on default ports, no
+  URL credentials, every resolved address public (loopback, private,
+  link-local/metadata, CGNAT, multicast, IPv6 ULA/link-local, mapped
+  IPv4 refused), every redirect hop re-checked, HTML/text only, 1 MB,
+  8 s. Residual: DNS rebinding between our lookup and the fetch.
+- **Not yet**: Google sign-in, password reset and email verification,
+  invites (the org switcher works; adding members does not exist yet),
+  and slices 3.2 (profile → writer / discovery / suppression) and 3.3
+  (dashboard).
 
 ## Voice channel
 

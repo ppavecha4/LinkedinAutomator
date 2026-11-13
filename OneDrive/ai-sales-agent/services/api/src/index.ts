@@ -36,6 +36,7 @@ import credentialsRouter from './routes/credentials';
 import organizationRouter from './routes/organization';
 import importsRouter from './routes/imports';
 import offeringsRouter from './routes/offerings';
+import profileRouter from './routes/profile';
 import trackingRouter from './routes/tracking';
 import webhooksRouter from './routes/webhooks';
 import { dashboardHub } from './ws/server';
@@ -170,6 +171,7 @@ app.use(credentialsRouter);
 app.use(organizationRouter);
 app.use(importsRouter);
 app.use(offeringsRouter);
+app.use(profileRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).
 app.use('/api', (_req, _res, next) => {

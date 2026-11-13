@@ -146,6 +146,7 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
         email?: string;
         org_id?: unknown;
         role?: unknown;
+        uid?: unknown;
       };
       const subject = (decoded.sub as string | undefined) ?? '';
       if (!subject) return next(ApiError.unauthorized('session missing sub'));
@@ -160,7 +161,9 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
       // the email on `sub`/`email` for display. Without this every
       // campaign INSERT fails with "invalid input syntax for type uuid".
       return proceedAs(req, next, {
-        id: env.authUserId,
+        // Self-serve users (phase 3) carry their own id; the env operator
+        // and older sessions fall back to AUTH_USER_ID.
+        id: isUuid(decoded.uid) ? decoded.uid : env.authUserId,
         sub: subject,
         email: decoded.email ?? subject,
         token_use: 'local',

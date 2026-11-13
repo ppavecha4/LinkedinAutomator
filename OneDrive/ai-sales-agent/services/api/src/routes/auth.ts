@@ -1,47 +1,58 @@
 /**
- * Local auth routes — username + bcrypt password gate for solo-operator
- * deployments. Only active when AUTH_MODE=local.
+ * Auth routes (AUTH_MODE=local) — sessions are an HS256 JWT in an
+ * HttpOnly cookie. Two kinds of account sign in here:
+ *
+ *   - the env-configured OPERATOR (AUTH_USER_EMAIL + bcrypt hash in .env):
+ *     today's single-operator deploy, unchanged; acts for AUTH_ORG_ID.
+ *   - SELF-SERVE users (phase 3): rows in `users`, bcrypt hash in the DB,
+ *     member of one or more orgs through `memberships`.
  *
  * Endpoints:
- *   POST /api/auth/login   { email, password } → sets HttpOnly cookie,
- *                          returns { user: { email } }
- *   POST /api/auth/logout  clears the cookie, returns { ok: true }
- *   GET  /api/auth/me      returns { user } if logged in, 401 otherwise
+ *   POST /api/auth/signup      create user + org (only if SIGNUP_ENABLED)
+ *   POST /api/auth/login       { email, password } → session cookie
+ *   POST /api/auth/logout
+ *   GET  /api/auth/me          current session (+ org, onboarding state)
+ *   GET  /api/auth/orgs        orgs this user belongs to   (signed in)
+ *   POST /api/auth/switch-org  { org_id } → new session    (signed in)
  *
- * The cookie carries a signed JWT (HS256) — no DB lookup per request,
- * stateless. The cookie is HttpOnly so client JS can't read it (XSS-proof
- * for the token). SameSite=Lax so cross-site requests don't carry it.
- * Secure flag gets set when NODE_ENV=production AND the request is
- * forwarded as HTTPS (we trust the X-Forwarded-Proto header that Caddy
- * sets — it's not exposed to client browsers).
+ * Sign-in and sign-up are rate limited (middleware/authRateLimit.ts).
+ * Lookups that must run before a tenant is known go through V21's
+ * SECURITY DEFINER functions (signup_org, login_lookup, orgs_for_user).
  */
+
+import { randomBytes } from 'crypto';
 
 import { type Request, type Response, Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
+import { query } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
 import { ok } from '../lib/response';
+import { isOrgRole, isUuid, runWithTenant, type OrgRole } from '../lib/tenantContext';
 import { logger } from '../logger';
+import { auth } from '../middleware/auth';
+import { loginLimitByEmail, loginLimitByIp, signupLimitByIp } from '../middleware/authRateLimit';
 import { validate } from '../middleware/validate';
 
 const router = Router();
 
-const loginSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(1).max(200),
-});
+const BCRYPT_COST = 12;
+// Compared against when the email is unknown, so a wrong email takes as
+// long as a wrong password (no account enumeration by timing).
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', BCRYPT_COST);
 
 interface SessionPayload {
-  sub: string;       // user id (email for local mode)
+  sub: string;       // the user's email
   email: string;
-  // SaaS phase 1: the organization this session acts for, and the role
-  // in it. Optional because sessions minted before phase 1 lack them;
-  // the auth middleware treats those as AUTH_ORG_ID / owner.
+  // The org this session acts for, the role in it, and the user's id.
+  // Optional: sessions minted before phase 1 / 3 lack them (the auth
+  // middleware falls back to AUTH_ORG_ID / owner / AUTH_USER_ID).
   org_id?: string;
   role?: string;
+  uid?: string;
 }
 
 function sessionMaxAgeMs(): number {
@@ -51,13 +62,15 @@ function sessionMaxAgeMs(): number {
 function isHttps(req: Request): boolean {
   // Trust X-Forwarded-Proto from Caddy. In dev without a proxy req.secure
   // is false anyway, so plain-http cookies work locally.
-  return (
-    req.secure ||
-    req.header('x-forwarded-proto')?.toLowerCase() === 'https'
-  );
+  return req.secure || req.header('x-forwarded-proto')?.toLowerCase() === 'https';
 }
 
-function setSessionCookie(res: Response, req: Request, token: string): void {
+function issueSession(req: Request, res: Response, payload: SessionPayload): void {
+  if (!env.authJwtSecret) throw ApiError.internal('auth misconfigured');
+  const token = jwt.sign(payload, env.authJwtSecret, {
+    algorithm: 'HS256',
+    expiresIn: `${env.authSessionHours}h`,
+  });
   res.cookie(env.authCookieName, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -67,109 +80,204 @@ function setSessionCookie(res: Response, req: Request, token: string): void {
   });
 }
 
-/**
- * POST /api/auth/login
- *
- * Returns 401 on bad credentials so we don't leak whether the email is
- * the configured one (timing-safe-ish — bcrypt.compare is constant-time
- * on the password side; we don't have a per-user lookup to leak).
- */
+function requireLocalMode(): void {
+  if (env.authMode !== 'local') throw ApiError.notFound('local auth disabled');
+  if (!env.authJwtSecret) throw ApiError.internal('auth misconfigured');
+}
+
+interface OrgRow {
+  org_id: string;
+  name: string;
+  slug: string;
+  role: OrgRole;
+  onboarding_completed_at: string | null;
+}
+
+async function orgsFor(userId: string): Promise<OrgRow[]> {
+  return (await query<OrgRow>(`SELECT * FROM orgs_for_user($1)`, [userId])).rows;
+}
+
+// ── Sign in ────────────────────────────────────────────────────────────
+
+const loginSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(200),
+});
+
 router.post(
   '/api/auth/login',
+  loginLimitByIp,
   validate({ body: loginSchema }),
+  loginLimitByEmail,
   async (req: Request, res: Response, next): Promise<void> => {
     try {
-      if (env.authMode !== 'local') {
-        throw ApiError.notFound('local auth disabled');
-      }
-      if (
-        !env.authUserEmail ||
-        !env.authUserPasswordBcrypt ||
-        !env.authJwtSecret
-      ) {
-        logger.error(
-          'AUTH_MODE=local but AUTH_USER_EMAIL / AUTH_USER_PASSWORD_BCRYPT / AUTH_JWT_SECRET not all set',
-        );
-        throw ApiError.internal('auth misconfigured');
+      requireLocalMode();
+      const { email, password } = req.validated!.body as z.infer<typeof loginSchema>;
+      const normalized = email.trim().toLowerCase();
+
+      // 1. The env-configured operator (today's deploy), unchanged.
+      if (env.authUserEmail && normalized === env.authUserEmail.trim().toLowerCase()) {
+        if (!env.authUserPasswordBcrypt) throw ApiError.internal('auth misconfigured');
+        if (!(await bcrypt.compare(password, env.authUserPasswordBcrypt))) {
+          throw ApiError.unauthorized('invalid email or password');
+        }
+        issueSession(req, res, {
+          sub: env.authUserEmail, email: env.authUserEmail,
+          org_id: env.authOrgId, role: 'owner', uid: env.authUserId,
+        });
+        ok(res, { user: { email: env.authUserEmail, org_id: env.authOrgId, role: 'owner' } });
+        return;
       }
 
-      const { email, password } = req.validated!.body as z.infer<
-        typeof loginSchema
-      >;
-
-      // Constant-time-ish compare: always run bcrypt even if email mismatches
-      // so a wrong email doesn't return faster than a wrong password.
-      const emailMatch =
-        email.trim().toLowerCase() === env.authUserEmail.trim().toLowerCase();
-      const passwordMatch = await bcrypt.compare(
-        password,
-        env.authUserPasswordBcrypt,
+      // 2. Self-serve users. Always run bcrypt, even for unknown emails.
+      const found = await query<{ user_id: string; password_hash: string | null; full_name: string | null }>(
+        `SELECT * FROM login_lookup($1)`,
+        [normalized],
       );
-
-      if (!emailMatch || !passwordMatch) {
+      const user = found.rows[0];
+      const valid = await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH);
+      if (!user || !user.password_hash || !valid) {
         throw ApiError.unauthorized('invalid email or password');
       }
-
-      // Single-operator login: the operator owns the configured org.
-      // Multi-user login (users + memberships tables) replaces this in
-      // the onboarding phase.
-      const payload: SessionPayload = {
-        sub: env.authUserEmail,
-        email: env.authUserEmail,
-        org_id: env.authOrgId,
-        role: 'owner',
-      };
-      const token = jwt.sign(payload, env.authJwtSecret, {
-        algorithm: 'HS256',
-        expiresIn: `${env.authSessionHours}h`,
+      const orgs = await orgsFor(user.user_id);
+      if (orgs.length === 0) throw ApiError.forbidden('this account has no active organization');
+      const org = orgs[0];
+      issueSession(req, res, { sub: normalized, email: normalized, org_id: org.org_id, role: org.role, uid: user.user_id });
+      await query(`SELECT touch_login($1)`, [user.user_id]);
+      ok(res, {
+        user: { email: normalized, full_name: user.full_name, org_id: org.org_id, role: org.role },
+        org,
+        orgs,
       });
-
-      setSessionCookie(res, req, token);
-      ok(res, { user: { email: env.authUserEmail } });
-      return;
     } catch (e) {
-      return next(e);
+      next(e);
     }
   },
 );
 
-/**
- * POST /api/auth/logout — clear the session cookie.
- *
- * Safe to call when already logged out. Always returns 200.
- */
-router.post('/api/auth/logout', (req, res) => {
+// ── Sign up ────────────────────────────────────────────────────────────
+
+const signupSchema = z
+  .object({
+    full_name: z.string().trim().min(1).max(255),
+    company: z.string().trim().min(1).max(255),
+    email: z.string().trim().email().max(255),
+    password: z.string().min(12, 'use at least 12 characters').max(200),
+    country: z.string().regex(/^[A-Z]{2}$/).optional(),
+    accept_terms: z.literal(true, { errorMap: () => ({ message: 'accept the terms to continue' }) }),
+  })
+  .strict();
+
+function slugFor(company: string): string {
+  const base = company
+    .normalize('NFKD').replace(/\p{M}/gu, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'org';
+  return `${base}-${randomBytes(3).toString('hex')}`;
+}
+
+router.post(
+  '/api/auth/signup',
+  signupLimitByIp,
+  validate({ body: signupSchema }),
+  async (req: Request, res: Response, next): Promise<void> => {
+    try {
+      requireLocalMode();
+      if (!env.signupEnabled) throw ApiError.notFound('signup is not open');
+      const b = req.validated!.body as z.infer<typeof signupSchema>;
+      const email = b.email.toLowerCase();
+      if (env.authUserEmail && email === env.authUserEmail.trim().toLowerCase()) {
+        throw ApiError.conflict('an account with this email already exists');
+      }
+      const hash = await bcrypt.hash(b.password, BCRYPT_COST);
+      let created: { org_id: string; user_id: string };
+      try {
+        created = (
+          await query<{ org_id: string; user_id: string }>(
+            `SELECT * FROM signup_org($1, $2, $3, $4, $5, $6)`,
+            [b.company, slugFor(b.company), email, b.full_name, hash, b.country ?? null],
+          )
+        ).rows[0];
+      } catch (e) {
+        if ((e as { code?: string }).code === '23505') {
+          throw ApiError.conflict('an account with this email already exists');
+        }
+        throw e;
+      }
+      issueSession(req, res, { sub: email, email, org_id: created.org_id, role: 'owner', uid: created.user_id });
+      logger.info('signup', { org_id: created.org_id });
+      ok(res, {
+        user: { email, full_name: b.full_name, org_id: created.org_id, role: 'owner' },
+        org: { org_id: created.org_id, name: b.company, onboarding_completed_at: null },
+      }, 201);
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ── Sign out / current session ─────────────────────────────────────────
+
+router.post('/api/auth/logout', (_req, res) => {
   res.clearCookie(env.authCookieName, { path: '/' });
   ok(res, { ok: true });
 });
 
-/**
- * GET /api/auth/me — current user from cookie. 401 if no/bad cookie.
- *
- * Useful for the dashboard to determine on mount whether to show the
- * login screen or the app.
- */
-router.get('/api/auth/me', (req, res, next) => {
+router.get('/api/auth/me', async (req, res, next) => {
   try {
-    if (env.authMode !== 'local') {
-      throw ApiError.notFound('local auth disabled');
-    }
-    const token = (req as Request & { cookies?: Record<string, string> })
-      .cookies?.[env.authCookieName];
+    requireLocalMode();
+    const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[env.authCookieName];
     if (!token) throw ApiError.unauthorized('no session');
-    if (!env.authJwtSecret) throw ApiError.internal('auth misconfigured');
-    const decoded = jwt.verify(token, env.authJwtSecret, {
-      algorithms: ['HS256'],
-    }) as SessionPayload;
+    let decoded: SessionPayload;
+    try {
+      decoded = jwt.verify(token, env.authJwtSecret, { algorithms: ['HS256'] }) as SessionPayload;
+    } catch {
+      throw ApiError.unauthorized('invalid session');
+    }
+    const orgId = decoded.org_id ?? env.authOrgId;
+    const role = isOrgRole(decoded.role) ? decoded.role : 'owner';
+    const userId = isUuid(decoded.uid) ? decoded.uid : env.authUserId;
+    // The dashboard routes new orgs to onboarding with this.
+    const org = isUuid(orgId)
+      ? await runWithTenant({ orgId, userId, role }, () =>
+          query<{ name: string; onboarding_completed_at: string | null }>(
+            `SELECT name, onboarding_completed_at FROM organizations`,
+          ),
+        )
+      : null;
     return ok(res, {
-      user: {
-        email: decoded.email,
-        org_id: decoded.org_id ?? env.authOrgId,
-        role: decoded.role ?? 'owner',
-      },
+      user: { email: decoded.email, org_id: orgId, role, uid: userId },
+      org: org?.rows[0] ?? null,
     });
   } catch (e) {
-    return next(e);
+    next(e);
+  }
+});
+
+// ── Multiple orgs ──────────────────────────────────────────────────────
+
+router.get('/api/auth/orgs', auth, async (req, res, next) => {
+  try {
+    requireLocalMode();
+    return ok(res, await orgsFor(req.user!.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+const switchSchema = z.object({ org_id: z.string().uuid() }).strict();
+
+router.post('/api/auth/switch-org', auth, validate({ body: switchSchema }), async (req, res, next) => {
+  try {
+    requireLocalMode();
+    const { org_id } = req.validated!.body as z.infer<typeof switchSchema>;
+    const target = (await orgsFor(req.user!.id)).find((o) => o.org_id === org_id);
+    if (!target) throw ApiError.forbidden('you are not a member of that organization');
+    const email = req.user!.email ?? req.user!.sub;
+    issueSession(req, res, { sub: email, email, org_id, role: target.role, uid: req.user!.id });
+    return ok(res, { org: target });
+  } catch (e) {
+    next(e);
   }
 });
 

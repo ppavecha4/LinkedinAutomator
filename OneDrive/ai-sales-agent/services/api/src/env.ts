@@ -73,6 +73,14 @@ export const env = {
   // listing works but saving secrets is refused. Losing it makes every
   // stored secret unreadable, so back it up with the database password.
   credentialsKey: str('CREDENTIALS_KEY', ''),
+
+  // Self-serve signup (phase 3). Off unless explicitly enabled, so an
+  // existing single-operator deploy never opens public registration by
+  // accident.
+  signupEnabled: str('SIGNUP_ENABLED', 'false').toLowerCase() === 'true',
+  // Onboarding AI calls the platform pays for per org, before the customer
+  // connects its own Anthropic key (decision 2026-11-14).
+  onboardingAiCap: int('ONBOARDING_AI_CAP', 15),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
   authCookieName: str('AUTH_COOKIE_NAME', 'sa_session'),

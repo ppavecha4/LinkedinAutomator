@@ -5,6 +5,7 @@
  * attach / port listen. Tests instantiate this app and pass it to supertest.
  */
 
+import cookieParser from 'cookie-parser';
 import express from 'express';
 
 import { auth } from '../src/middleware/auth';
@@ -19,6 +20,8 @@ import credentialsRouter from '../src/routes/credentials';
 import organizationRouter from '../src/routes/organization';
 import importsRouter from '../src/routes/imports';
 import offeringsRouter from '../src/routes/offerings';
+import profileRouter from '../src/routes/profile';
+import authRouter from '../src/routes/auth';
 import webhooksRouter from '../src/routes/webhooks';
 import { ApiError } from '../src/lib/errors';
 
@@ -52,6 +55,9 @@ export function buildApp(): express.Express {
 
   app.use(webhooksRouter);
   app.use(internalRouter);
+  // Same order as src/index.ts: public auth routes before the global guard.
+  app.use(cookieParser());
+  app.use(authRouter);
   app.use('/api', auth);
   app.use(campaignsRouter);
   app.use(prospectsRouter);
@@ -61,6 +67,7 @@ export function buildApp(): express.Express {
   app.use(organizationRouter);
   app.use(importsRouter);
   app.use(offeringsRouter);
+  app.use(profileRouter);
 
   app.use('/api', (_req, _res, next) => {
     next(ApiError.notFound('route not found'));
