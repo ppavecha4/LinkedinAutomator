@@ -29,6 +29,13 @@ import sys
 import asyncpg
 
 try:
+    from db.tenant import create_pool as create_tenant_pool, is_uuid, tenant
+except ImportError:  # pragma: no cover
+    from src.db.tenant import (  # type: ignore
+        create_pool as create_tenant_pool, is_uuid, tenant,
+    )
+
+try:
     from agents.reply_recorder import (
         record_reply, record_connection_accepted,
         match_by_phone, match_by_linkedin,
@@ -159,12 +166,15 @@ HANDLERS = {
 
 async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
-    pool = await asyncpg.create_pool(db_url, min_size=1, max_size=2)
+    pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
+        # Cross-org: the queue holds events for every org. Each event is
+        # then handled as the org stamped on its row (V16 `org_id`; the
+        # webhook will set it from the receiving tenant's account).
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, source, payload FROM inbound_events
+                SELECT id, org_id, source, payload FROM inbound_events
                  WHERE processed_at IS NULL
                  ORDER BY received_at ASC
                  LIMIT $1
@@ -183,20 +193,27 @@ async def main(args: argparse.Namespace) -> None:
                 import json
                 payload = json.loads(payload or "{}")
             handler = HANDLERS.get(source)
-            async with pool.acquire() as conn:
-                if handler is None:
-                    note = f"no handler for {source}"
-                else:
-                    try:
-                        note = await handler(conn, payload, args.dry_run)
-                    except Exception as e:  # noqa: BLE001
-                        note = f"error: {e}"
-                print(f"  {source}: {note}")
-                if not args.dry_run:
-                    await conn.execute(
-                        "UPDATE inbound_events SET processed_at=now(), process_note=$1 WHERE id=$2",
-                        note[:400], r["id"],
-                    )
+            org_id = str(r["org_id"])
+            if not is_uuid(org_id):
+                # Never handle an event untenanted. Leave it unprocessed so
+                # it shows up instead of being silently dropped.
+                print(f"  {source}: skipped, unusable org_id={org_id!r}")
+                continue
+            with tenant(org_id):
+                async with pool.acquire() as conn:
+                    if handler is None:
+                        note = f"no handler for {source}"
+                    else:
+                        try:
+                            note = await handler(conn, payload, args.dry_run)
+                        except Exception as e:  # noqa: BLE001
+                            note = f"error: {e}"
+                    print(f"  {source}: {note}")
+                    if not args.dry_run:
+                        await conn.execute(
+                            "UPDATE inbound_events SET processed_at=now(), process_note=$1 WHERE id=$2",
+                            note[:400], r["id"],
+                        )
             done += 1
         print(f"[done] processed={done}")
     finally:

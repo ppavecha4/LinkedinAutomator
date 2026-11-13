@@ -47,6 +47,11 @@ from typing import Optional
 
 import asyncpg
 
+try:
+    from db.tenant import create_pool as create_tenant_pool, tenant
+except ImportError:  # pragma: no cover
+    from src.db.tenant import create_pool as create_tenant_pool, tenant  # type: ignore
+
 IMAP_HOST = os.environ.get("IMAP_HOST", "imap.gmail.com")
 IMAP_PORT = int(os.environ.get("IMAP_PORT", "993"))
 
@@ -214,12 +219,16 @@ async def _set_state(conn, last_uid: int, uidvalidity: str) -> None:
 
 
 async def _match_contact(conn, sender_email: str, ref_ids: list[str]):
-    """Return (contact_id, campaign_id, prospect_id) or None."""
+    """Return (contact_id, campaign_id, prospect_id, org_id) or None.
+
+    Cross-org by design: one shared inbox can hold replies for any org,
+    so matching runs outside a tenant and returns the contact's org.
+    """
     # 1. Precise: In-Reply-To/References → messages.external_id
     for mid in ref_ids:
         row = await conn.fetchrow(
             """
-            SELECT c.id AS contact_id, c.campaign_id, c.prospect_id
+            SELECT c.id AS contact_id, c.campaign_id, c.prospect_id, c.org_id
               FROM messages m
               JOIN contacts c ON c.id = m.contact_id
              WHERE m.external_id = $1 AND m.channel = 'email'
@@ -233,7 +242,7 @@ async def _match_contact(conn, sender_email: str, ref_ids: list[str]):
     #    on an ACTIVE campaign.
     row = await conn.fetchrow(
         """
-        SELECT c.id AS contact_id, c.campaign_id, c.prospect_id
+        SELECT c.id AS contact_id, c.campaign_id, c.prospect_id, c.org_id
           FROM contacts c
           JOIN campaigns camp ON camp.id = c.campaign_id
          WHERE lower(c.email) = lower($1)
@@ -321,7 +330,7 @@ async def main(args: argparse.Namespace) -> None:
     if not (email_addr and app_pw):
         raise SystemExit("GOOGLE_WORKSPACE_EMAIL / _APP_PASSWORD not set")
 
-    pool = await asyncpg.create_pool(db_url, min_size=1, max_size=2)
+    pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
         async with pool.acquire() as conn:
             last_uid, uidvalidity = await _get_state(conn)
@@ -357,15 +366,17 @@ async def main(args: argparse.Namespace) -> None:
                 f"  {'[DRY] ' if args.dry_run else ''}reply from {sender} "
                 f"(subj='{subj[:40]}') → contact {row['contact_id']}"
             )
-            async with pool.acquire() as conn:
-                await _record_reply(
-                    conn,
-                    contact_id=row["contact_id"],
-                    campaign_id=row["campaign_id"],
-                    prospect_id=row["prospect_id"],
-                    body=body or subj or "(empty reply)",
-                    dry_run=args.dry_run,
-                )
+            # Record the reply as the contact's org (SaaS phase 1).
+            with tenant(row["org_id"]):
+                async with pool.acquire() as conn:
+                    await _record_reply(
+                        conn,
+                        contact_id=row["contact_id"],
+                        campaign_id=row["campaign_id"],
+                        prospect_id=row["prospect_id"],
+                        body=body or subj or "(empty reply)",
+                        dry_run=args.dry_run,
+                    )
             matched += 1
 
         if not args.dry_run and (cur_validity or new_last_uid != last_uid):

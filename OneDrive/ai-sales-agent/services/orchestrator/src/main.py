@@ -25,6 +25,7 @@ import signal
 
 import asyncpg
 
+from db.tenant import create_pool as create_tenant_pool  # type: ignore
 from health_server import start_health_server, stop_health_server
 from poller import run_loop as run_poller_loop  # type: ignore
 
@@ -77,7 +78,9 @@ async def _run_async() -> None:
             # Open the asyncpg pool the poller will use. Small pool —
             # the poller does at most one campaign concurrently, and
             # only needs one connection per Postgres call.
-            pool = await asyncpg.create_pool(db_url, min_size=1, max_size=4)
+            # Tenant-aware pool: each checkout gets app.current_org set
+            # to the org of the campaign task that borrows it.
+            pool = await create_tenant_pool(db_url, min_size=1, max_size=4)
             poller_task = asyncio.create_task(
                 run_poller_loop(pool, shutdown_event), name="campaign-poller"
             )

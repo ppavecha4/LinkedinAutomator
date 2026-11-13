@@ -46,6 +46,13 @@ import textwrap
 from typing import Optional
 
 import asyncpg
+
+try:
+    from db.tenant import create_pool as create_tenant_pool, use_campaign_org
+except ImportError:  # pragma: no cover
+    from src.db.tenant import (  # type: ignore
+        create_pool as create_tenant_pool, use_campaign_org,
+    )
 import httpx
 
 # Local import — keeps the script runnable both inside the orchestrator
@@ -211,8 +218,10 @@ async def main(args: argparse.Namespace) -> None:
     if not api_key:
         raise SystemExit("HEYREACH_API_KEY not set")
 
-    pool = await asyncpg.create_pool(db_url, min_size=1, max_size=4)
+    pool = await create_tenant_pool(db_url, min_size=1, max_size=4)
     try:
+        # SaaS phase 1: everything below runs as this campaign's org.
+        await use_campaign_org(pool, args.campaign_id)
         # Resolve the Heyreach campaign id with priority order:
         #   1. --campaign CLI override (operator wants a specific one)
         #   2. campaigns.heyreach_campaign_id (auto-linked at create time)

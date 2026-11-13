@@ -168,7 +168,22 @@ It is safe to deploy before any code change.
    plain `query()` inside a request now takes 3 extra round trips
    (BEGIN, set_config, COMMIT); revisit if latency shows up.
 2. Orchestrator / workers set the same setting from the campaign they are
-   processing.
+   processing. **Done (2026-11-13)** for the orchestrator and all cron
+   scripts: `services/orchestrator/src/db/tenant.py` keeps the org in a
+   `ContextVar`; its `create_pool()` adds an asyncpg `setup` hook that sets
+   (or clears) `app.current_org` on every connection checkout, so nothing
+   leaks between borrowers.
+   - Poller (`poller.py`): reads each pending campaign's `org_id` and runs
+     that campaign's task as its org; concurrent campaigns from different
+     orgs stay separate (covered by a live test).
+   - Per-campaign scripts (send emails / WhatsApp / Heyreach, rolling
+     fetch, enrich, regenerate, rewrite drafts): `use_campaign_org()` at
+     start, then the whole run is that org.
+   - Shared-inbox scripts: `poll_email_replies.py` records each reply as
+     the matched contact's org; `process_inbound_events.py` handles each
+     event as its row's `org_id`.
+   - Not wired: `outreach-worker` and `reply-processor` (the SQS path, idle
+     on the Hetzner deploy).
 3. Only then: replace the `org_id` defaults with
    `DEFAULT current_setting('app.current_org')::uuid` (so existing INSERTs
    that omit `org_id` land in the caller's org without code changes, and
@@ -181,6 +196,19 @@ Enabling RLS before steps 1–2 ship would make every query return zero rows
 in production.
 
 Things to resolve in V17:
+- **System lookups need a way past RLS.** A few queries must run before
+  the tenant is known: the poller's "find pending campaigns",
+  `org_of_campaign()` in the cron scripts, and matching an inbound email
+  or webhook to a contact. Under forced RLS they would see nothing. Give
+  them narrow `SECURITY DEFINER` functions (e.g. `campaign_org(uuid)`,
+  `pending_campaigns()`), not a blanket bypass role.
+- **Policies must treat "no tenant" as no rows.** The orchestrator clears
+  the setting to `''` on untenanted checkouts, and `''::uuid` is an error,
+  so policies should compare against
+  `NULLIF(current_setting('app.current_org', true), '')::uuid`.
+- **Webhooks must stamp `inbound_events.org_id`** from the tenant whose
+  account received the event (today the V16 default puts every event in
+  the legacy org).
 - `user_settings` is keyed by `user_id` alone; a user in two orgs needs
   `(org_id, user_id)`. `routes/settings.ts` uses `ON CONFLICT (user_id)`,
   so the key change ships together with that code change.

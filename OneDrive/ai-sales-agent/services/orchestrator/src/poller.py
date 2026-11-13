@@ -59,6 +59,7 @@ from typing import Any
 
 import asyncpg
 
+from db.tenant import is_uuid, tenant  # type: ignore
 from scripts.smoke_test_campaign import process_campaign  # type: ignore
 
 logger = logging.getLogger("orchestrator.poller")
@@ -74,11 +75,15 @@ async def _find_pending_campaigns(pool: asyncpg.Pool) -> list[asyncpg.Record]:
     Order: oldest-updated first (FIFO) so the operator's first launch
     is processed first if multiple are queued. We pull up to 10 per
     tick — the semaphore caps actual parallelism to MAX_CONCURRENT.
+
+    This is the one cross-org query in the poller: it runs outside any
+    tenant and returns each campaign's org_id so its work can run as that
+    org (see `_process_one`).
     """
     async with pool.acquire() as conn:
         return await conn.fetch(
             """
-            SELECT c.id, c.name, c.batch_size
+            SELECT c.id, c.org_id, c.name, c.batch_size
               FROM campaigns c
               LEFT JOIN prospects p ON p.campaign_id = c.id
              WHERE c.status = 'ACTIVE'
@@ -131,6 +136,7 @@ async def _process_one(
     cid: str,
     name: str,
     n: int,
+    org_id: str,
 ) -> None:
     """Process a single campaign end-to-end. Designed to be `create_task`-ed
     so multiple campaigns can run concurrently. Always cleans up
@@ -139,7 +145,28 @@ async def _process_one(
     The semaphore caps real parallelism at `MAX_CONCURRENT` so even if the
     poller queues 10 campaigns at once we never spawn 10 simultaneous
     Apollo enrichment loops (which would trip rate limits).
+
+    Everything here runs as the campaign's org: every connection this task
+    acquires gets `app.current_org` set to `org_id`. Each task has its own
+    context, so concurrent campaigns from different orgs never mix.
     """
+    if not is_uuid(org_id):
+        # Bad org id on the row: skip rather than run it untenanted.
+        logger.error("campaign id=%s has unusable org_id=%r — skipping", cid, org_id)
+        in_flight.discard(cid)
+        return
+    with tenant(org_id):
+        await _process_one_as_tenant(pool, sem, in_flight, cid, name, n)
+
+
+async def _process_one_as_tenant(
+    pool: asyncpg.Pool,
+    sem: asyncio.Semaphore,
+    in_flight: set[str],
+    cid: str,
+    name: str,
+    n: int,
+) -> None:
     async with sem:
         # Re-check status the moment we acquire the semaphore. The
         # operator may have paused the campaign while it was queued.
@@ -236,7 +263,9 @@ async def run_once(
         # await here — that would serialise everything and defeat the
         # purpose of the semaphore.
         asyncio.create_task(
-            _process_one(pool, sem, in_flight, cid, row["name"], n),
+            _process_one(
+                pool, sem, in_flight, cid, row["name"], n, str(row["org_id"]),
+            ),
             name=f"campaign-{cid[:8]}",
         )
 

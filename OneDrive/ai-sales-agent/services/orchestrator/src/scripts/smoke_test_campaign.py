@@ -31,6 +31,13 @@ import textwrap
 from typing import Any, Optional
 
 import asyncpg
+
+try:
+    from db.tenant import create_pool as create_tenant_pool, use_campaign_org
+except ImportError:  # pragma: no cover
+    from src.db.tenant import (  # type: ignore
+        create_pool as create_tenant_pool, use_campaign_org,
+    )
 import httpx
 
 # Service-line routing + global market positioning. Import works both
@@ -782,8 +789,10 @@ async def main(campaign_id: str, n: int) -> None:
     """CLI entrypoint — opens its own pool, calls process_campaign, prints
     a final per-channel/status count tally."""
     db_url = os.environ["DATABASE_URL"]
-    pool = await asyncpg.create_pool(db_url, min_size=1, max_size=4)
+    pool = await create_tenant_pool(db_url, min_size=1, max_size=4)
     try:
+        # SaaS phase 1: everything below runs as this campaign's org.
+        await use_campaign_org(pool, campaign_id)
         result = await process_campaign(pool, campaign_id, n)
         if not result["ok"]:
             raise SystemExit(result["skipped_reason"] or "unknown error")

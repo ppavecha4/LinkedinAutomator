@@ -53,6 +53,13 @@ from typing import Optional
 import asyncpg
 
 try:
+    from db.tenant import create_pool as create_tenant_pool, use_campaign_org
+except ImportError:  # pragma: no cover
+    from src.db.tenant import (  # type: ignore
+        create_pool as create_tenant_pool, use_campaign_org,
+    )
+
+try:
     from twilio.rest import Client as TwilioClient  # type: ignore
 except ImportError:
     TwilioClient = None  # type: ignore
@@ -132,8 +139,10 @@ async def main(args: argparse.Namespace) -> None:
 
     twilio = TwilioClient(account_sid, auth_token)
 
-    pool = await asyncpg.create_pool(db_url, min_size=1, max_size=2)
+    pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
+        # SaaS phase 1: everything below runs as this campaign's org.
+        await use_campaign_org(pool, args.campaign_id)
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
