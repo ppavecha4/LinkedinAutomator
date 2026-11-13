@@ -222,36 +222,17 @@ async def _match_contact(conn, sender_email: str, ref_ids: list[str]):
     """Return (contact_id, campaign_id, prospect_id, org_id) or None.
 
     Cross-org by design: one shared inbox can hold replies for any org,
-    so matching runs outside a tenant and returns the contact's org.
+    so matching runs outside a tenant, through V17's SECURITY DEFINER
+    `match_email_reply()`, and returns the contact's org. Same rules as
+    before: In-Reply-To/References → messages.external_id first, then the
+    sender's address (most recent contact, ACTIVE campaigns first).
     """
-    # 1. Precise: In-Reply-To/References → messages.external_id
-    for mid in ref_ids:
-        row = await conn.fetchrow(
-            """
-            SELECT c.id AS contact_id, c.campaign_id, c.prospect_id, c.org_id
-              FROM messages m
-              JOIN contacts c ON c.id = m.contact_id
-             WHERE m.external_id = $1 AND m.channel = 'email'
-             LIMIT 1
-            """,
-            mid,
-        )
-        if row:
-            return row
-    # 2. Fallback: sender email → contacts.email, most recently contacted
-    #    on an ACTIVE campaign.
-    row = await conn.fetchrow(
-        """
-        SELECT c.id AS contact_id, c.campaign_id, c.prospect_id, c.org_id
-          FROM contacts c
-          JOIN campaigns camp ON camp.id = c.campaign_id
-         WHERE lower(c.email) = lower($1)
-         ORDER BY (camp.status = 'ACTIVE') DESC, c.created_at DESC
-         LIMIT 1
-        """,
+    return await conn.fetchrow(
+        "SELECT contact_id, campaign_id, prospect_id, org_id"
+        "  FROM match_email_reply($1::text[], $2)",
+        list(ref_ids),
         sender_email,
     )
-    return row
 
 
 async def _record_reply(

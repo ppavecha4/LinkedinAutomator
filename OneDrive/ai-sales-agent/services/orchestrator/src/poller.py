@@ -77,21 +77,13 @@ async def _find_pending_campaigns(pool: asyncpg.Pool) -> list[asyncpg.Record]:
     tick — the semaphore caps actual parallelism to MAX_CONCURRENT.
 
     This is the one cross-org query in the poller: it runs outside any
-    tenant and returns each campaign's org_id so its work can run as that
-    org (see `_process_one`).
+    tenant through V17's SECURITY DEFINER `pending_campaigns()` (row-level
+    security would otherwise hide every campaign) and returns each
+    campaign's org_id so its work can run as that org (see `_process_one`).
     """
     async with pool.acquire() as conn:
         return await conn.fetch(
-            """
-            SELECT c.id, c.org_id, c.name, c.batch_size
-              FROM campaigns c
-              LEFT JOIN prospects p ON p.campaign_id = c.id
-             WHERE c.status = 'ACTIVE'
-             GROUP BY c.id
-            HAVING count(p.id) = 0
-             ORDER BY c.updated_at ASC
-             LIMIT 10
-            """,
+            "SELECT id, org_id, name, batch_size FROM pending_campaigns(10)"
         )
 
 

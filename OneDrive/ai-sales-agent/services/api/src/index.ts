@@ -32,6 +32,7 @@ import messagesRouter from './routes/messages';
 import prospectsRouter from './routes/prospects';
 import timelineRouter from './routes/timeline';
 import settingsRouter from './routes/settings';
+import credentialsRouter from './routes/credentials';
 import trackingRouter from './routes/tracking';
 import webhooksRouter from './routes/webhooks';
 import { dashboardHub } from './ws/server';
@@ -162,6 +163,7 @@ app.use(timelineRouter);
 app.use(analyticsRouter);
 app.use(inboxRouter);
 app.use(settingsRouter);
+app.use(credentialsRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).
 app.use('/api', (_req, _res, next) => {

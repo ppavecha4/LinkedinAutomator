@@ -15,6 +15,7 @@ import campaignsRouter from '../src/routes/campaigns';
 import internalRouter from '../src/routes/internal';
 import prospectsRouter from '../src/routes/prospects';
 import settingsRouter from '../src/routes/settings';
+import credentialsRouter from '../src/routes/credentials';
 import webhooksRouter from '../src/routes/webhooks';
 import { ApiError } from '../src/lib/errors';
 
@@ -53,6 +54,7 @@ export function buildApp(): express.Express {
   app.use(prospectsRouter);
   app.use(analyticsRouter);
   app.use(settingsRouter);
+  app.use(credentialsRouter);
 
   app.use('/api', (_req, _res, next) => {
     next(ApiError.notFound('route not found'));

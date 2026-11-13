@@ -168,17 +168,13 @@ async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
     pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
-        # Cross-org: the queue holds events for every org. Each event is
-        # then handled as the org stamped on its row (V16 `org_id`; the
-        # webhook will set it from the receiving tenant's account).
+        # Cross-org: the queue holds events for every org, read through
+        # V17's SECURITY DEFINER `unprocessed_inbound_events()`. Each event
+        # is then handled as the org stamped on its row by the webhook.
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                """
-                SELECT id, org_id, source, payload FROM inbound_events
-                 WHERE processed_at IS NULL
-                 ORDER BY received_at ASC
-                 LIMIT $1
-                """,
+                "SELECT id, org_id, source, payload"
+                "  FROM unprocessed_inbound_events($1)",
                 args.limit,
             )
         if not rows:

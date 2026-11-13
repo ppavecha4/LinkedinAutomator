@@ -18,11 +18,26 @@
 
 import { afterAll, beforeAll, afterEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import type { QueryResultRow } from 'pg';
 
 import { buildApp } from '../app';
 import { closePool, query } from '../../src/db/client';
+import { LEGACY_ORG_ID, runWithTenant } from '../../src/lib/tenantContext';
 
 const HAS_DB = !!process.env.DATABASE_URL;
+
+// Direct DB access in these tests acts as the org the API's bypass auth
+// assigns (DEV_ORG_ID → legacy org). Under V17 row-level security an
+// untenanted query sees nothing.
+const asTestOrg = <T>(fn: () => Promise<T>): Promise<T> =>
+  runWithTenant(
+    { orgId: LEGACY_ORG_ID, userId: '00000000-0000-0000-0000-000000000001', role: 'owner' },
+    fn,
+  );
+const tq = <R extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params: ReadonlyArray<unknown> = [],
+) => asTestOrg(() => query<R>(text, params));
 const describeIfDb = HAS_DB ? describe : describe.skip;
 
 const VALID_CAMPAIGN = {
@@ -56,7 +71,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     process.env.AUTH_MODE = 'bypass';
   });
 
-  afterEach(async () => {
+  afterEach(() => asTestOrg(async () => {
     // Best-effort cleanup of anything this test created. Order matters
     // because of FK constraints.
     for (const id of createdSuppressionIds) {
@@ -98,7 +113,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
       );
     }
     createdCampaignIds.length = 0;
-  });
+  }));
 
   afterAll(async () => {
     await closePool();
@@ -129,9 +144,8 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     createdCampaignIds.push(res.body.data.id);
 
     // Sequence step row landed too.
-    const steps = await query(
-      `SELECT * FROM sequence_steps WHERE campaign_id = $1`,
-      [res.body.data.id],
+    const steps = await asTestOrg(() =>
+      query(`SELECT * FROM sequence_steps WHERE campaign_id = $1`, [res.body.data.id]),
     );
     expect(steps.rowCount).toBe(1);
   });
@@ -160,7 +174,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     expect(launch.body.data.sqs_message_id).toBeDefined();
 
     // Status flipped to ACTIVE
-    const after = await query<{ status: string }>(
+    const after = await tq<{ status: string }>(
       `SELECT status FROM campaigns WHERE id = $1`,
       [id],
     );
@@ -204,7 +218,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     const campaignId = campaign.body.data.id;
     createdCampaignIds.push(campaignId);
 
-    const prospect = await query<{ id: string }>(
+    const prospect = await tq<{ id: string }>(
       `
       INSERT INTO prospects (campaign_id, company_name, status)
       VALUES ($1, 'Suppressed Co', 'CONTACTED')
@@ -215,7 +229,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     const prospectId = prospect.rows[0].id;
     createdProspectIds.push(prospectId);
 
-    const contact = await query<{ id: string }>(
+    const contact = await tq<{ id: string }>(
       `
       INSERT INTO contacts (prospect_id, campaign_id, full_name, email)
       VALUES ($1, $2, 'Jane Suppressed', 'jane@suppressed.example')
@@ -226,7 +240,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     const contactId = contact.rows[0].id;
     createdContactIds.push(contactId);
 
-    const suppression = await query<{ id: string }>(
+    const suppression = await tq<{ id: string }>(
       `
       INSERT INTO suppression_list (email, reason, contact_id)
       VALUES ('jane@suppressed.example', 'OPT_OUT', $1)
@@ -242,7 +256,7 @@ describeIfDb('POST /api/campaigns + lifecycle (live DB)', () => {
     // (it's the action that PUTS into the list), so the simplest test
     // is to verify the suppression_list row is honoured by the existing
     // SELECT path used by the middleware.
-    const blocked = await query<{ reason: string }>(
+    const blocked = await tq<{ reason: string }>(
       `
       SELECT sl.reason
       FROM suppression_list sl

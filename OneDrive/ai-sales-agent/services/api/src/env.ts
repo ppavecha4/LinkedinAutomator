@@ -66,6 +66,13 @@ export const env = {
   // bypass mode: default org when no X-Dev-Org header is sent.
   devOrgId: str('DEV_ORG_ID', '00000000-0000-0000-0000-0000000000a1'),
   authUserPasswordBcrypt: str('AUTH_USER_PASSWORD_BCRYPT', ''),
+
+  // Credential vault (SaaS phase 1): base64 of 32 random bytes, e.g.
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  // Encrypts tenants' connected-account secrets (org_credentials). Unset →
+  // listing works but saving secrets is refused. Losing it makes every
+  // stored secret unreadable, so back it up with the database password.
+  credentialsKey: str('CREDENTIALS_KEY', ''),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
   authCookieName: str('AUTH_COOKIE_NAME', 'sa_session'),

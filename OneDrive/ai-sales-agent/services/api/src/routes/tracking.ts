@@ -35,6 +35,7 @@
 import { Router, type Request, type Response } from 'express';
 
 import { query, withTransaction } from '../db/client';
+import { orgOfMessage, runAsOrg } from '../lib/tenantLookup';
 import { logger } from '../logger';
 
 const router = Router();
@@ -60,7 +61,10 @@ router.get('/track/open/:id', async (req: Request, res: Response) => {
 
     if (uuidRe.test(id)) {
       try {
-        await withTransaction(async (client) => {
+        // V17: the open is recorded as the message's own org. Unknown
+        // message → no org → nothing to record.
+        const orgId = await orgOfMessage(id);
+        if (orgId) await runAsOrg(orgId, () => withTransaction(async (client) => {
           // Guard with opened_at IS NULL so a prefetch storm only writes
           // one event per message.
           const updated = await client.query<{ campaign_id: string; contact_id: string; channel: string }>(
@@ -119,7 +123,7 @@ router.get('/track/open/:id', async (req: Request, res: Response) => {
             campaign_id: row.campaign_id,
             channel: row.channel,
           });
-        });
+        }));
       } catch (err) {
         // Never let a DB error block the pixel response — failing to
         // serve the image breaks the recipient's email rendering.

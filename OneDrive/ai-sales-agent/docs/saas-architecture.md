@@ -10,9 +10,12 @@ that prospect's language**. This builds on
 [architecture.md](architecture.md); everything not mentioned here stays as
 described there.
 
-Status (2026-11-13): design locked. `V16__organizations.sql` is written
-and passed every check below on a throwaway Postgres 15 + Flyway 9. It has
-not been applied to the VPS yet. Nothing else is built.
+Status (2026-11-13): **phase 1 (tenancy) is built and tested; nothing is
+deployed to the VPS yet.** V16 (schema), API + orchestrator tenant
+context, V17 (row-level security) and the credential vault all pass their
+tests on throwaway Postgres 15 + Flyway 9, with the services connected as
+the non-superuser app role. Deploy steps: [V17 deploy
+runbook](#v17-deploy-runbook).
 
 ---
 
@@ -184,52 +187,103 @@ It is safe to deploy before any code change.
      event as its row's `org_id`.
    - Not wired: `outreach-worker` and `reply-processor` (the SQS path, idle
      on the Hetzner deploy).
-3. Only then: replace the `org_id` defaults with
-   `DEFAULT current_setting('app.current_org')::uuid` (so existing INSERTs
-   that omit `org_id` land in the caller's org without code changes, and
-   fail loudly when no tenant is set), `ENABLE` + `FORCE ROW LEVEL
-   SECURITY` with a `USING (org_id = current_setting('app.current_org')::uuid)`
-   policy on each stamped table, and run the app under a non-owner role
-   (table owners bypass RLS).
+3. **Done (2026-11-13): `V17__row_level_security.sql`.**
+   - `app_current_org()` = `NULLIF(current_setting('app.current_org',
+     true), '')::uuid`; "no tenant" means NULL, never an error.
+   - `org_id DEFAULT app_current_org()` on all 16 tenant tables: INSERTs
+     that omit `org_id` land in the caller's org; with no tenant they are
+     refused instead of landing in the legacy org.
+   - RLS ENABLEd + FORCEd with a `tenant_isolation` policy (`org_id =
+     app_current_org()`, USING and WITH CHECK) on every tenant table;
+     `sequence_steps` / `campaign_templates` follow their campaign;
+     `organizations` shows only the current org; `users` only its
+     members. `poller_state` stays global.
+   - The V7 views are `security_invoker`, so they obey RLS.
+   - Cross-org lookups are narrow `SECURITY DEFINER` functions, EXECUTE
+     revoked from PUBLIC: `org_of_campaign`, `org_of_contact`,
+     `org_of_message`, `pending_campaigns`, `match_email_reply`,
+     `unprocessed_inbound_events`, `org_of_provider_account`.
+   - Group role `sales_app` (no login, no superuser, no BYPASSRLS) with
+     table/function grants and default privileges for later migrations;
+     the login is created outside migrations by
+     `scripts/db/create_app_login.sh` (password from env).
+   - `user_settings` primary key is now `(org_id, user_id)`.
+   - Code shipped with it: webhooks, the unsubscribe link and the open
+     pixel resolve the org from the referenced contact / message / Twilio
+     AccountSid (`services/api/src/lib/tenantLookup.ts`) and write as that
+     org; the orchestrator's four cross-org reads call the functions;
+     `dev_seed.sql` sets the legacy tenant first.
+   - Tested as the non-superuser login: SQL isolation checks (no tenant
+     sees nothing; one org cannot read, write, update or move another
+     org's rows), the API and orchestrator live suites, the dev seed.
 
-Enabling RLS before steps 1–2 ship would make every query return zero rows
-in production.
+**Superusers always bypass RLS, even when FORCEd.** Isolation is only real
+once the services' `DATABASE_URL` uses the `sales_app` login. Until then
+V17 behaves like V16 except that untenanted inserts fail.
 
-Things to resolve in V17:
-- **System lookups need a way past RLS.** A few queries must run before
-  the tenant is known: the poller's "find pending campaigns",
-  `org_of_campaign()` in the cron scripts, and matching an inbound email
-  or webhook to a contact. Under forced RLS they would see nothing. Give
-  them narrow `SECURITY DEFINER` functions (e.g. `campaign_org(uuid)`,
-  `pending_campaigns()`), not a blanket bypass role.
-- **Policies must treat "no tenant" as no rows.** The orchestrator clears
-  the setting to `''` on untenanted checkouts, and `''::uuid` is an error,
-  so policies should compare against
-  `NULLIF(current_setting('app.current_org', true), '')::uuid`.
-- **Webhooks must stamp `inbound_events.org_id`** from the tenant whose
-  account received the event (today the V16 default puts every event in
-  the legacy org).
-- `user_settings` is keyed by `user_id` alone; a user in two orgs needs
-  `(org_id, user_id)`. `routes/settings.ts` uses `ON CONFLICT (user_id)`,
-  so the key change ships together with that code change.
-- `conversations` is unique on `(contact_id, channel)`; contacts are
-  already per-org, so this is fine as-is.
+Still open:
+- Heyreach / LinkedIn webhooks carry no account id we can map, so they go
+  to `AUTH_ORG_ID`. Multi-tenant routing needs per-tenant webhook URLs
+  (e.g. `/webhooks/heyreach/<org token>`), part of onboarding (phase 3).
+- `outreach-worker` and `reply-processor` (the SQS path, idle on Hetzner)
+  are not tenant-aware; they must be before any AWS deploy.
+- Signup (creating orgs and users) will need SECURITY DEFINER functions:
+  `organizations` and `users` only accept rows for the current tenant.
+
+### V17 deploy runbook
+
+Order matters: the new code needs V17's functions, and V17 refuses
+untenanted inserts from old code.
+
+1. `pg_dump` the production database.
+2. Pause the crons (`crontab -l > ~/cron.bak && crontab -r`) and stop the
+   api + orchestrator containers.
+3. `docker compose run --rm flyway migrate` (still as the owner account):
+   applies V16 and V17.
+4. Deploy the new code and start api + orchestrator. Restore the crons.
+   Smoke test: log in, open a campaign, send one test email, check the
+   inbox poller log. RLS is not enforced yet (superuser connection).
+5. `SALES_APP_DB_PASSWORD=… scripts/db/create_app_login.sh`, switch the
+   api + orchestrator `DATABASE_URL` to `sales_app_login`, restart.
+   Repeat the smoke test: now isolation is enforced. Rollback for this
+   step is switching `DATABASE_URL` back.
+6. Set `CREDENTIALS_KEY` (base64 of 32 random bytes) before anyone saves
+   a connected account; store it with the DB backups.
 
 ---
 
-## Credentials: the vault vs. CLAUDE.md principle 2
+## Credentials: the vault
 
-CLAUDE.md principle 2 says *all third-party credentials come from
-environment variables*. With BYO, tenant credentials live in
-`org_credentials` instead. Proposed amendment: **platform** secrets (DB,
-vault encryption key, internal tokens) stay env-only; **tenant** secrets
-live only as ciphertext in `org_credentials`, decrypted in memory at send
-time, never logged, never returned by the API. The principle needs updating
-in CLAUDE.md before phase 1 code lands.
+**Built (2026-11-13).** CLAUDE.md principle 2 is amended: **platform**
+secrets (DB, `CREDENTIALS_KEY`, internal tokens) stay env-only; **tenant**
+secrets live only as ciphertext in `org_credentials`, decrypted in memory
+at use, never logged, never returned by the API. Principle 8 records the
+tenant-isolation rules.
 
-Channel classes gain a `from_credentials(org_id)` factory alongside the
-planned `from_environment()`; the legacy org keeps reading `.env` until its
-keys are moved into the vault.
+- **Format** (`secret_enc`): `0x01 | iv(12) | tag(16) | ciphertext`,
+  AES-256-GCM, key = base64 `CREDENTIALS_KEY` (32 bytes), plaintext =
+  compact UTF-8 JSON of the secret fields, AAD =
+  `<org_id>:<provider>:<label>` so a ciphertext only opens for its own row.
+  Node (`services/api/src/lib/vault.ts`) and Python
+  (`services/orchestrator/src/db/vault.py`) are pinned to one shared test
+  vector.
+- **API** (`routes/credentials.ts`): `GET /api/credentials` lists the
+  org's connections with `has_secret` but never the secret;
+  `PUT /api/credentials/:provider` (owner/admin) saves `{label, secret,
+  meta}` and resets status to UNVERIFIED; `DELETE /api/credentials/:id`
+  (owner/admin) wipes the secret and marks the row REVOKED. Twilio
+  requires `meta.account_id` (the Account SID) because inbound webhooks
+  are routed by it.
+- **Workers**: `db.vault.load_credential(conn, provider, label)` inside a
+  tenant returns the decrypted credential (`repr` redacts it).
+- **Key management**: losing `CREDENTIALS_KEY` makes every stored secret
+  unreadable; back it up with the database credentials. Rotation (a
+  second key id via the version byte) is not built yet.
+
+Not yet done (onboarding, phase 3): "Verify" calls to each provider,
+channel classes reading `load_credential()` instead of `.env`
+(`from_credentials()` next to `from_environment()`), and moving the legacy
+org's `.env` keys into the vault.
 
 ---
 
@@ -382,7 +436,7 @@ requirements land in later forward-only migrations, numbered when written:
 | `channel_type` gains `voice` | Voice (own migration: `ALTER TYPE … ADD VALUE` can't share a transaction with its first use) |
 | `lead_imports` table; `prospects.source`, `contacts.source`, `import_id` | Excel/CSV upload |
 | `calls` table (duration, recording key, transcript, outcome) | Voice |
-| Drop `org_id` defaults, enable + force RLS, `user_settings` key `(org_id, user_id)` | V17 tenancy cut-over |
+| ~~Tenant defaults, enable + force RLS, `user_settings` key `(org_id, user_id)`~~ | Done in V17 |
 
 ---
 

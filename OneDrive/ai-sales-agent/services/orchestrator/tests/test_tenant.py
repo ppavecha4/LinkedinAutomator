@@ -182,23 +182,28 @@ async def test_live_poller_runs_each_campaign_as_its_org(pool, monkeypatch):
     big = await t.create_pool(os.environ["DATABASE_URL"], min_size=2, max_size=4)
     ids: dict[str, str] = {}
     try:
-        async with big.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO organizations (id, name, slug) VALUES ($1, 'Tenant B', $2)"
-                " ON CONFLICT (id) DO NOTHING",
-                ORG_B, f"tenant-b-{uuid.uuid4().hex[:8]}",
-            )
-            for org in (t.LEGACY_ORG_ID, ORG_B):
-                ids[org] = str(await conn.fetchval(
-                    """
-                    INSERT INTO campaigns (org_id, name, status, goal, sender_company,
-                                           sender_name, value_proposition, created_by)
-                    VALUES ($1, 'tenant test', 'ACTIVE', 'g', 'c', 'n', 'vp',
-                            '00000000-0000-0000-0000-000000000001')
-                    RETURNING id
-                    """,
-                    org,
-                ))
+        # Each org's rows are written AS that org (V17 rejects untenanted
+        # inserts when RLS applies).
+        with t.tenant(ORG_B):
+            async with big.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO organizations (id, name, slug) VALUES ($1, 'Tenant B', $2)"
+                    " ON CONFLICT (id) DO NOTHING",
+                    ORG_B, f"tenant-b-{uuid.uuid4().hex[:8]}",
+                )
+        for org in (t.LEGACY_ORG_ID, ORG_B):
+            with t.tenant(org):
+                async with big.acquire() as conn:
+                    ids[org] = str(await conn.fetchval(
+                        """
+                        INSERT INTO campaigns (org_id, name, status, goal, sender_company,
+                                               sender_name, value_proposition, created_by)
+                        VALUES ($1, 'tenant test', 'ACTIVE', 'g', 'c', 'n', 'vp',
+                                '00000000-0000-0000-0000-000000000001')
+                        RETURNING id
+                        """,
+                        org,
+                    ))
 
         pending = {str(r["id"]): str(r["org_id"]) for r in await poller._find_pending_campaigns(big)}
         assert pending[ids[ORG_B]] == ORG_B
@@ -222,8 +227,51 @@ async def test_live_poller_runs_each_campaign_as_its_org(pool, monkeypatch):
             assert observed[cid] == (org, org)
         assert t.current_org() is None
     finally:
-        async with big.acquire() as conn:
-            await conn.execute("DELETE FROM campaign_audit_log WHERE campaign_id = ANY($1::uuid[])", list(ids.values()))
-            await conn.execute("DELETE FROM campaigns WHERE id = ANY($1::uuid[])", list(ids.values()))
-            await conn.execute("DELETE FROM organizations WHERE id = $1", ORG_B)
+        for org, cid in ids.items():
+            with t.tenant(org):
+                async with big.acquire() as conn:
+                    await conn.execute("DELETE FROM campaign_audit_log WHERE campaign_id = $1", cid)
+                    await conn.execute("DELETE FROM campaigns WHERE id = $1", cid)
+        with t.tenant(ORG_B):
+            async with big.acquire() as conn:
+                await conn.execute("DELETE FROM organizations WHERE id = $1", ORG_B)
         await big.close()
+
+
+@live
+async def test_live_rls_isolates_orgs(pool):
+    """V17: as a non-superuser, each org sees only its own rows."""
+    async with pool.acquire() as conn:
+        bypasses = await conn.fetchval(
+            "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+        )
+    if bypasses:
+        pytest.skip("connected as a role that bypasses RLS; use the sales_app login")
+
+    ORG_C = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+    with t.tenant(ORG_C):
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO organizations (id, name, slug) VALUES ($1, 'Tenant D', 'tenant-d-py')"
+                " ON CONFLICT (id) DO NOTHING", ORG_C)
+            cid = await conn.fetchval(
+                """
+                INSERT INTO campaigns (name, goal, sender_company, sender_name,
+                                       value_proposition, created_by)
+                VALUES ('rls test', 'g', 'c', 'n', 'vp',
+                        '00000000-0000-0000-0000-000000000001')
+                RETURNING id
+                """
+            )
+    try:
+        with t.tenant(ORG_C):
+            assert await pool.fetchval("SELECT count(*) FROM campaigns WHERE id = $1", cid) == 1
+        with t.tenant(t.LEGACY_ORG_ID):
+            assert await pool.fetchval("SELECT count(*) FROM campaigns WHERE id = $1", cid) == 0
+        assert await pool.fetchval("SELECT count(*) FROM campaigns") == 0  # no tenant
+        assert str(await pool.fetchval("SELECT org_of_campaign($1)", cid)) == ORG_C
+    finally:
+        with t.tenant(ORG_C):
+            async with pool.acquire() as conn:
+                await conn.execute("DELETE FROM campaigns WHERE id = $1", cid)
+                await conn.execute("DELETE FROM organizations WHERE id = $1", ORG_C)

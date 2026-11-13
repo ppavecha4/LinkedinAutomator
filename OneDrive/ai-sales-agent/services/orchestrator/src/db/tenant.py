@@ -124,14 +124,12 @@ async def create_pool(dsn: str, **kwargs: Any):
 async def org_of_campaign(pool: Any, campaign_id: str) -> str | None:
     """Look up a campaign's org.
 
-    A system-level lookup (it has to run before we know the tenant). Once
-    V17 forces RLS this needs a path that bypasses it, e.g. a SECURITY
-    DEFINER function; tracked in docs/saas-architecture.md.
+    Runs before the tenant is known, so it goes through V17's SECURITY
+    DEFINER `org_of_campaign()`; row-level security would hide the
+    campaign from a plain SELECT.
     """
     async with pool.acquire() as conn:
-        org = await conn.fetchval(
-            "SELECT org_id FROM campaigns WHERE id = $1", campaign_id
-        )
+        org = await conn.fetchval("SELECT org_of_campaign($1)", campaign_id)
     return str(org) if org is not None else None
 
 

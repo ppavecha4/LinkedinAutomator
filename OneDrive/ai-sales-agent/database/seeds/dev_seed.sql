@@ -1,6 +1,10 @@
 -- dev_seed.sql
 -- Minimal local development seed. Idempotent — safe to re-run.
 
+-- V17: org_id defaults to the current tenant, and inserts with no tenant
+-- fail. Seed into the legacy single-operator org.
+SELECT set_config('app.current_org', '00000000-0000-0000-0000-0000000000a1', false);
+
 -- Sample campaign
 INSERT INTO campaigns (
     id, name, status, goal, tone,

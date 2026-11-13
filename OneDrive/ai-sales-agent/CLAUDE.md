@@ -10,8 +10,12 @@ Prospect enrichment via Apollo.io. Meeting booking via Calendly.
 1. COMPLIANCE FIRST: Every outgoing message passes suppression check →
    rate limiter → message validator. No exceptions. Ever.
    ComplianceError is raised and logged — never silently swallowed.
-2. KEYS ONLY: All third-party credentials come from environment variables.
-   No credentials ever hardcoded anywhere in the codebase.
+2. KEYS ONLY: No credentials ever hardcoded anywhere in the codebase.
+   PLATFORM secrets (DB, CREDENTIALS_KEY, internal tokens) come from
+   environment variables. TENANT secrets (each org's connected accounts)
+   live only as AES-256-GCM ciphertext in org_credentials, written via
+   services/api/src/lib/vault.ts, decrypted in memory at use
+   (orchestrator db/vault.py), never logged, never returned by the API.
 3. RETRY ALWAYS: All external API calls use exponential backoff, max 3 retries.
 4. IDEMPOTENT: All SQS message processors are idempotent — safe to run twice.
 5. PITCH CONSISTENCY: Once a pitch type is selected for a prospect,
@@ -20,6 +24,12 @@ Prospect enrichment via Apollo.io. Meeting booking via Calendly.
    Never hardcode prompts outside designated agent files.
 7. MIGRATIONS ONLY FORWARD: Never modify existing Flyway migration files.
    New schema changes = new migration file.
+8. TENANT ISOLATION: Every tenant table has org_id + row-level security
+   (V17). All DB work runs inside a tenant (API: auth middleware;
+   orchestrator: db.tenant). Cross-org reads go ONLY through narrow
+   SECURITY DEFINER functions. Services connect as the non-superuser
+   sales_app login — superusers bypass RLS. New tenant tables get
+   org_id DEFAULT app_current_org() + the tenant_isolation policy.
 
 ## Service map
 - services/api/          → Campaign API (Node/Express/TypeScript) port 3000

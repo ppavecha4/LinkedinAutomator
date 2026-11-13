@@ -54,7 +54,8 @@ async function loadOrCreate(userId: string): Promise<SettingsRow> {
     `
     INSERT INTO user_settings (user_id)
     VALUES ($1)
-    ON CONFLICT (user_id) DO UPDATE SET updated_at = now()
+    -- V17: settings are per (org, user); org_id defaults to the tenant.
+    ON CONFLICT (org_id, user_id) DO UPDATE SET updated_at = now()
     RETURNING *
     `,
     [userId],

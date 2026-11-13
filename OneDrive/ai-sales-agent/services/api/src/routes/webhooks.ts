@@ -20,8 +20,14 @@ import crypto from 'crypto';
 import { Router, type Request, type Response } from 'express';
 
 import { env } from '../env';
-import { query } from '../db/client';
+import { query, withTransaction } from '../db/client';
 import { publishJson } from '../lib/sqs';
+import {
+  orgForInbound,
+  orgOfContact,
+  orgOfMessage,
+  runAsOrg,
+} from '../lib/tenantLookup';
 import { logger } from '../logger';
 import { dashboardHub } from '../ws/server';
 
@@ -41,9 +47,14 @@ const router = Router();
  */
 async function enqueueInbound(source: string, payload: unknown): Promise<void> {
   try {
-    await query(
-      `INSERT INTO inbound_events (source, payload) VALUES ($1, $2::jsonb)`,
-      [source, JSON.stringify(payload ?? {})],
+    // V17: the event is stored under the org that owns the receiving
+    // account; the processor later handles it as that org.
+    const orgId = await orgForInbound(source, payload);
+    await runAsOrg(orgId, () =>
+      query(
+        `INSERT INTO inbound_events (source, payload) VALUES ($1, $2::jsonb)`,
+        [source, JSON.stringify(payload ?? {})],
+      ),
     );
   } catch (err) {
     logger.error('inbound_events insert failed', {
@@ -229,26 +240,37 @@ router.get('/unsubscribe', async (req: Request, res: Response) => {
   }
 
   // Suppress the contact directly — mirrors POST /api/prospects/:id/suppress.
+  // V17: run as the contact's org so the opt-out lands in that org's
+  // suppression list (and can never touch another org's data).
   try {
-    await query(
-      `
-      WITH c AS (
-        SELECT id, email, whatsapp_number, linkedin_urn FROM contacts WHERE id = $1
-      )
-      INSERT INTO suppression_list (email, whatsapp_number, linkedin_urn, reason, contact_id)
-      SELECT email, whatsapp_number, linkedin_urn, 'OPT_OUT', id FROM c
-      ON CONFLICT DO NOTHING
-      `,
-      [validated.contactId],
-    );
-    await query(
-      `UPDATE prospects SET status = 'UNSUBSCRIBED' WHERE id = (SELECT prospect_id FROM contacts WHERE id = $1)`,
-      [validated.contactId],
-    );
-    await query(
-      `INSERT INTO compliance_log (action, contact_id, data) VALUES ('unsubscribe', $1, '{"source":"email_link"}'::jsonb)`,
-      [validated.contactId],
-    );
+    const orgId = await orgOfContact(validated.contactId);
+    if (!orgId) {
+      logger.warn('unsubscribe for unknown contact', { contact_id: validated.contactId });
+    } else {
+      await runAsOrg(orgId, () =>
+        withTransaction(async (client) => {
+          await client.query(
+            `
+            WITH c AS (
+              SELECT id, email, whatsapp_number, linkedin_urn FROM contacts WHERE id = $1
+            )
+            INSERT INTO suppression_list (email, whatsapp_number, linkedin_urn, reason, contact_id)
+            SELECT email, whatsapp_number, linkedin_urn, 'OPT_OUT', id FROM c
+            ON CONFLICT DO NOTHING
+            `,
+            [validated.contactId],
+          );
+          await client.query(
+            `UPDATE prospects SET status = 'UNSUBSCRIBED' WHERE id = (SELECT prospect_id FROM contacts WHERE id = $1)`,
+            [validated.contactId],
+          );
+          await client.query(
+            `INSERT INTO compliance_log (action, contact_id, data) VALUES ('unsubscribe', $1, '{"source":"email_link"}'::jsonb)`,
+            [validated.contactId],
+          );
+        }),
+      );
+    }
   } catch (err) {
     logger.error('unsubscribe persistence failed', { error: (err as Error).message });
   }
@@ -273,16 +295,22 @@ const TRANSPARENT_GIF = Buffer.from(
 router.get('/track/open/:messageId', async (req: Request, res: Response) => {
   const messageId = req.params.messageId;
   try {
-    const result = await query<{ contact_id: string }>(
-      `
-      UPDATE messages
-         SET status     = CASE WHEN status IN ('REPLIED') THEN status ELSE 'OPENED' END,
-             opened_at  = COALESCE(opened_at, now())
-       WHERE id = $1
-      RETURNING contact_id
-      `,
-      [messageId],
-    );
+    // V17: update the message as its own org.
+    const orgId = await orgOfMessage(messageId);
+    const result = orgId
+      ? await runAsOrg(orgId, () =>
+          query<{ contact_id: string }>(
+            `
+            UPDATE messages
+               SET status     = CASE WHEN status IN ('REPLIED') THEN status ELSE 'OPENED' END,
+                   opened_at  = COALESCE(opened_at, now())
+             WHERE id = $1
+            RETURNING contact_id
+            `,
+            [messageId],
+          ),
+        )
+      : { rowCount: 0, rows: [] as Array<{ contact_id: string }> };
     if ((result.rowCount ?? 0) > 0) {
       dashboardHub.broadcast({
         type: 'MESSAGE_OPENED',
