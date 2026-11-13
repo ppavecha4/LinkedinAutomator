@@ -74,7 +74,7 @@ runbook](#v17-deploy-runbook).
 | # | Phase | Main deliverables |
 |---|---|---|
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
-| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · 2.4 language-aware generation + multilingual opt-out · 2.5 dashboard screens |
+| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · **2.4 language-aware writing + multilingual opt-out (done)** · 2.5 dashboard screens |
 | 3 | Onboarding + connectors | Signup, invite flow, setup wizard: email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
@@ -492,6 +492,68 @@ Rules:
 - Postgres is UTF-8 throughout, so storage needs no special handling.
 - Dashboard UI translation (i18n) comes later; content language comes
   first.
+
+**Built (slice 2.4, 2026-11-13):**
+
+- **Which language** (`services/orchestrator/src/agents/language.py`,
+  `resolve_language`): the contact's own language → else the campaign's
+  fallback (`country`: main business language of the contact's country
+  from a curated ~70-country table, ISO code or English name; or
+  `org_default`) → an unknown country uses the org default → a campaign
+  `languages` list replaces anything outside it with its first entry.
+  **Appson's playbook campaigns stay English** unless the contact or the
+  campaign names a language (country inference is not applied to them, so
+  today's behaviour is unchanged).
+- **Writing**: customer prompts tell the model to write natively in that
+  language for a business message in the prospect's country, not to
+  translate. WhatsApp ends with a fixed opt-out line per language (en, es,
+  pt, fr, de, it, ar, hi), always containing the word STOP; other
+  languages translate the English line keeping STOP. Each message stores
+  its `language`. (If the model is unreachable, the canned fallback is
+  still English.)
+- **Opt-out detection** (`agents/optout.py`, deterministic, not a model
+  call): the whole reply is a stop word in one of ~12 languages, or an
+  explicit opt-out phrase appears anywhere; a stray "stop" in a sentence
+  or a polite "no thanks" is not an opt-out; lines containing links are
+  ignored (quoted signatures). Applied to **WhatsApp and, newly, email
+  replies**: before this slice an emailed "please remove me" was only
+  recorded as a reply and the address was never suppressed.
+- **On opt-out** (`reply_recorder.record_opt_out`, both channels): the
+  reply stays in the inbox; email, phone and LinkedIn identities go on the
+  org's suppression list; pending messages SUPPRESSED; prospect
+  UNSUBSCRIBED; `opted_out` timeline event and a `compliance_log` row
+  with what matched.
+
+**Opt-out confirmations** (decided 2026-11-13: allowed, as the one
+exception to CLAUDE.md principle 1, which now says so):
+- `record_opt_out` queues ONE confirmation per contact + channel (email or
+  WhatsApp; never LinkedIn), fixed pre-translated text in 8 languages
+  ("Understood — you won't receive any more messages from {company}."),
+  `metadata.kind = 'opt_out_confirmation'`. Language: the contact's →
+  the language of their opt-out words (a bare universal "STOP" carries
+  none) → their country's → org default → English.
+- **Send-time gate** (`services/orchestrator/src/compliance/send_gate.py`),
+  now run by both cron senders for every message: anything to a person on
+  the org's suppression list is blocked, marked SUPPRESSED and logged as
+  `send_blocked`. This also closes a gap that predates this slice — the
+  cron senders previously never checked suppression at send time, so a
+  message queued after an opt-out (e.g. by a later campaign) would have
+  gone out. The only thing that passes is a confirmation queued within 24
+  h, when none was sent before. Later replies never cancel a pending
+  confirmation. Email confirmations carry no open-tracking pixel;
+  WhatsApp ones go as plain text inside the 24-hour session, never as a
+  pitch template.
+- **Senders refuse customer campaigns** for now: they use the operator's
+  `.env` mailbox, Twilio number and pitch templates, so a customer's
+  outreach (confirmations included) waits for onboarding to wire in the
+  customer's own accounts and per-language WhatsApp templates.
+
+Not built, on purpose:
+- **Model-based classification of free-text refusals** ("we're not the
+  right fit, please don't follow up") — the phrase lists catch explicit
+  requests; an LLM second pass on the remaining replies can be added.
+- Quiet hours by recipient timezone (compliance phase) and per-language
+  WhatsApp template management (onboarding phase).
 
 ---
 

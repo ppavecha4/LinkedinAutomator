@@ -32,7 +32,7 @@ def test_customer_note_becomes_the_personalisation_hook():
         "enrichment_data": json.dumps({"note": "Notas: Nos conocimos en Expoalimentaria"}),
         "company_name": "Grupo Andino", "company_domain": None, "industry": None,
         "country": "Peru", "full_name": "Lucía", "title": None, "email": "l@x.pe",
-        "whatsapp_number": None, "linkedin_url": None, "language": "es",
+        "whatsapp_number": None, "linkedin_url": None, "language": "es", "contact_country": "PE",
     }
     p = prep._prospect_dict(row)
     assert p["research"]["personalization_hook"].endswith("Expoalimentaria")

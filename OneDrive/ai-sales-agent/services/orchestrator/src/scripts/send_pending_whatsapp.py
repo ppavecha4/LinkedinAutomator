@@ -54,7 +54,11 @@ import asyncpg
 
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
+    from db.provider_keys import is_operator_org
+    from compliance.send_gate import block_send, check_send
 except ImportError:  # pragma: no cover
+    from src.db.provider_keys import is_operator_org  # type: ignore
+    from src.compliance.send_gate import block_send, check_send  # type: ignore
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
@@ -123,6 +127,51 @@ def send_one(
         return False, None, str(e)[:200]
 
 
+def send_text(
+    twilio: "TwilioClient", *, from_number: str, to_number: str, body: str,
+) -> tuple[bool, Optional[str], Optional[str]]:
+    """Free-form WhatsApp text. Only valid inside the 24-hour session after
+    the person messaged us — used for opt-out confirmations only."""
+    try:
+        msg = twilio.messages.create(from_=_wa(from_number), to=_wa(to_number), body=body)
+        return True, msg.sid, None
+    except Exception as e:  # noqa: BLE001
+        return False, None, str(e)[:200]
+
+
+async def _record_result(pool, r, ok: bool, twilio_sid: Optional[str], error: Optional[str]) -> None:
+    """Persist a confirmation send: SENT + timeline event, or FAILED."""
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if not ok:
+                print(f"    ✗ FAILED: {error}")
+                await conn.execute(
+                    "UPDATE messages SET status = 'FAILED', failure_reason = $1, failed_at = now() WHERE id = $2",
+                    (error or "")[:200], r["message_id"],
+                )
+                return
+            await conn.execute(
+                """
+                UPDATE messages SET status = 'SENT', sent_at = COALESCE(sent_at, now()),
+                       external_id = COALESCE($1, external_id)
+                 WHERE id = $2
+                """,
+                twilio_sid, r["message_id"],
+            )
+            await conn.execute(
+                """
+                INSERT INTO prospect_events (campaign_id, prospect_id, contact_id, message_id,
+                                             channel, event_type, source, payload)
+                SELECT m.campaign_id, c.prospect_id, c.id, m.id, 'whatsapp', 'message_sent', 'system',
+                       jsonb_build_object('via', 'whatsapp_script', 'kind', 'opt_out_confirmation',
+                                          'twilio_sid', $1::text)
+                  FROM messages m JOIN contacts c ON c.id = m.contact_id
+                 WHERE m.id = $2
+                """,
+                twilio_sid, r["message_id"],
+            )
+
+
 async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
     account_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
@@ -142,7 +191,15 @@ async def main(args: argparse.Namespace) -> None:
     pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
         # SaaS phase 1: everything below runs as this campaign's org.
-        await use_campaign_org(pool, args.campaign_id)
+        org = await use_campaign_org(pool, args.campaign_id)
+        # This sender uses the operator's .env Twilio number and the
+        # operator's pitch templates. A customer's WhatsApp needs its own
+        # number + per-language templates (onboarding phase) — never send a
+        # customer's outreach as the operator.
+        if not is_operator_org(org):
+            print("Refusing: this campaign belongs to a customer org; its own WhatsApp "
+                  "number and templates are not wired yet (onboarding phase).")
+            return
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -185,8 +242,33 @@ async def main(args: argparse.Namespace) -> None:
                 skipped += 1
                 continue
 
+            # CLAUDE.md principle 1: suppression check at send time, for
+            # every message. Only a fresh opt-out confirmation may pass.
+            async with pool.acquire() as conn:
+                decision = await check_send(conn, r["message_id"])
+                if not decision.allowed:
+                    print(f"  blocked {r['full_name']:24s} — {decision.reason}")
+                    if not args.dry_run:
+                        await block_send(conn, r["message_id"], decision.reason)
+                    skipped += 1
+                    continue
+
             parts = (r["full_name"] or "").strip().split(" ", 1)
             first_name = parts[0] if parts else ""
+
+            if decision.is_confirmation:
+                # Free-form text (they just messaged us, so we are inside
+                # WhatsApp's 24-hour session) — never a pitch template.
+                print(f"  {r['full_name']:24s} -> {to[:22]:22s} [opt-out confirmation]")
+                if args.dry_run:
+                    continue
+                ok, twilio_sid, error = send_text(
+                    twilio, from_number=from_number, to_number=to, body=r["body"],
+                )
+                await _record_result(pool, r, ok, twilio_sid, error)
+                sent += ok
+                failed += not ok
+                continue
 
             template_sid, source = resolve_template_sid(r["pitch_type"])
             if not template_sid:

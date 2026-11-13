@@ -54,10 +54,14 @@ import asyncpg
 
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
+    from db.provider_keys import is_operator_org
+    from compliance.send_gate import block_send, check_send
 except ImportError:  # pragma: no cover
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
+    from src.db.provider_keys import is_operator_org  # type: ignore
+    from src.compliance.send_gate import block_send, check_send  # type: ignore
 
 try:
     import aiosmtplib  # type: ignore
@@ -374,7 +378,14 @@ async def main(args: argparse.Namespace) -> None:
     pool = await create_tenant_pool(db_url, min_size=1, max_size=4)
     try:
         # SaaS phase 1: everything below runs as this campaign's org.
-        await use_campaign_org(pool, args.campaign_id)
+        org = await use_campaign_org(pool, args.campaign_id)
+        # This sender uses the operator's .env mailbox + signature. Until a
+        # customer's own connected mailbox is wired in (onboarding phase),
+        # never send a customer's outreach as the operator.
+        if not is_operator_org(org):
+            print("Refusing: this campaign belongs to a customer org; sending from "
+                  "its own connected mailbox is not wired yet (onboarding phase).")
+            return
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -417,6 +428,17 @@ async def main(args: argparse.Namespace) -> None:
                 skipped += 1
                 continue
 
+            # CLAUDE.md principle 1: suppression check at send time, for
+            # every message. Only a fresh opt-out confirmation may pass.
+            async with pool.acquire() as conn:
+                decision = await check_send(conn, r["message_id"])
+                if not decision.allowed:
+                    print(f"  blocked {r['full_name']:20s} — {decision.reason}")
+                    if not args.dry_run:
+                        await block_send(conn, r["message_id"], decision.reason)
+                    skipped += 1
+                    continue
+
             subject = r["subject"] or _synth_subject(
                 r["body"], r["company_name"], from_name or from_email
             )
@@ -430,7 +452,8 @@ async def main(args: argparse.Namespace) -> None:
                 html_body=None,  # body is plain text; HTML alt is auto-built
                 contact_id=r["contact_id"],
                 message_id=r["message_id"],
-                track_opens=track_opens,
+                # No open-tracking pixel in an opt-out confirmation.
+                track_opens=track_opens and not decision.is_confirmation,
                 tracking_base=tracking_base,
                 unsubscribe_base=unsubscribe_base,
                 hmac_secret=hmac_secret,

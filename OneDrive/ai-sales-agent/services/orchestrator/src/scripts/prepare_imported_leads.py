@@ -31,14 +31,14 @@ try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from scripts.smoke_test_campaign import (
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
-        insert_messages, load_campaign, research_prospect, route_for,
+        insert_messages, language_for, load_campaign, research_prospect, route_for,
     )
 except ImportError:  # pragma: no cover
     from src.db.provider_keys import provider_secret  # type: ignore
     from src.db.tenant import create_pool as create_tenant_pool, use_campaign_org  # type: ignore
     from src.scripts.smoke_test_campaign import (  # type: ignore
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
-        insert_messages, load_campaign, research_prospect, route_for,
+        insert_messages, language_for, load_campaign, research_prospect, route_for,
     )
 
 DEFAULT_BATCH = 25
@@ -77,6 +77,7 @@ def _prospect_dict(row: Any) -> dict:
             "whatsapp_number": row["whatsapp_number"],
             "linkedin_url": row["linkedin_url"],
             "language": row["language"],
+            "country": row["contact_country"],  # ISO-2 from the sheet
         },
     }
     note = (enrichment.get("note") or "").strip()
@@ -114,6 +115,7 @@ async def prepare_imported(
             """
             SELECT c.id AS contact_id, c.prospect_id, c.full_name, c.title,
                    c.email, c.whatsapp_number, c.linkedin_url, c.language,
+                   c.country AS contact_country,
                    p.company_name, p.company_domain, p.industry, p.country,
                    p.enrichment_data
               FROM contacts c
@@ -154,6 +156,7 @@ async def prepare_imported(
 
         routing = route_for(campaign, p)
         pitch_type = routing["pitch_type"]
+        p["language"] = language_for(campaign, p)
         eligible = reachable_channels(channels, contact)
         messages: dict[str, str] = {}
         for ch in eligible:
@@ -185,6 +188,7 @@ async def prepare_imported(
                     linkedin_url=contact["linkedin_url"],
                     messages=messages,
                     pitch_type=pitch_type,
+                    language=p["language"],
                 )
                 if not eligible:
                     await conn.execute(

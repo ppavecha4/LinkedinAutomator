@@ -49,8 +49,12 @@ import asyncpg
 
 try:
     from db.tenant import create_pool as create_tenant_pool, tenant
+    from agents.optout import detect_opt_out
+    from agents.reply_recorder import record_opt_out
 except ImportError:  # pragma: no cover
     from src.db.tenant import create_pool as create_tenant_pool, tenant  # type: ignore
+    from src.agents.optout import detect_opt_out  # type: ignore
+    from src.agents.reply_recorder import record_opt_out  # type: ignore
 
 IMAP_HOST = os.environ.get("IMAP_HOST", "imap.gmail.com")
 IMAP_PORT = int(os.environ.get("IMAP_PORT", "993"))
@@ -298,10 +302,43 @@ async def _record_reply(
             """
             UPDATE messages SET status = 'SUPPRESSED',
                    failure_reason = 'auto-stopped: prospect replied'
-             WHERE contact_id = $1 AND status IN ('QUEUED','DRAFTED')
+             WHERE contact_id = $1 AND status IN ('QUEUED','DRAFTED') AND (metadata->>'kind') IS DISTINCT FROM 'opt_out_confirmation'
             """,
             contact_id,
         )
+
+
+async def handle_email_reply(conn, row, *, body: str, dry_run: bool) -> str:
+    """Record an email reply; if it asks to stop (any language), suppress
+    the contact on every channel. Returns 'opt_out' or 'reply'.
+
+    Before slice 2.4 an emailed "please remove me" only marked the prospect
+    REPLIED; the address was never suppressed, so a later campaign could
+    write again.
+    """
+    await _record_reply(
+        conn,
+        contact_id=row["contact_id"],
+        campaign_id=row["campaign_id"],
+        prospect_id=row["prospect_id"],
+        body=body,
+        dry_run=dry_run,
+    )
+    opt = detect_opt_out(body)
+    if not opt.is_opt_out:
+        return "reply"
+    if not dry_run:
+        await record_opt_out(
+            conn,
+            contact_id=row["contact_id"],
+            campaign_id=row["campaign_id"],
+            prospect_id=row["prospect_id"],
+            channel="email",
+            matched=opt.matched or "",
+            via="email_reply",
+            reply_language=opt.language,
+        )
+    return "opt_out"
 
 
 async def main(args: argparse.Namespace) -> None:
@@ -347,17 +384,15 @@ async def main(args: argparse.Namespace) -> None:
                 f"  {'[DRY] ' if args.dry_run else ''}reply from {sender} "
                 f"(subj='{subj[:40]}') → contact {row['contact_id']}"
             )
-            # Record the reply as the contact's org (SaaS phase 1).
+            # Record the reply as the contact's org (SaaS phase 1); an
+            # opt-out in any language also suppresses them (slice 2.4).
             with tenant(row["org_id"]):
                 async with pool.acquire() as conn:
-                    await _record_reply(
-                        conn,
-                        contact_id=row["contact_id"],
-                        campaign_id=row["campaign_id"],
-                        prospect_id=row["prospect_id"],
-                        body=body or subj or "(empty reply)",
-                        dry_run=args.dry_run,
+                    outcome = await handle_email_reply(
+                        conn, row, body=body or subj or "(empty reply)", dry_run=args.dry_run,
                     )
+            if outcome == "opt_out":
+                print(f"    ↳ opt-out: {sender} suppressed")
             matched += 1
 
         if not args.dry_run and (cur_validity or new_last_uid != last_uid):

@@ -36,54 +36,17 @@ except ImportError:  # pragma: no cover
     )
 
 try:
+    from agents.optout import detect_opt_out
     from agents.reply_recorder import (
-        record_reply, record_connection_accepted,
+        record_reply, record_connection_accepted, record_opt_out,
         match_by_phone, match_by_linkedin,
     )
 except ImportError:  # pragma: no cover
+    from src.agents.optout import detect_opt_out  # type: ignore
     from src.agents.reply_recorder import (  # type: ignore
-        record_reply, record_connection_accepted,
+        record_reply, record_connection_accepted, record_opt_out,
         match_by_phone, match_by_linkedin,
     )
-
-OPT_OUT = {
-    "stop", "unsubscribe", "remove me", "opt out", "optout", "parar",
-    "cancelar", "arrêt", "berhenti",
-}
-
-
-async def _suppress_contact(conn, contact_id, campaign_id, prospect_id) -> None:
-    """Opt-out: add to suppression + stop everything for the contact."""
-    async with conn.transaction():
-        await conn.execute(
-            """
-            INSERT INTO suppression_list (whatsapp_number, reason, contact_id)
-            SELECT whatsapp_number, 'OPT_OUT', id FROM contacts WHERE id = $1
-            ON CONFLICT DO NOTHING
-            """,
-            contact_id,
-        )
-        await conn.execute(
-            "UPDATE prospects SET status='UNSUBSCRIBED', updated_at=now() WHERE id=$1",
-            prospect_id,
-        )
-        await conn.execute(
-            """
-            UPDATE messages SET status='SUPPRESSED',
-                   failure_reason='opt-out'
-             WHERE contact_id=$1 AND status IN ('QUEUED','DRAFTED')
-            """,
-            contact_id,
-        )
-        await conn.execute(
-            """
-            INSERT INTO prospect_events (campaign_id, prospect_id, contact_id,
-                                         channel, event_type, source, payload)
-            VALUES ($1,$2,$3,'whatsapp','opted_out','prospect',
-                    jsonb_build_object('via','inbound_processor'))
-            """,
-            campaign_id, prospect_id, contact_id,
-        )
 
 
 async def _handle_whatsapp_inbound(conn, payload: dict, dry: bool) -> str:
@@ -96,14 +59,21 @@ async def _handle_whatsapp_inbound(conn, payload: dict, dry: bool) -> str:
         return f"no contact for {frm}"
     if dry:
         return f"[dry] would record wa reply from {frm}"
-    if body.lower() in OPT_OUT:
-        await _suppress_contact(conn, row["contact_id"], row["campaign_id"],
-                                row["prospect_id"])
-        return f"opt-out {frm}"
     await record_reply(
         conn, contact_id=row["contact_id"], campaign_id=row["campaign_id"],
         prospect_id=row["prospect_id"], channel="whatsapp", body=body,
     )
+    # Opt-out in any language ("STOP", "Alto", "توقف", "no me escribas más"):
+    # the reply stays visible in the inbox, then every identity is suppressed.
+    opt = detect_opt_out(body)
+    if opt.is_opt_out:
+        await record_opt_out(
+            conn, contact_id=row["contact_id"], campaign_id=row["campaign_id"],
+            prospect_id=row["prospect_id"], channel="whatsapp",
+            matched=opt.matched or "", via="whatsapp_inbound",
+            reply_language=opt.language,
+        )
+        return f"opt-out {frm} ({opt.matched})"
     return f"reply recorded {frm}"
 
 

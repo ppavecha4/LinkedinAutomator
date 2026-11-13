@@ -8,8 +8,14 @@ Prospect enrichment via Apollo.io. Meeting booking via Calendly.
 
 ## Architecture principles — never violate these
 1. COMPLIANCE FIRST: Every outgoing message passes suppression check →
-   rate limiter → message validator. No exceptions. Ever.
-   ComplianceError is raised and logged — never silently swallowed.
+   rate limiter → message validator, AT SEND TIME (cron senders:
+   compliance/send_gate.py). ComplianceError is raised and logged — never
+   silently swallowed.
+   ONE exception (decided 2026-11-13): the opt-out confirmation — fixed,
+   pre-translated, factual text, queued once per contact + channel by
+   record_opt_out, metadata.kind = 'opt_out_confirmation', allowed only
+   within 24 h and only if none was sent before. No other message to a
+   suppressed person, ever.
 2. KEYS ONLY: No credentials ever hardcoded anywhere in the codebase.
    PLATFORM secrets (DB, CREDENTIALS_KEY, internal tokens) come from
    environment variables. TENANT secrets (each org's connected accounts)

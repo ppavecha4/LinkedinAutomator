@@ -154,7 +154,7 @@ async def record_reply(
                 """
                 UPDATE messages SET status = 'SUPPRESSED',
                        failure_reason = 'auto-stopped: prospect replied'
-                 WHERE contact_id = $1 AND status IN ('QUEUED','DRAFTED')
+                 WHERE contact_id = $1 AND status IN ('QUEUED','DRAFTED') AND (metadata->>'kind') IS DISTINCT FROM 'opt_out_confirmation'
                 """,
                 contact_id,
             )
@@ -183,3 +183,116 @@ async def record_connection_accepted(
             """,
             campaign_id, prospect_id, contact_id,
         )
+
+
+async def record_opt_out(
+    conn,
+    *,
+    contact_id,
+    campaign_id,
+    prospect_id,
+    channel: str,          # where they asked: 'email' | 'whatsapp' | 'linkedin'
+    matched: str,          # what the detector matched (agents/optout.py)
+    via: str,
+    reply_language: str | None = None,  # language of the opt-out words
+    confirm: bool = True,
+) -> None:
+    """The prospect asked to stop: suppress EVERY identity of the contact
+    (email, phone, LinkedIn) for this org, stop all pending sends, mark the
+    prospect UNSUBSCRIBED, and log it for compliance. Runs inside the
+    contact's tenant, so the suppression lands in that org's list only.
+    Mirrors the API's /unsubscribe link handler.
+
+    Then queues ONE confirmation on the same channel (email / WhatsApp),
+    in their language — the single, narrow exception to CLAUDE.md
+    principle 1, enforced at send time by compliance/send_gate.py.
+    """
+    async with conn.transaction():
+        await conn.execute(
+            """
+            INSERT INTO suppression_list (email, whatsapp_number, linkedin_urn, reason, contact_id)
+            SELECT email, whatsapp_number, linkedin_urn, 'OPT_OUT', id FROM contacts WHERE id = $1
+            ON CONFLICT DO NOTHING
+            """,
+            contact_id,
+        )
+        await conn.execute(
+            "UPDATE prospects SET status = 'UNSUBSCRIBED', updated_at = now() WHERE id = $1",
+            prospect_id,
+        )
+        await conn.execute(
+            """
+            UPDATE messages SET status = 'SUPPRESSED', failure_reason = 'opt-out'
+             WHERE contact_id = $1 AND status IN ('QUEUED', 'DRAFTED') AND (metadata->>'kind') IS DISTINCT FROM 'opt_out_confirmation'
+            """,
+            contact_id,
+        )
+        await conn.execute(
+            """
+            INSERT INTO prospect_events (campaign_id, prospect_id, contact_id,
+                                         channel, event_type, source, payload)
+            VALUES ($1, $2, $3, $4::channel_type, 'opted_out', 'prospect',
+                    jsonb_build_object('via', $5::text, 'matched', $6::text))
+            """,
+            campaign_id, prospect_id, contact_id, channel, via, matched,
+        )
+        await conn.execute(
+            """
+            INSERT INTO compliance_log (action, contact_id, campaign_id, channel, data)
+            VALUES ('opt_out', $1, $2, $3::channel_type,
+                    jsonb_build_object('via', $4::text, 'matched', $5::text))
+            """,
+            contact_id, campaign_id, channel, via, matched,
+        )
+        if confirm and channel in ("email", "whatsapp"):
+            await queue_opt_out_confirmation(
+                conn, contact_id=contact_id, campaign_id=campaign_id,
+                channel=channel, reply_language=reply_language,
+            )
+
+
+async def queue_opt_out_confirmation(conn, *, contact_id, campaign_id, channel: str,
+                                     reply_language: str | None) -> bool:
+    """Queue the fixed, translated "you're unsubscribed" message once per
+    contact + channel. Returns False if one already exists. The send gate
+    (compliance/send_gate.py) only lets it through for 24 hours."""
+    try:
+        from agents.language import confirmation_language, confirmation_message
+        from compliance.send_gate import CONFIRMATION_KIND
+    except ImportError:  # pragma: no cover
+        from src.agents.language import confirmation_language, confirmation_message  # type: ignore
+        from src.compliance.send_gate import CONFIRMATION_KIND  # type: ignore
+
+    info = await conn.fetchrow(
+        """
+        SELECT c.language, COALESCE(c.country, p.country) AS country, camp.sender_company,
+               o.default_language AS org_language,
+               EXISTS (SELECT 1 FROM messages m
+                        WHERE m.contact_id = c.id AND m.channel = $2::channel_type
+                          AND m.metadata->>'kind' = $3) AS already
+          FROM contacts c
+          JOIN prospects p     ON p.id = c.prospect_id
+          JOIN campaigns camp  ON camp.id = c.campaign_id
+          JOIN organizations o ON o.id = camp.org_id
+         WHERE c.id = $1
+        """,
+        contact_id, channel, CONFIRMATION_KIND,
+    )
+    if info is None or info["already"]:
+        return False
+    language = confirmation_language(
+        contact_language=info["language"], reply_language=reply_language,
+        country=info["country"], org_default=info["org_language"],
+    )
+    subject, body = confirmation_message(language, info["sender_company"])
+    await conn.execute(
+        """
+        INSERT INTO messages (contact_id, campaign_id, channel, direction, subject, body,
+                              status, language, sequence_step, metadata)
+        VALUES ($1, $2, $3::channel_type, 'outbound', $4, $5, 'QUEUED', $6, 0,
+                jsonb_build_object('kind', $7::text))
+        """,
+        contact_id, campaign_id, channel, subject if channel == "email" else None,
+        body, language, CONFIRMATION_KIND,
+    )
+    return True

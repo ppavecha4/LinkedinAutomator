@@ -35,11 +35,15 @@ import asyncpg
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org, provider_secret
+    from agents.language import language_name, opt_out_line, primary, resolve_language
 except ImportError:  # pragma: no cover
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
     from src.db.provider_keys import is_operator_org, provider_secret  # type: ignore
+    from src.agents.language import (  # type: ignore
+        language_name, opt_out_line, primary, resolve_language,
+    )
 import httpx
 
 # Service-line routing + global market positioning. Import works both
@@ -80,7 +84,8 @@ async def load_campaign(conn: Any, campaign_id: str) -> Optional[dict]:
     row = await conn.fetchrow(
         """
         SELECT id, org_id, offering_id, name, goal, tone, sender_name,
-               sender_company, value_proposition, icp_criteria, channels
+               sender_company, value_proposition, icp_criteria, channels,
+               languages, language_fallback
           FROM campaigns
          WHERE id = $1
         """,
@@ -89,6 +94,10 @@ async def load_campaign(conn: Any, campaign_id: str) -> Optional[dict]:
     if not row:
         return None
     campaign = dict(row)
+    # RLS: inside the campaign's tenant this is exactly its org's row.
+    campaign["org_default_language"] = await conn.fetchval(
+        "SELECT default_language FROM organizations WHERE id = $1", campaign["org_id"]
+    ) or "en"
     if isinstance(campaign["icp_criteria"], str):
         campaign["icp_criteria"] = json.loads(campaign["icp_criteria"])
     campaign["offering"] = None
@@ -393,17 +402,47 @@ GENERIC_PROMPT = textwrap.dedent("""\
         generic "I came across your profile".
       - Ask for: {cta}.
     {guardrails}
+    LANGUAGE: {language_instruction}
+
     Channel: {channel}
     Constraints by channel:
       - linkedin: connection-request note STRICTLY ≤ 300 characters. Warm,
         one relevant detail, soft ask to connect. NO sign-off.
       - email: 80–120 words, ONE clear call to action. No subject line in
         the body. No sign-off (a signature is appended automatically).
-      - whatsapp: ≤ 300 chars, conversational, include
-        "Reply STOP to opt out."
+      - whatsapp: ≤ 300 chars, conversational; {whatsapp_opt_out}
 
     Output ONLY the message body. No preamble, no surrounding quotes.
 """)
+
+
+def _language_instruction(language: str, country: str | None) -> str:
+    where = f" in {country}" if country else ""
+    return (f"Write the whole message in {language_name(language)}, the way a native "
+            f"speaker would write a business message{where}: natural phrasing and the "
+            f"usual level of formality, not a translation from English. Keep company "
+            f"and product names as they are.")
+
+
+def _whatsapp_opt_out(language: str) -> str:
+    line = opt_out_line(language)
+    if line:
+        return f'end with exactly this line: "{line}"'
+    return (f"end with one short line in {language_name(language)} telling them to "
+            f"reply STOP to opt out (keep the word STOP in Latin letters)")
+
+
+def language_for(campaign: dict, prospect: dict) -> str:
+    """The language to write this prospect in (agents/language.py rules)."""
+    contact = prospect.get("contact") or {}
+    return resolve_language(
+        contact_language=contact.get("language"),
+        country=contact.get("country") or (prospect.get("company") or {}).get("country"),
+        campaign_languages=campaign.get("languages"),
+        fallback=campaign.get("language_fallback") or "country",
+        org_default=campaign.get("org_default_language"),
+        operator_playbook=uses_operator_playbook(campaign),
+    )
 
 
 def _offering_details(offering: dict | None) -> tuple[str, str, str]:
@@ -427,11 +466,21 @@ def _offering_details(offering: dict | None) -> tuple[str, str, str]:
 
 
 def build_prompt(*, campaign: dict, prospect: dict, channel: str, routing: dict) -> str:
-    """The writer prompt for one prospect + channel."""
+    """The writer prompt for one prospect + channel, in the prospect's
+    language (`prospect["language"]`, set by the caller via language_for)."""
+    language = prospect.get("language") or "en"
+    country = (prospect.get("company") or {}).get("country")
     if uses_operator_playbook(campaign):
-        return _operator_prompt(campaign=campaign, prospect=prospect, channel=channel, routing=routing)
+        prompt = _operator_prompt(campaign=campaign, prospect=prospect, channel=channel, routing=routing)
+        if primary(language) != "en":
+            prompt += (f"\nLANGUAGE (overrides the above): {_language_instruction(language, country)}"
+                       + (f" For WhatsApp, {_whatsapp_opt_out(language)}." if channel == "whatsapp" else "")
+                       + "\n")
+        return prompt
     details, cta, guardrails = _offering_details(campaign.get("offering"))
     return GENERIC_PROMPT.format(
+        language_instruction=_language_instruction(language, country),
+        whatsapp_opt_out=_whatsapp_opt_out(language),
         sender_name=campaign["sender_name"],
         sender_company=campaign["sender_company"],
         tone=campaign["tone"],
@@ -708,6 +757,7 @@ async def upsert_and_queue(
                 linkedin_url=contact.get("linkedin_url"),
                 messages=messages,
                 pitch_type=pitch_type,
+                language=prospect.get("language"),
             )
 
 
@@ -720,6 +770,7 @@ async def insert_messages(
     linkedin_url: Optional[str],
     messages: dict[str, str],
     pitch_type: str,
+    language: Optional[str] = None,
 ) -> None:
     """Insert the first-touch messages for one contact + their timeline
     events. Shared by AI discovery (upsert_and_queue) and imported leads
@@ -747,12 +798,12 @@ async def insert_messages(
             INSERT INTO messages (
                 contact_id, campaign_id, channel, direction, body,
                 status, pitch_type, sequence_step,
-                linkedin_profile_url
-            ) VALUES ($1, $2, $3, 'outbound', $4, $5, $6, $7, $8)
+                linkedin_profile_url, language
+            ) VALUES ($1, $2, $3, 'outbound', $4, $5, $6, $7, $8, $9)
             RETURNING id
             """,
             contact_id, campaign_id, channel, body_text, status,
-            pitch_type, 1, profile_url,
+            pitch_type, 1, profile_url, language,
         )
 
         # Per-channel timeline event. The verb mirrors the
@@ -925,6 +976,7 @@ async def process_campaign(
 
         routing = route_for(campaign, p)
         pitch_type = routing["pitch_type"]
+        p["language"] = language_for(campaign, p)
         research_note = ""
         if p.get("research"):
             rb = p["research"]
