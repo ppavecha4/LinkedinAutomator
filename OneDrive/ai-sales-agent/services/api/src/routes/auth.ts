@@ -37,6 +37,11 @@ const loginSchema = z.object({
 interface SessionPayload {
   sub: string;       // user id (email for local mode)
   email: string;
+  // SaaS phase 1: the organization this session acts for, and the role
+  // in it. Optional because sessions minted before phase 1 lack them;
+  // the auth middleware treats those as AUTH_ORG_ID / owner.
+  org_id?: string;
+  role?: string;
 }
 
 function sessionMaxAgeMs(): number {
@@ -105,9 +110,14 @@ router.post(
         throw ApiError.unauthorized('invalid email or password');
       }
 
+      // Single-operator login: the operator owns the configured org.
+      // Multi-user login (users + memberships tables) replaces this in
+      // the onboarding phase.
       const payload: SessionPayload = {
         sub: env.authUserEmail,
         email: env.authUserEmail,
+        org_id: env.authOrgId,
+        role: 'owner',
       };
       const token = jwt.sign(payload, env.authJwtSecret, {
         algorithm: 'HS256',
@@ -151,7 +161,13 @@ router.get('/api/auth/me', (req, res, next) => {
     const decoded = jwt.verify(token, env.authJwtSecret, {
       algorithms: ['HS256'],
     }) as SessionPayload;
-    return ok(res, { user: { email: decoded.email } });
+    return ok(res, {
+      user: {
+        email: decoded.email,
+        org_id: decoded.org_id ?? env.authOrgId,
+        role: decoded.role ?? 'owner',
+      },
+    });
   } catch (e) {
     return next(e);
   }

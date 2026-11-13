@@ -4,12 +4,35 @@
  * Lazy: the pool is created on first query so the API boots even without a
  * DATABASE_URL (dev smoke tests, unit tests). If you actually call the DB
  * without DATABASE_URL set, you'll get a clear error.
+ *
+ * Tenant context (SaaS phase 1): when the caller runs inside a request
+ * whose auth resolved an organization (`currentTenant()`), every statement
+ * runs in a transaction that first sets `app.current_org` with
+ * `set_config(..., is_local => true)`. Transaction-local means the setting
+ * can never leak to the next request that borrows the same pooled
+ * connection. The V17 row-level-security policies filter on it. Code
+ * outside a request (webhooks, startup) runs without it, as before.
  */
 
-import { Pool, type PoolConfig, type QueryResult, type QueryResultRow } from 'pg';
+import {
+  Pool,
+  type PoolClient,
+  type PoolConfig,
+  type QueryResult,
+  type QueryResultRow,
+} from 'pg';
 
 import { env } from '../env';
+import { currentTenant } from '../lib/tenantContext';
 import { logger } from '../logger';
+
+/** Postgres setting the RLS policies read (`current_setting('app.current_org')`). */
+export const TENANT_SETTING = 'app.current_org';
+
+async function applyTenant(client: PoolClient, orgId: string): Promise<void> {
+  // Parameterised: never interpolate the org id into SQL.
+  await client.query('SELECT set_config($1, $2, true)', [TENANT_SETTING, orgId]);
+}
 
 let pool: Pool | null = null;
 
@@ -43,7 +66,12 @@ export async function query<R extends QueryResultRow = QueryResultRow>(
   params: ReadonlyArray<unknown> = [],
 ): Promise<QueryResult<R>> {
   const started = Date.now();
-  const result = await getPool().query<R>(text, params as unknown[]);
+  const tenant = currentTenant();
+  const result = tenant
+    ? await withTransaction((client) =>
+        client.query<R>(text, params as unknown[]),
+      )
+    : await getPool().query<R>(text, params as unknown[]);
   const duration = Date.now() - started;
   if (duration > 200) {
     logger.warn('slow query', { duration_ms: duration, sql: text.slice(0, 120) });
@@ -57,6 +85,8 @@ export async function withTransaction<T>(
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    const tenant = currentTenant();
+    if (tenant) await applyTenant(client, tenant.orgId);
     const result = await fn(client);
     await client.query('COMMIT');
     return result;

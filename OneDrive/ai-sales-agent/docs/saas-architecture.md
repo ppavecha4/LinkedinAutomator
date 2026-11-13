@@ -1,10 +1,14 @@
 # AI Sales Agent — SaaS Architecture
 
 How the single-operator Appson Sales platform becomes a multi-tenant SaaS:
-any company, in any industry, signs up, describes its ideal customer in
-plain language, and runs outreach over **Email, WhatsApp and AI voice
-calls**. This builds on [architecture.md](architecture.md); everything not
-mentioned here stays as described there.
+any company, in any industry and any country, signs up and gets leads in
+one of two ways: **describe its ideal customer to the AI agent**, or
+**upload an Excel/CSV of the people it wants to reach**. It then picks
+which channels to use (**Email, WhatsApp, LinkedIn, AI voice calls**, in
+any combination) and the agent writes and talks to each prospect **in
+that prospect's language**. This builds on
+[architecture.md](architecture.md); everything not mentioned here stays as
+described there.
 
 Status (2026-11-13): design locked. `V16__organizations.sql` is written
 and passed every check below on a throwaway Postgres 15 + Flyway 9. It has
@@ -19,7 +23,9 @@ not been applied to the VPS yet. Nothing else is built.
 | Tenancy | None. Only `campaigns.created_by` and `user_settings.user_id`; no org anywhere in V1–V15. | `organizations` + `memberships`, `org_id` on every tenant table, enforced by Postgres row-level security. |
 | Credentials | One global `.env`: one Twilio, one Gmail, one Heyreach, one Apollo, one Anthropic key. | Per-tenant encrypted credential vault. |
 | ICP / offering | Hardcoded service lines (`staff_augmentation`, `ai_consulting`) and routing from V13, baked into `services/api/src/lib/campaignPlanner.ts`. | Tenant-defined offering, ICP, tone and routing, generated from a prompt and stored as data. |
-| Channels | Email, WhatsApp, LinkedIn. No voice code. | A new AI voice channel. |
+| Lead source | Apollo discovery from the planner's ICP only. | AI discovery from a prompt **or** a customer-uploaded Excel/CSV, landing in the same tables. |
+| Channels | Email, WhatsApp, LinkedIn. Choice is implicit: the planner proposes `channels_enabled` and each `sequence_steps` row has a channel. No voice code. | An explicit per-campaign channel set the customer controls, plus a new AI voice channel. |
+| Language | English only; prompts and opt-out handling assume English. | Per-org default language, per-prospect language, messages and calls generated natively in that language. |
 | Auth | One operator (`AUTH_MODE=local`, bcrypt hash in env). | Signup, invites, roles, org-scoped sessions. |
 | Billing / limits | None. | Plans, usage metering, per-tenant quotas. |
 | Compliance | Global suppression list, basic compliance log. | Per-tenant suppression, quiet hours, India DLT/TRAI, WhatsApp opt-in, call-recording consent. |
@@ -33,12 +39,26 @@ not been applied to the VPS yet. Nothing else is built.
    later upsell. This keeps us from becoming a telecom/WhatsApp reseller
    (deliverability, Meta business verification, DLT/TRAI liability) while
    we land the first paying customers.
-2. **Voice via a voice-agent provider** (Vapi / Retell class) on Twilio
-   telephony, not a custom speech stack. Provider still open: compare
-   per-minute cost and Hindi/Hinglish quality before choosing.
-3. **First slice = tenancy foundation + prompt-to-ICP together.** Together
-   they deliver "any company can sign up and describe its ICP", which is
-   useful on its own. Voice starts only after tenancy is solid.
+2. **Own voice stack, no voice-AI vendor.** (Changed 2026-11-13; this
+   replaces the earlier "use Vapi / Retell" plan.) We build our own
+   speech pipeline, ElevenLabs-class, to avoid a third-party dependency.
+   Design is still to be discussed; see [Voice channel](#voice-channel).
+3. **Two lead sources, one pipeline.** Customers either prompt the AI
+   agent (ICP → discovery) or upload an Excel/CSV of their own contacts.
+   Both produce ordinary `prospects` / `contacts` rows, so everything
+   downstream (research, generation, compliance, sending, inbox) is shared.
+4. **Customer chooses the channels** per campaign: any subset of email,
+   WhatsApp, LinkedIn and voice (e.g. all four, WhatsApp + email only, or
+   voice only). The AI may suggest a set; the customer has the final say.
+5. **Multi-language from the start.** Tenants and prospects can be in any
+   country. Language is stored per org, per campaign and per contact, and
+   content is generated directly in the target language, not translated
+   afterwards.
+6. **First slice = tenancy foundation + lead sources (prompt and upload)
+   + channel choice + language fields.** Together they deliver "any
+   company can sign up, bring or find leads, and reach them on the
+   channels and in the language it wants". Voice starts only after
+   tenancy is solid.
 
 ---
 
@@ -47,11 +67,11 @@ not been applied to the VPS yet. Nothing else is built.
 | # | Phase | Main deliverables |
 |---|---|---|
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
-| 2 | Prompt-to-ICP | `campaignPlanner.ts` reads/writes `org_offerings` instead of hardcoded service lines; `POST /api/offerings/generate` |
+| 2 | Lead sources, channels, language | Prompt-to-ICP (`campaignPlanner.ts` reads/writes `org_offerings`); Excel/CSV import with column mapping; explicit `campaigns.channels`; language columns and language-aware generation |
 | 3 | Onboarding + connectors | Signup, invite flow, setup wizard: email → WhatsApp → LinkedIn, each with a "verify credential" step |
-| 4 | Voice channel | `voice_channel.py` per the CLAUDE.md "new channel" checklist, provider webhooks, call outcomes into the unified inbox, human handoff |
+| 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
-| 6 | Per-tenant compliance | Org-scoped opt-out, quiet hours by recipient region, DLT/TRAI templates, recording-consent prompts |
+| 6 | Per-tenant compliance | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
 | 7 | Hardening | Production dashboard build (not the Vite dev server), offsite backups, monitoring/alerting |
 
 ---
@@ -139,10 +159,20 @@ It is safe to deploy before any code change.
 **V17 (after app changes)**:
 1. API resolves the org from the JWT (`org_id` + `role` claims) and runs
    every request inside a transaction with
-   `SET LOCAL app.current_org = '<uuid>'`.
+   `SET LOCAL app.current_org = '<uuid>'`. **Done (2026-11-13):**
+   `services/api/src/lib/tenantContext.ts` (AsyncLocalStorage),
+   `middleware/auth.ts` (org + role for bypass / local / Cognito; sessions
+   without `org_id` fall back to `AUTH_ORG_ID`), `db/client.ts`
+   (`set_config('app.current_org', org, true)` at the start of every
+   transaction when a tenant is set). Routes needed no changes. Cost: a
+   plain `query()` inside a request now takes 3 extra round trips
+   (BEGIN, set_config, COMMIT); revisit if latency shows up.
 2. Orchestrator / workers set the same setting from the campaign they are
    processing.
-3. Only then: drop the `org_id` defaults, `ENABLE` + `FORCE ROW LEVEL
+3. Only then: replace the `org_id` defaults with
+   `DEFAULT current_setting('app.current_org')::uuid` (so existing INSERTs
+   that omit `org_id` land in the caller's org without code changes, and
+   fail loudly when no tenant is set), `ENABLE` + `FORCE ROW LEVEL
    SECURITY` with a `USING (org_id = current_setting('app.current_org')::uuid)`
    policy on each stamped table, and run the app under a non-owner role
    (table owners bypass RLS).
@@ -175,7 +205,14 @@ keys are moved into the vault.
 
 ---
 
-## Prompt-to-ICP
+## Lead sources
+
+A campaign gets its prospects from one of two sources (a later version
+can allow both on one campaign). Each `prospects` / `contacts` row records
+where it came from (`source` = `ai_discovery` | `file_import`, plus
+`import_id` for uploads).
+
+### A. Prompt-to-ICP (AI discovery)
 
 1. Tenant describes the business and ideal customer in free text.
 2. `campaignPlanner.ts` (already an LLM planner) gets a new mode that
@@ -188,11 +225,108 @@ keys are moved into the vault.
    legacy org's two service lines are migrated into two `org_offerings`
    rows.
 
+### B. Excel / CSV upload
+
+1. **Upload** an `.xlsx` or `.csv` to a campaign. The original file is
+   kept in object storage, scoped to the org.
+2. **Map columns.** The AI suggests a mapping from the sheet's headers (in
+   any language) to our fields: name, company, title, email, phone /
+   WhatsApp, LinkedIn URL, country, language, plus free-form extra
+   columns kept as `enrichment_data` for personalisation. The customer
+   confirms or fixes it.
+3. **Validate and clean.** Normalise phones to E.164 (using the row's
+   country, or the org's default), check email syntax, dedupe within the
+   file and against the org's existing contacts, and drop anyone on the
+   org's suppression list. Bad rows are reported per row, not silently
+   skipped.
+4. **Consent attestation.** The customer confirms they have a lawful
+   basis to contact these people, and WhatsApp opt-in where required. The
+   attestation is stored with the import, because uploaded lists carry
+   compliance risk that AI-discovered public B2B contacts don't.
+5. **Preview and import.** Rows become `prospects` + `contacts` with
+   `source = 'file_import'`. Enrichment only fills fields the sheet left
+   empty; research and message generation run exactly as for discovered
+   leads.
+
+Import runs as a background job so large files don't block the API. A
+`lead_imports` table tracks file, mapping, row counts (total / imported /
+duplicate / invalid / suppressed), status and the consent attestation.
+
 ---
 
-## Voice channel (phase 4 sketch)
+## Channel selection
 
-- Telephony: tenant's own Twilio number (BYO). Voice agent: provider TBD.
+- `campaigns.channels channel_type[]`: the customer's chosen set, any
+  non-empty subset of `email`, `whatsapp`, `linkedin`, `voice`.
+- In prompt mode the planner proposes a set (today's `channels_enabled`);
+  the customer edits it before approving. Upload mode starts with every
+  channel the sheet has data for.
+- Sequence steps may only use channels in the set (API validation plus a
+  DB check).
+- **Activation gate:** a campaign can't go ACTIVE unless each chosen
+  channel has a `VERIFIED` credential in `org_credentials`.
+- **Per-contact eligibility:** a contact with no phone number skips
+  WhatsApp and voice steps; one with no email skips email. The sequence
+  falls through to the next eligible step instead of failing.
+- Rate limits and quotas stay per channel and become per org.
+
+---
+
+## Multi-language
+
+Tenants and prospects can be anywhere, so language and region are data,
+not assumptions.
+
+| Level | Fields | Used for |
+|---|---|---|
+| Org | `default_language` (BCP 47, e.g. `en`, `hi`, `es-MX`), `default_country`, `timezone` | Defaults for imports and new campaigns; dashboard language later |
+| Campaign | `languages` (allowed set) or "auto" | Restrict or let each prospect's language decide |
+| Contact | `language`, `country`, `timezone` | From the upload, enrichment, or inferred from country; drives generation and quiet hours |
+| Message / call | `language` | Analytics per language, and audit of what was actually sent |
+
+Rules:
+- **Generate natively.** Prompts tell the model to write in the contact's
+  language and cultural register (formality, name order, greeting
+  conventions), rather than writing English and translating it.
+- **Opt-out in every language.** "STOP", "रुको", "ALTO", "unsubscribe"
+  equivalents and free-text refusals are classified by the model in any
+  language, then written to `suppression_list`. The opt-out confirmation
+  is sent in the contact's language. This is a compliance requirement, not
+  polish.
+- **Quiet hours use the recipient's timezone**, not the tenant's.
+- **WhatsApp templates are per language.** Meta approves each template per
+  language, so a campaign needs an approved template for each language it
+  will open with.
+- **Voice** needs speech recognition and synthesis for every language we
+  sell into. This is the biggest input to the own-voice-stack design.
+- Postgres is UTF-8 throughout, so storage needs no special handling.
+- Dashboard UI translation (i18n) comes later; content language comes
+  first.
+
+---
+
+## Voice channel
+
+**Decision:** we build our own voice stack (ElevenLabs-class) rather than
+depend on a voice-AI vendor. The detailed design is a separate discussion
+before phase 4. Points that design must settle:
+
+- **Pipeline:** telephony audio in → speech-to-text → the existing
+  conversation agent (LLM) → text-to-speech → audio out, streaming end to
+  end.
+- **Latency:** a natural call needs roughly under a second from the
+  prospect finishing a sentence to hearing a reply, which drives model
+  choice, streaming, and GPU placement near the telephony region.
+- **Languages and voices:** speech-to-text and text-to-speech quality for
+  each target language (Hindi/Hinglish first, then others); voice
+  cloning only with the voice owner's recorded consent.
+- **Hosting:** self-hosted GPU inference and its cost per call-minute.
+- **Telephony still needs a carrier.** Owning the speech stack removes
+  the voice-AI vendor, but reaching real phone numbers still requires a
+  carrier or SIP trunk (the tenant's Twilio, or a regional carrier). That
+  part stays BYO.
+
+Unchanged from before, whatever the stack:
 - Follows the CLAUDE.md new-channel checklist: `voice_channel.py`,
   `ChannelRegistry`, rate limits, validator rules, webhook route.
 - `channel_type` enum gains `voice` (needs `ALTER TYPE … ADD VALUE`, its own
@@ -200,9 +334,27 @@ keys are moved into the vault.
 - Call outcome (connected / voicemail / interested / not interested /
   opt-out) and transcript go to `messages` / `conversation_messages`, so
   the unified inbox and funnel work unchanged.
-- Compliance: recording-consent disclosure at call start, quiet hours by
-  recipient timezone, DND/DLT checks for Indian numbers, spoken opt-out
-  writes to `suppression_list`.
+- Compliance: recording-consent disclosure at call start (in the callee's
+  language), quiet hours by recipient timezone, DND/DLT checks for Indian
+  numbers, spoken opt-out writes to `suppression_list`.
+
+---
+
+## Schema still to come
+
+V16 is committed and is not edited (CLAUDE.md principle 7). The new
+requirements land in later forward-only migrations, numbered when written:
+
+| Change | For |
+|---|---|
+| `organizations.default_language`, `default_country`, `timezone` | Multi-language |
+| `contacts.language`, `country`, `timezone`; `messages.language` | Multi-language |
+| `campaigns.languages` | Multi-language |
+| `campaigns.channels channel_type[]` + check on `sequence_steps.channel` | Channel selection |
+| `channel_type` gains `voice` | Voice (own migration: `ALTER TYPE … ADD VALUE` can't share a transaction with its first use) |
+| `lead_imports` table; `prospects.source`, `contacts.source`, `import_id` | Excel/CSV upload |
+| `calls` table (duration, recording key, transcript, outcome) | Voice |
+| Drop `org_id` defaults, enable + force RLS, `user_settings` key `(org_id, user_id)` | V17 tenancy cut-over |
 
 ---
 

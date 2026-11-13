@@ -1,13 +1,21 @@
 /**
- * Cognito JWT auth middleware.
+ * Auth middleware.
  *
- * Two modes (see env.AUTH_MODE):
+ * Three modes (see env.AUTH_MODE):
  *
  *   bypass  → local dev. Attaches a fake user to req.user and calls next().
- *             Also honours the X-Dev-User header so tests can specify a user id.
+ *             Honours X-Dev-User / X-Dev-Org / X-Dev-Role headers so tests
+ *             can act as any user, org and role.
  *
- *   cognito → production. Verifies the Bearer token using the Cognito User
- *             Pool's JWKS endpoint. On any failure, returns 401.
+ *   local   → HS256 session cookie minted by POST /api/auth/login.
+ *
+ *   cognito → Verifies the Bearer token using the Cognito User Pool's JWKS
+ *             endpoint. On any failure, returns 401.
+ *
+ * Every mode also resolves the ORGANIZATION the request acts for and runs
+ * the rest of the request inside `runWithTenant()`, so `db/client.ts` can
+ * set `app.current_org` on each transaction (SaaS phase 1). Roles are
+ * carried but not enforced yet.
  */
 
 import type { NextFunction, Request, Response } from 'express';
@@ -17,6 +25,12 @@ import jwksClient from 'jwks-rsa';
 
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import {
+  isOrgRole,
+  isUuid,
+  runWithTenant,
+  type OrgRole,
+} from '../lib/tenantContext';
 import { logger } from '../logger';
 
 export interface AuthenticatedUser {
@@ -24,7 +38,36 @@ export interface AuthenticatedUser {
   email?: string;
   sub: string;
   token_use?: string;
+  /** Organization this request acts for. */
+  orgId: string;
+  /** The user's role in that organization. */
+  role: OrgRole;
   [key: string]: unknown;
+}
+
+/**
+ * Attach the user and continue the request inside its tenant context.
+ * Everything downstream of `next()` (handlers, awaited DB calls) sees the
+ * context via `currentTenant()`.
+ */
+function proceedAs(
+  req: Request,
+  next: NextFunction,
+  user: AuthenticatedUser,
+): void {
+  if (!isUuid(user.orgId)) {
+    logger.warn('auth: unusable org id', { org_id: String(user.orgId) });
+    return next(ApiError.unauthorized('session has no valid organization'));
+  }
+  req.user = user;
+  runWithTenant({ orgId: user.orgId, userId: user.id, role: user.role }, () =>
+    next(),
+  );
+}
+
+/** A role claim if it is a known role, else `fallback`. */
+function roleOr(value: unknown, fallback: OrgRole): OrgRole {
+  return isOrgRole(value) ? value : fallback;
 }
 
 declare global {
@@ -74,13 +117,15 @@ function getKey(
 export function auth(req: Request, _res: Response, next: NextFunction): void {
   if (env.authMode === 'bypass') {
     const devUserId = (req.header('x-dev-user') || env.devUserId).trim();
-    req.user = {
+    const devOrgId = (req.header('x-dev-org') || env.devOrgId).trim();
+    return proceedAs(req, next, {
       id: devUserId,
       sub: devUserId,
       email: 'dev@local',
       token_use: 'dev-bypass',
-    };
-    return next();
+      orgId: devOrgId,
+      role: roleOr(req.header('x-dev-role')?.trim(), 'owner'),
+    });
   }
 
   if (env.authMode === 'local') {
@@ -97,21 +142,31 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
     try {
       const decoded = jwt.verify(token, env.authJwtSecret, {
         algorithms: ['HS256'],
-      }) as jwt.JwtPayload & { email?: string };
+      }) as jwt.JwtPayload & {
+        email?: string;
+        org_id?: unknown;
+        role?: unknown;
+      };
       const subject = (decoded.sub as string | undefined) ?? '';
       if (!subject) return next(ApiError.unauthorized('session missing sub'));
+      // Sessions minted before SaaS phase 1 carry no org_id: they belong
+      // to the configured (legacy) org, so nobody is logged out by the
+      // upgrade. A token that DOES carry org_id must carry a valid one.
+      const orgId =
+        decoded.org_id === undefined ? env.authOrgId : decoded.org_id;
       // In local mode the JWT subject is the operator's EMAIL, but
       // `req.user.id` is written to uuid columns (campaigns.created_by,
       // audit rows). Use the configured operator UUID for `id` and keep
       // the email on `sub`/`email` for display. Without this every
       // campaign INSERT fails with "invalid input syntax for type uuid".
-      req.user = {
+      return proceedAs(req, next, {
         id: env.authUserId,
         sub: subject,
         email: decoded.email ?? subject,
         token_use: 'local',
-      };
-      return next();
+        orgId: orgId as string,
+        role: roleOr(decoded.role, 'owner'),
+      });
     } catch (e) {
       logger.warn('local session verify failed', {
         error: (e as Error).message,
@@ -144,13 +199,17 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
     if (!id) {
       return next(ApiError.unauthorized('token missing sub'));
     }
-    req.user = {
+    // Cognito: the org comes from the `custom:org_id` attribute. Pools
+    // without it (single-tenant deployments) fall back to AUTH_ORG_ID.
+    const orgClaim = payload['custom:org_id'];
+    proceedAs(req, next, {
+      ...payload,
       id,
       sub: id,
       email: payload.email as string | undefined,
       token_use: payload.token_use as string | undefined,
-      ...payload,
-    };
-    next();
+      orgId: (orgClaim === undefined ? env.authOrgId : orgClaim) as string,
+      role: roleOr(payload['custom:org_role'], 'owner'),
+    });
   });
 }

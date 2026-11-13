@@ -58,6 +58,13 @@ export const env = {
     'AUTH_USER_ID',
     str('DEV_USER_ID', '00000000-0000-0000-0000-000000000001'),
   ),
+  // The organization a single-operator deployment acts for. Defaults to
+  // the legacy org that V16__organizations.sql seeds, so existing
+  // deployments need no new env var. Also the fallback for sessions
+  // issued before tokens carried an org_id.
+  authOrgId: str('AUTH_ORG_ID', '00000000-0000-0000-0000-0000000000a1'),
+  // bypass mode: default org when no X-Dev-Org header is sent.
+  devOrgId: str('DEV_ORG_ID', '00000000-0000-0000-0000-0000000000a1'),
   authUserPasswordBcrypt: str('AUTH_USER_PASSWORD_BCRYPT', ''),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
