@@ -60,6 +60,7 @@ from typing import Any
 import asyncpg
 
 from db.tenant import is_uuid, tenant  # type: ignore
+from scripts.prepare_imported_leads import prepare_imported  # type: ignore
 from scripts.smoke_test_campaign import process_campaign  # type: ignore
 
 logger = logging.getLogger("orchestrator.poller")
@@ -67,6 +68,9 @@ logger = logging.getLogger("orchestrator.poller")
 POLL_INTERVAL_S = float(os.environ.get("CAMPAIGN_POLL_INTERVAL_S", "10"))
 DEFAULT_BATCH_CAP = int(os.environ.get("CAMPAIGN_DISCOVERY_CAP", "25"))
 MAX_CONCURRENT = int(os.environ.get("CAMPAIGN_MAX_CONCURRENT", "3"))
+# Imported leads (slice 2.2) are prepared this many contacts per campaign
+# per tick, so one big upload cannot starve other campaigns.
+IMPORT_BATCH = int(os.environ.get("IMPORT_PREPARE_BATCH", "25"))
 
 
 async def _find_pending_campaigns(pool: asyncpg.Pool) -> list[asyncpg.Record]:
@@ -240,8 +244,6 @@ async def run_once(
     asyncio.create_task returns immediately so the loop stays responsive.
     The semaphore caps actual concurrency."""
     pending = await _find_pending_campaigns(pool)
-    if not pending:
-        return
 
     for row in pending:
         cid = str(row["id"])
@@ -260,6 +262,55 @@ async def run_once(
             ),
             name=f"campaign-{cid[:8]}",
         )
+
+    # Imported leads waiting for research + first messages.
+    for row in await _find_import_campaigns(pool):
+        cid = str(row["id"])
+        key = f"import:{cid}"
+        if key in in_flight:
+            continue
+        in_flight.add(key)
+        asyncio.create_task(
+            _prepare_imports_one(pool, sem, in_flight, key, cid, row["name"], str(row["org_id"])),
+            name=f"imports-{cid[:8]}",
+        )
+
+
+async def _find_import_campaigns(pool: asyncpg.Pool) -> list[asyncpg.Record]:
+    """ACTIVE campaigns with imported contacts not yet prepared, across
+    orgs, via V20's SECURITY DEFINER function (like pending_campaigns)."""
+    async with pool.acquire() as conn:
+        return await conn.fetch(
+            "SELECT id, org_id, name FROM campaigns_with_unwritten_imports(10)"
+        )
+
+
+async def _prepare_imports_one(
+    pool: asyncpg.Pool,
+    sem: asyncio.Semaphore,
+    in_flight: set[str],
+    key: str,
+    cid: str,
+    name: str,
+    org_id: str,
+) -> None:
+    """Prepare one batch of a campaign's imported contacts, as its org."""
+    try:
+        if not is_uuid(org_id):
+            logger.error("campaign id=%s has unusable org_id=%r — skipping imports", cid, org_id)
+            return
+        with tenant(org_id):
+            async with sem:
+                result = await prepare_imported(pool, cid, limit=IMPORT_BATCH, log=logger.info)
+        if result.get("ok"):
+            logger.info("[imports] campaign id=%s name=%s prepared=%d messages=%d",
+                        cid, name, result["prepared"], result["messages"])
+        else:
+            logger.warning("[imports] campaign id=%s skipped: %s", cid, result.get("skipped_reason"))
+    except Exception:
+        logger.exception("[imports] campaign id=%s failed", cid)
+    finally:
+        in_flight.discard(key)
 
 
 async def run_loop(pool: asyncpg.Pool, shutdown: asyncio.Event) -> None:

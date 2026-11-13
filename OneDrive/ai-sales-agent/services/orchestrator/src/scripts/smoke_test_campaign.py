@@ -69,7 +69,16 @@ APOLLO_UA = "AiSalesAgent-SmokeTest/0.1"
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # ─── Channel order in the sequence ──────────────────────────────────────
-CHANNELS = ["linkedin", "email", "whatsapp"]
+CHANNELS = ["linkedin", "email", "whatsapp"]  # channels with a text generator
+
+
+def campaign_text_channels(chosen: list[str] | None) -> list[str]:
+    """The campaign's chosen channels that get generated text, in
+    CHANNELS order. `chosen` is campaigns.channels (V19); None (a row
+    read before V19) keeps the old behaviour: every text channel."""
+    if chosen is None:
+        return list(CHANNELS)
+    return [c for c in CHANNELS if c in set(chosen)]
 
 
 def _http_headers_apollo(key: str) -> dict:
@@ -540,55 +549,79 @@ async def upsert_and_queue(
                 )
 
             # 3. messages — one per channel
-            for channel, body_text in messages.items():
-                # LinkedIn step uses draft mode → status DRAFTED + profile URL.
-                # Email + WhatsApp stay QUEUED (no real send infra wired).
-                if channel == "linkedin":
-                    status = "DRAFTED"
-                    profile_url = contact["linkedin_url"]
-                else:
-                    status = "QUEUED"
-                    profile_url = None
+            await insert_messages(
+                conn,
+                campaign_id=campaign_id,
+                prospect_id=prospect_id,
+                contact_id=contact_id,
+                linkedin_url=contact.get("linkedin_url"),
+                messages=messages,
+                pitch_type=pitch_type,
+            )
 
-                # Hard truncation guard. Anthropic occasionally returns
-                # 305-310 char "300-character" messages — they're close
-                # but LinkedIn's API rejects anything over 300. We trim
-                # at the last sentence boundary that fits, falling back
-                # to a hard slice if no boundary lands in the window.
-                # WhatsApp gets the same cap so it stays mobile-friendly.
-                body_text = _enforce_char_cap(body_text, channel)
 
-                message_id = await conn.fetchval(
-                    """
-                    INSERT INTO messages (
-                        contact_id, campaign_id, channel, direction, body,
-                        status, pitch_type, sequence_step,
-                        linkedin_profile_url
-                    ) VALUES ($1, $2, $3, 'outbound', $4, $5, $6, $7, $8)
-                    RETURNING id
-                    """,
-                    contact_id, campaign_id, channel, body_text, status,
-                    pitch_type, 1, profile_url,
-                )
+async def insert_messages(
+    conn,
+    *,
+    campaign_id: str,
+    prospect_id: str,
+    contact_id: str,
+    linkedin_url: Optional[str],
+    messages: dict[str, str],
+    pitch_type: str,
+) -> None:
+    """Insert the first-touch messages for one contact + their timeline
+    events. Shared by AI discovery (upsert_and_queue) and imported leads
+    (prepare_imported_leads). Call inside a transaction."""
+    for channel, body_text in messages.items():
+        # LinkedIn step uses draft mode → status DRAFTED + profile URL.
+        # Email + WhatsApp stay QUEUED (no real send infra wired).
+        if channel == "linkedin":
+            status = "DRAFTED"
+            profile_url = linkedin_url
+        else:
+            status = "QUEUED"
+            profile_url = None
 
-                # Per-channel timeline event. The verb mirrors the
-                # message status so dashboards can join on either.
-                event_verb = (
-                    "message_drafted" if status == "DRAFTED" else "message_queued"
-                )
-                await conn.execute(
-                    """
-                    INSERT INTO prospect_events (
-                        campaign_id, prospect_id, contact_id, message_id,
-                        channel, event_type, source, payload
-                    ) VALUES ($1, $2, $3, $4, $5, $6, 'system',
-                              jsonb_build_object(
-                                  'pitch_type', $7::text,
-                                  'body_chars', $8::int))
-                    """,
-                    campaign_id, prospect_id, contact_id, message_id,
-                    channel, event_verb, pitch_type, len(body_text),
-                )
+        # Hard truncation guard. Anthropic occasionally returns
+        # 305-310 char "300-character" messages — they're close
+        # but LinkedIn's API rejects anything over 300. We trim
+        # at the last sentence boundary that fits, falling back
+        # to a hard slice if no boundary lands in the window.
+        # WhatsApp gets the same cap so it stays mobile-friendly.
+        body_text = _enforce_char_cap(body_text, channel)
+
+        message_id = await conn.fetchval(
+            """
+            INSERT INTO messages (
+                contact_id, campaign_id, channel, direction, body,
+                status, pitch_type, sequence_step,
+                linkedin_profile_url
+            ) VALUES ($1, $2, $3, 'outbound', $4, $5, $6, $7, $8)
+            RETURNING id
+            """,
+            contact_id, campaign_id, channel, body_text, status,
+            pitch_type, 1, profile_url,
+        )
+
+        # Per-channel timeline event. The verb mirrors the
+        # message status so dashboards can join on either.
+        event_verb = (
+            "message_drafted" if status == "DRAFTED" else "message_queued"
+        )
+        await conn.execute(
+            """
+            INSERT INTO prospect_events (
+                campaign_id, prospect_id, contact_id, message_id,
+                channel, event_type, source, payload
+            ) VALUES ($1, $2, $3, $4, $5, $6, 'system',
+                      jsonb_build_object(
+                          'pitch_type', $7::text,
+                          'body_chars', $8::int))
+            """,
+            campaign_id, prospect_id, contact_id, message_id,
+            channel, event_verb, pitch_type, len(body_text),
+        )
 
 
 # Per-channel character caps. Email is unconstrained (the limit is
@@ -667,7 +700,7 @@ async def process_campaign(
         row = await conn.fetchrow(
             """
             SELECT id, name, goal, tone, sender_name, sender_company,
-                   value_proposition, icp_criteria
+                   value_proposition, icp_criteria, channels
               FROM campaigns
              WHERE id = $1
             """,
@@ -678,7 +711,12 @@ async def process_campaign(
     campaign = dict(row)
     if isinstance(campaign["icp_criteria"], str):
         campaign["icp_criteria"] = json.loads(campaign["icp_criteria"])
-    log(f"[campaign] {campaign['name']} ({campaign_id}) — discovering {n} prospects")
+    # SaaS phase 2: write only for the channels this campaign chose (a
+    # customer's "WhatsApp + email" campaign must never get LinkedIn
+    # drafts). Voice has no text generator; calls are a later slice.
+    channels = campaign_text_channels(campaign.get("channels"))
+    log(f"[campaign] {campaign['name']} ({campaign_id}) — discovering {n} prospects"
+        f" — channels: {', '.join(channels) or 'none with text'}")
 
     # 2. Apollo: find N prospects (thin search response — no email/url).
     prospects = await find_prospects(apollo_key, campaign["icp_criteria"], want=n)
@@ -698,9 +736,9 @@ async def process_campaign(
     #    (service line + capability + market tier), personalise per
     #    channel with the tiered positioning + research hook, insert.
     research_client = httpx.AsyncClient() if ENABLE_RESEARCH else None
-    # Only spend mobile-enrichment credits when WhatsApp is a target
-    # channel for this campaign.
-    wants_whatsapp = "whatsapp" in CHANNELS
+    # Only spend mobile-enrichment credits when the campaign needs a phone
+    # number: WhatsApp or AI calls.
+    wants_whatsapp = "whatsapp" in channels or "voice" in (campaign.get("channels") or [])
     for i, p in enumerate(prospects, 1):
         # 4a. Live research — populates hiring_signal (feeds routing) and
         #     a personalisation hook (feeds copy). Gated by env flag.
@@ -759,7 +797,7 @@ async def process_campaign(
             f"tier {routing['market_tier']}{research_note}"
         )
         messages: dict[str, str] = {}
-        for ch in CHANNELS:
+        for ch in channels:
             msg, source = await generate_message(
                 anthropic_key,
                 campaign=campaign,

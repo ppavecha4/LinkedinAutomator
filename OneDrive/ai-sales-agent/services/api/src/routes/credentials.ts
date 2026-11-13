@@ -16,6 +16,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 
 import { query } from '../db/client';
+import { assertChannelsAllowed, CHANNEL_PROVIDERS, type Channel } from '../lib/channels';
 import { ApiError } from '../lib/errors';
 import { ok } from '../lib/response';
 import { aadFor, encryptSecret, vaultKey, VaultError } from '../lib/vault';
@@ -54,7 +55,27 @@ const putBody = z
   })
   .strict();
 
-/** Provider-specific rules on top of the generic shape. */
+/**
+ * Each provider serves a channel; the org must be entitled to it.
+ * (Heyreach → LinkedIn, which only Appson has.) Needs the database, so it
+ * runs after the pure input checks.
+ */
+async function assertProviderAllowed(provider: string): Promise<void> {
+  const channel = (Object.keys(CHANNEL_PROVIDERS) as Channel[]).find((c) =>
+    CHANNEL_PROVIDERS[c].includes(provider),
+  );
+  if (!channel) return; // e.g. apollo, anthropic: not a channel
+  try {
+    await assertChannelsAllowed([channel]);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 400) {
+      throw ApiError.forbidden(`${provider} is not available for your organization`);
+    }
+    throw e;
+  }
+}
+
+/** Provider-specific input rules on top of the generic shape (no DB). */
 function checkProviderRules(provider: string, meta: Record<string, unknown>): void {
   if (provider === 'twilio') {
     // Inbound WhatsApp webhooks are routed to the org by AccountSid
@@ -94,6 +115,7 @@ router.put(
         throw ApiError.internal((e as VaultError).message);
       }
       if (!key) throw ApiError.internal('credential vault not configured (CREDENTIALS_KEY)');
+      await assertProviderAllowed(provider);
 
       const orgId = req.user!.orgId;
       const secretEnc = encryptSecret(secret, aadFor(orgId, provider, label), key);

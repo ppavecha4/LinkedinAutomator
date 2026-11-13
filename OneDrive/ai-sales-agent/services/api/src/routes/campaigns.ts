@@ -22,7 +22,16 @@ import { z } from 'zod';
 import { query, withTransaction } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
-import { planCampaign } from '../lib/campaignPlanner';
+import { planCampaign, type CampaignPlan } from '../lib/campaignPlanner';
+import {
+  assertChannelsAllowed,
+  assertReadyToLaunch,
+  assertStepsWithin,
+  CHANNELS,
+  channelsFromSteps,
+  orgChannels,
+  type Channel,
+} from '../lib/channels';
 import { listHeyreachCampaigns } from '../lib/heyreach';
 import { publishJson } from '../lib/sqs';
 import { buildPagination, ok, okPaginated, parsePageLimit } from '../lib/response';
@@ -116,8 +125,18 @@ function diffCampaign(
 
 const uuidParam = z.object({ id: z.string().uuid() });
 
-const channelEnum = z.enum(['email', 'linkedin', 'whatsapp']);
+const channelEnum = z.enum(CHANNELS);
 const statusEnum = z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED']);
+
+// Phase 2: the campaign's channel set (subset of the org's entitlement)
+// and language policy. `languages` null/absent = each contact's own.
+const channelsSchema = z
+  .array(channelEnum)
+  .min(1, 'choose at least one channel')
+  .transform((cs) => [...new Set(cs)]);
+const languageCode = z.string().regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, 'use a language code like "en" or "es-MX"');
+const languagesSchema = z.array(languageCode).min(1).max(20).nullable();
+const languageFallbackSchema = z.enum(['country', 'org_default']);
 
 const sequenceStepSchema = z.object({
   step_number: z.number().int().min(1),
@@ -151,6 +170,10 @@ const createCampaignSchema = z.object({
   // Optional link to a Heyreach campaign picked from the dropdown in
   // step 4 of the wizard. NULL when the operator skips the picker.
   heyreach_campaign_id: z.string().max(100).nullable().optional(),
+  // Omitted → the channels the sequence steps use (or email if none).
+  channels: channelsSchema.optional(),
+  languages: languagesSchema.optional(),
+  language_fallback: languageFallbackSchema.default('country'),
 });
 
 // PATCH body — every field is optional. Only the supplied keys are
@@ -174,6 +197,9 @@ const updateCampaignSchema = z
     // campaign they configured in Heyreach UI. Empty string clears the
     // link; a valid string sets it.
     heyreach_campaign_id: z.string().max(100).nullable(),
+    channels: channelsSchema,
+    languages: languagesSchema,
+    language_fallback: languageFallbackSchema,
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, {
@@ -222,9 +248,29 @@ interface CampaignRow {
   icp_criteria: Record<string, unknown>;
   daily_limits: Record<string, unknown>;
   batch_size: number;
+  channels: Channel[];
+  languages: string[] | null;
+  language_fallback: 'country' | 'org_default';
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Keep an AI-proposed plan inside the org's channel entitlement: drop
+ * channels (and their steps) the org may not use, renumber the steps.
+ * Customers never get a LinkedIn plan; Appson keeps its full mix.
+ */
+export function restrictPlanToChannels(plan: CampaignPlan, allowed: readonly Channel[]): CampaignPlan {
+  const ok = new Set<string>(allowed);
+  const steps = plan.sequence_steps
+    .filter((s) => ok.has(s.channel))
+    .map((s, i) => ({ ...s, step_number: i + 1 }));
+  let channels = plan.channels_enabled.filter((c) => ok.has(c));
+  if (channels.length === 0) {
+    channels = (allowed.includes('email') ? ['email'] : [allowed[0]]) as typeof channels;
+  }
+  return { ...plan, channels_enabled: channels, sequence_steps: steps };
 }
 
 interface MetricsRow {
@@ -262,7 +308,7 @@ router.post(
         sender_company: body.sender_company,
         value_proposition: body.value_proposition,
       });
-      return ok(res, { plan });
+      return ok(res, { plan: restrictPlanToChannels(plan, await orgChannels()) });
     } catch (err) {
       return next(err);
     }
@@ -278,15 +324,23 @@ router.post(
       const userId = req.user?.id;
       if (!userId) throw ApiError.unauthorized('missing user id on request');
 
+      // Channels: explicit, else whatever the steps use, else email.
+      const fromSteps = channelsFromSteps(body.sequence_steps);
+      const channels: Channel[] =
+        body.channels ?? (fromSteps.length > 0 ? fromSteps : ['email']);
+      assertStepsWithin(body.sequence_steps, channels);
+      await assertChannelsAllowed(channels);
+
       const created = await withTransaction(async (client) => {
         const inserted = await client.query<CampaignRow>(
           `
           INSERT INTO campaigns (
             name, goal, tone, sender_company, sender_name, value_proposition,
             icp_criteria, daily_limits, batch_size, created_by,
-            heyreach_campaign_id
+            heyreach_campaign_id, channels, languages, language_fallback
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11
+            $1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11,
+            $12, $13, $14
           )
           RETURNING *
           `,
@@ -303,6 +357,9 @@ router.post(
             userId,
             // Empty string from the dropdown ("— Pick…") normalises to NULL.
             (body.heyreach_campaign_id ?? '').trim() || null,
+            channels,
+            body.languages ?? null,
+            body.language_fallback,
           ],
         );
         const campaign = inserted.rows[0];
@@ -581,6 +638,9 @@ router.patch(
           params.push(JSON.stringify(body.daily_limits));
           sets.push(`daily_limits = $${params.length}::jsonb`);
         }
+        if (body.channels !== undefined)          push('channels', body.channels);
+        if (body.languages !== undefined)         push('languages', body.languages);
+        if (body.language_fallback !== undefined) push('language_fallback', body.language_fallback);
 
         if (sets.length === 0 && body.sequence_steps === undefined) {
           throw ApiError.badRequest('no editable fields supplied');
@@ -594,6 +654,22 @@ router.patch(
         );
         if (before.rowCount === 0) throw ApiError.notFound('campaign not found');
         const beforeRow = before.rows[0] as Record<string, unknown>;
+
+        // Channels and steps must stay consistent with each other and
+        // with the org's entitlement, whichever of the two is changing.
+        if (body.channels !== undefined || body.sequence_steps !== undefined) {
+          const finalChannels = body.channels ?? (beforeRow.channels as Channel[]);
+          const finalSteps =
+            body.sequence_steps ??
+            (
+              await client.query<{ step_number: number; channel: Channel }>(
+                `SELECT step_number, channel FROM sequence_steps WHERE campaign_id = $1`,
+                [id],
+              )
+            ).rows;
+          assertStepsWithin(finalSteps, finalChannels);
+          if (body.channels !== undefined) await assertChannelsAllowed(body.channels);
+        }
 
         if (sets.length > 0) {
           // updated_at is bumped on every patch so dashboards can sort by it.
@@ -689,12 +765,16 @@ router.patch(
         // Snapshot previous status so the audit row can capture the
         // exact transition + we can pick the right verb (paused vs
         // archived vs unarchived, etc.).
-        const before = await client.query<{ status: string }>(
-          `SELECT status FROM campaigns WHERE id = $1`,
+        const before = await client.query<{ status: string; channels: Channel[] }>(
+          `SELECT status, channels FROM campaigns WHERE id = $1`,
           [id],
         );
         if (before.rowCount === 0) throw ApiError.notFound('campaign not found');
         const previousStatus = before.rows[0].status;
+        // Going live needs a connected account for every chosen channel.
+        if (status === 'ACTIVE' && previousStatus !== 'ACTIVE') {
+          await assertReadyToLaunch(before.rows[0].channels);
+        }
 
         const result = await client.query<CampaignRow>(
           `UPDATE campaigns SET status = $1, updated_at = now() WHERE id = $2 RETURNING *`,
@@ -751,6 +831,7 @@ router.post(
           `campaign must be DRAFT or PAUSED to launch, got ${campaign.status}`,
         );
       }
+      await assertReadyToLaunch(campaign.channels);
       const previousStatus = campaign.status;
 
       // Status flip + audit in one transaction. The SQS publish runs
@@ -835,9 +916,11 @@ router.post(
           `
           INSERT INTO campaigns (
             name, goal, tone, sender_company, sender_name, value_proposition,
-            icp_criteria, daily_limits, batch_size, status, created_by
+            icp_criteria, daily_limits, batch_size, status, created_by,
+            channels, languages, language_fallback
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, 'DRAFT', $10
+            $1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, 'DRAFT', $10,
+            $11, $12, $13
           )
           RETURNING *
           `,
@@ -852,6 +935,9 @@ router.post(
             JSON.stringify(c.daily_limits),
             c.batch_size,
             userId,
+            c.channels,
+            c.languages,
+            c.language_fallback,
           ],
         );
         const newCampaign = inserted.rows[0];

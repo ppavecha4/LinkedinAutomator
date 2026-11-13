@@ -4,9 +4,10 @@ How the single-operator Appson Sales platform becomes a multi-tenant SaaS:
 any company, in any industry and any country, signs up and gets leads in
 one of two ways: **describe its ideal customer to the AI agent**, or
 **upload an Excel/CSV of the people it wants to reach**. It then picks
-which channels to use (**Email, WhatsApp, LinkedIn, AI voice calls**, in
-any combination) and the agent writes and talks to each prospect **in
-that prospect's language**. This builds on
+which channels to use (**Email, WhatsApp, AI voice calls**, in any
+combination) and the agent writes and talks to each prospect **in that
+prospect's language**. LinkedIn outreach stays an Appson-internal channel
+and is not offered to customers. This builds on
 [architecture.md](architecture.md); everything not mentioned here stays as
 described there.
 
@@ -27,7 +28,7 @@ runbook](#v17-deploy-runbook).
 | Credentials | One global `.env`: one Twilio, one Gmail, one Heyreach, one Apollo, one Anthropic key. | Per-tenant encrypted credential vault. |
 | ICP / offering | Hardcoded service lines (`staff_augmentation`, `ai_consulting`) and routing from V13, baked into `services/api/src/lib/campaignPlanner.ts`. | Tenant-defined offering, ICP, tone and routing, generated from a prompt and stored as data. |
 | Lead source | Apollo discovery from the planner's ICP only. | AI discovery from a prompt **or** a customer-uploaded Excel/CSV, landing in the same tables. |
-| Channels | Email, WhatsApp, LinkedIn. Choice is implicit: the planner proposes `channels_enabled` and each `sequence_steps` row has a channel. No voice code. | An explicit per-campaign channel set the customer controls, plus a new AI voice channel. |
+| Channels | Email, WhatsApp, LinkedIn. Choice is implicit: the planner proposes `channels_enabled` and each `sequence_steps` row has a channel. No voice code. | Customers: an explicit per-campaign set of email / WhatsApp / AI voice (new). LinkedIn stays for Appson only. |
 | Language | English only; prompts and opt-out handling assume English. | Per-org default language, per-prospect language, messages and calls generated natively in that language. |
 | Auth | One operator (`AUTH_MODE=local`, bcrypt hash in env). | Signup, invites, roles, org-scoped sessions. |
 | Billing / limits | None. | Plans, usage metering, per-tenant quotas. |
@@ -37,8 +38,8 @@ runbook](#v17-deploy-runbook).
 
 ## Decisions locked
 
-1. **BYO first.** Each tenant connects its own Twilio / email / Heyreach /
-   Apollo / enrichment / Anthropic accounts. A managed (resold) tier is a
+1. **BYO first.** Each tenant connects its own Twilio / email / Apollo /
+   enrichment / Anthropic accounts (and a phone number for voice). A managed (resold) tier is a
    later upsell. This keeps us from becoming a telecom/WhatsApp reseller
    (deliverability, Meta business verification, DLT/TRAI liability) while
    we land the first paying customers.
@@ -51,8 +52,11 @@ runbook](#v17-deploy-runbook).
    Both produce ordinary `prospects` / `contacts` rows, so everything
    downstream (research, generation, compliance, sending, inbox) is shared.
 4. **Customer chooses the channels** per campaign: any subset of email,
-   WhatsApp, LinkedIn and voice (e.g. all four, WhatsApp + email only, or
-   voice only). The AI may suggest a set; the customer has the final say.
+   WhatsApp and voice (e.g. all three, WhatsApp + email only, or voice
+   only). The AI may suggest a set; the customer has the final say.
+   **LinkedIn is Appson-internal only** (decided 2026-11-13): Appson's own
+   team keeps using it through Heyreach; general customers never see it.
+   It is a per-org entitlement, not something a customer can switch on.
 5. **Multi-language from the start.** Tenants and prospects can be in any
    country. Language is stored per org, per campaign and per contact, and
    content is generated directly in the target language, not translated
@@ -70,8 +74,8 @@ runbook](#v17-deploy-runbook).
 | # | Phase | Main deliverables |
 |---|---|---|
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
-| 2 | Lead sources, channels, language | Prompt-to-ICP (`campaignPlanner.ts` reads/writes `org_offerings`); Excel/CSV import with column mapping; explicit `campaigns.channels`; language columns and language-aware generation |
-| 3 | Onboarding + connectors | Signup, invite flow, setup wizard: email → WhatsApp → LinkedIn, each with a "verify credential" step |
+| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · 2.3 prompt-to-ICP (`org_offerings`) · 2.4 language-aware generation + multilingual opt-out · 2.5 dashboard screens |
+| 3 | Onboarding + connectors | Signup, invite flow, setup wizard: email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
 | 6 | Per-tenant compliance | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
@@ -222,9 +226,9 @@ once the services' `DATABASE_URL` uses the `sales_app` login. Until then
 V17 behaves like V16 except that untenanted inserts fail.
 
 Still open:
-- Heyreach / LinkedIn webhooks carry no account id we can map, so they go
-  to `AUTH_ORG_ID`. Multi-tenant routing needs per-tenant webhook URLs
-  (e.g. `/webhooks/heyreach/<org token>`), part of onboarding (phase 3).
+- ~~Heyreach / LinkedIn webhooks need per-tenant routing.~~ Not needed:
+  LinkedIn is Appson-internal only, so routing those webhooks to
+  `AUTH_ORG_ID` (the Appson org) is correct by design.
 - `outreach-worker` and `reply-processor` (the SQS path, idle on Hetzner)
   are not tenant-aware; they must be before any AWS deploy.
 - Signup (creating orgs and users) will need SECURITY DEFINER functions:
@@ -239,7 +243,7 @@ untenanted inserts from old code.
 2. Pause the crons (`crontab -l > ~/cron.bak && crontab -r`) and stop the
    api + orchestrator containers.
 3. `docker compose run --rm flyway migrate` (still as the owner account):
-   applies V16 and V17.
+   applies V16, V17 and the phase 2 migrations (V18, V19, …).
 4. Deploy the new code and start api + orchestrator. Restore the crons.
    Smoke test: log in, open a campaign, send one test email, check the
    inbox poller log. RLS is not enforced yet (superuser connection).
@@ -313,7 +317,7 @@ where it came from (`source` = `ai_discovery` | `file_import`, plus
    kept in object storage, scoped to the org.
 2. **Map columns.** The AI suggests a mapping from the sheet's headers (in
    any language) to our fields: name, company, title, email, phone /
-   WhatsApp, LinkedIn URL, country, language, plus free-form extra
+   WhatsApp, country, language, plus free-form extra
    columns kept as `enrichment_data` for personalisation. The customer
    confirms or fixes it.
 3. **Validate and clean.** Normalise phones to E.164 (using the row's
@@ -330,23 +334,88 @@ where it came from (`source` = `ai_discovery` | `file_import`, plus
    empty; research and message generation run exactly as for discovered
    leads.
 
-Import runs as a background job so large files don't block the API. A
-`lead_imports` table tracks file, mapping, row counts (total / imported /
+A `lead_imports` table tracks file, mapping, row counts (total / imported /
 duplicate / invalid / suppressed), status and the consent attestation.
+
+**Built (slice 2.2, 2026-11-13).** V20 + `services/api/src/lib/leadImport.ts`
++ `routes/imports.ts` + `services/orchestrator/src/scripts/prepare_imported_leads.py`.
+
+| Step | Endpoint | What happens |
+|---|---|---|
+| Upload | `POST /api/campaigns/:id/imports?filename=x.xlsx` (raw body) | `.xlsx` (first non-empty sheet) or `.csv` (`,` `;` tab `\|`, BOM ok). Max 10 MB, 10,000 rows, 100 columns. Rows stored in `lead_import_rows`; suggested mapping returned. |
+| Map + validate | `PUT /api/imports/:id/mapping` | Mapping by column position (repeated headers work). Every row normalised; statuses READY / DUPLICATE / INVALID / SUPPRESSED with per-row `problems`. |
+| Report | `GET /api/imports/:id/rows?status=INVALID` | Row-level report for the UI / download. |
+| Commit | `POST /api/imports/:id/commit {consent: true}` | Consent text + who/when stored; READY rows become prospects + contacts (`source = 'file_import'`, `import_id`) and an `imported` timeline event, in one transaction. |
+| Cancel | `DELETE /api/imports/:id` | Before commit only; deletes the stored rows. |
+
+Rules as built:
+- **Mapping suggestions**: header synonyms in English, Spanish, French,
+  Portuguese, German, Italian, Arabic and Hindi (accent- and
+  script-insensitive), then value sniffing (emails, phones, LinkedIn
+  URLs). Each field is used once; notes may repeat. *Deterministic, not
+  an LLM call*: free and predictable. An AI fallback for unrecognised
+  headers can come later.
+- **Cleaning**: name required (or first + last); email or phone required.
+  Phones → E.164 using the row's country, else the import's default,
+  else the org's `default_country`. Countries by ISO code or name in 8
+  languages (`Perú`, `PER`, `الإمارات…`) → ISO-2 on the contact, English
+  name on the prospect (market tiers read names). Languages by code or
+  name (`Español`, `العربية`) → BCP 47. A bad email or phone is dropped
+  with a warning if the other channel works. Company falls back to the
+  website domain, then a work-email domain, then the person's name.
+- **Duplicates / opt-outs**: same email or E.164 phone earlier in the
+  file, or already a contact anywhere in the org → DUPLICATE; on the
+  org's active suppression list → SUPPRESSED. (Exact match: older
+  contacts with non-E.164 phones are not matched.)
+- **After import** the poller picks ACTIVE campaigns with unprepared
+  imported contacts (`campaigns_with_unwritten_imports()`) and, as the
+  campaign's org, 25 contacts per campaign per tick
+  (`IMPORT_PREPARE_BATCH`): optional research → routing → first-touch
+  message on each chosen channel the contact can be reached on. The
+  customer's note column becomes the personalisation hook. Contacts with
+  no reachable channel get a `skipped` event. Either way `prepared_at` is
+  set, so nobody is retried forever. No Apollo calls for imported leads.
+
+Differences from the original plan: the file itself is not kept (only
+name, size, SHA-256 and the parsed rows), since there is no object
+storage on the Hetzner deploy; commit is synchronous (fine at ≤10,000
+rows); languages are stored but messages are still written in English
+until slice 2.4.
 
 ---
 
 ## Channel selection
 
-- `campaigns.channels channel_type[]`: the customer's chosen set, any
-  non-empty subset of `email`, `whatsapp`, `linkedin`, `voice`.
+**Built (slice 2.1, 2026-11-13):** V18 adds `voice` to `channel_type`;
+V19 adds the columns and checks below; the API and orchestrator enforce
+them.
+
+- `campaigns.channels text[]`: the campaign's chosen set, any non-empty
+  subset of `email`, `whatsapp`, `voice` for customers. (`text[]` with a
+  CHECK on the allowed values, not `channel_type[]`: node-postgres returns
+  custom-enum arrays as raw strings.) Existing campaigns were backfilled
+  with the channels their steps and messages already use.
+- `organizations.channels`: the entitlement. Customers default to
+  `{email, whatsapp, voice}`; only the Appson org has `linkedin`. Read-only
+  in the API (`GET /api/organization`).
+- Enforced in three places: the API (campaign create/update, Heyreach
+  credentials → 403 for customers), AI plans (LinkedIn steps dropped and
+  renumbered for customers), and the database (deferred constraint
+  triggers: campaign channels ⊆ org entitlement, step channel ∈ campaign
+  channels, checked at COMMIT so channels and steps can change together).
+- Message generation follows the campaign's channels
+  (`campaign_text_channels()` in `smoke_test_campaign.py`): a "WhatsApp +
+  email" campaign never gets LinkedIn drafts; mobile enrichment runs only
+  when WhatsApp or voice is chosen. Voice has no text generator yet.
 - In prompt mode the planner proposes a set (today's `channels_enabled`);
   the customer edits it before approving. Upload mode starts with every
-  channel the sheet has data for.
-- Sequence steps may only use channels in the set (API validation plus a
-  DB check).
-- **Activation gate:** a campaign can't go ACTIVE unless each chosen
-  channel has a `VERIFIED` credential in `org_credentials`.
+  channel the sheet has data for (slice 2.2).
+- **Launch gate:** `POST /launch` and `PATCH /status → ACTIVE` return
+  409 with `details.missing` unless each chosen channel has a connected
+  account (email: google_workspace/smtp/ses, whatsapp: twilio, voice:
+  voice, linkedin: heyreach). Until provider verification ships (phase 3)
+  "connected" = saved, not revoked, not failed. The env-configured
+  operator org (`AUTH_ORG_ID`) sends with `.env` keys, so it is exempt.
 - **Per-contact eligibility:** a contact with no phone number skips
   WhatsApp and voice steps; one with no email skips email. The sequence
   falls through to the next eligible step instead of failing.
@@ -429,12 +498,13 @@ requirements land in later forward-only migrations, numbered when written:
 
 | Change | For |
 |---|---|
-| `organizations.default_language`, `default_country`, `timezone` | Multi-language |
-| `contacts.language`, `country`, `timezone`; `messages.language` | Multi-language |
-| `campaigns.languages` | Multi-language |
-| `campaigns.channels channel_type[]` + check on `sequence_steps.channel` | Channel selection |
-| `channel_type` gains `voice` | Voice (own migration: `ALTER TYPE … ADD VALUE` can't share a transaction with its first use) |
-| `lead_imports` table; `prospects.source`, `contacts.source`, `import_id` | Excel/CSV upload |
+| ~~`organizations.default_language`, `default_country`, `timezone`~~ | Done in V19 (editable via `PATCH /api/organization`) |
+| ~~`contacts.language`, `country`, `timezone`; `messages.language`~~ | Done in V19 (filled by slices 2.2 / 2.4) |
+| ~~`campaigns.languages`, `language_fallback`~~ | Done in V19 |
+| ~~`campaigns.channels` + check on `sequence_steps.channel`~~ | Done in V19 (`text[]`) |
+| ~~`organizations.channels` entitlement~~ | Done in V19 |
+| ~~`channel_type` gains `voice`~~ | Done in V18 |
+| ~~`lead_imports` / `lead_import_rows`; `prospects.source`, `contacts.source`, `import_id`, `contacts.prepared_at`~~ | Done in V20 |
 | `calls` table (duration, recording key, transcript, outcome) | Voice |
 | ~~Tenant defaults, enable + force RLS, `user_settings` key `(org_id, user_id)`~~ | Done in V17 |
 
