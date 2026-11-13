@@ -6,6 +6,7 @@ message writer is faked, so no Anthropic calls are made.
 from __future__ import annotations
 
 import asyncio
+import base64
 import functools
 import json
 import os
@@ -44,18 +45,31 @@ live = pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="needs DATA
 ORG = "34343434-3434-4343-8343-343434343434"
 
 
-async def fake_generate(_key, *, campaign, prospect, channel, pitch_type, routing):
+async def fake_generate(key, *, campaign, prospect, channel, pitch_type, routing):
+    assert key == "customer-anthropic-key"  # from the org's vault, not .env
+    assert routing == {"pitch_type": None}   # no Appson service-line routing
     await asyncio.sleep(0)
     return f"{channel} for {prospect['contact']['full_name']}", "fake"
 
 
+VAULT_KEY = bytes(range(32))
+
+
 async def _seed(pool, channels: list[str]) -> str:
-    """A customer org, an ACTIVE campaign, three imported contacts."""
+    """A customer org with its own Anthropic key in the vault, an ACTIVE
+    campaign, three imported contacts."""
+    from db import vault
+
     with t.tenant(ORG):
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO organizations (id, name, slug) VALUES ($1, 'Import Co', $2)"
                 " ON CONFLICT (id) DO NOTHING", ORG, f"import-co-{uuid.uuid4().hex[:6]}")
+            await conn.execute(
+                "INSERT INTO org_credentials (provider, label, secret_enc) VALUES ('anthropic', 'default', $1)"
+                " ON CONFLICT (org_id, provider, label) DO UPDATE SET secret_enc = EXCLUDED.secret_enc",
+                vault.encrypt_secret({"api_key": "customer-anthropic-key"},
+                                     vault.aad_for(ORG, "anthropic", "default"), VAULT_KEY))
             cid = await conn.fetchval(
                 """
                 INSERT INTO campaigns (name, status, goal, sender_company, sender_name,
@@ -91,12 +105,15 @@ async def _cleanup(pool, cid: str):
                 "DELETE FROM campaigns WHERE id = $1",
             ):
                 await conn.execute(sql, cid)
+            await conn.execute("DELETE FROM org_credentials")
             await conn.execute("DELETE FROM organizations WHERE id = $1", ORG)
 
 
 @live
 async def test_live_prepare_writes_only_reachable_chosen_channels(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
+    # Customer org: its own vault key must be used, never the platform key.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CREDENTIALS_KEY", base64.b64encode(VAULT_KEY).decode())
     pool = await t.create_pool(os.environ["DATABASE_URL"], min_size=1, max_size=2)
     cid = await _seed(pool, ["email"])  # customer chose email only
     try:
@@ -116,9 +133,10 @@ async def test_live_prepare_writes_only_reachable_chosen_channels(monkeypatch):
                     "SELECT payload->>'reason' FROM prospect_events WHERE campaign_id = $1 AND event_type = 'skipped'",
                     cid)
                 assert skipped == "no_reachable_channel"
+                # Customer org: prepared, but no Appson service-line routing.
                 assert await conn.fetchval(
                     "SELECT count(*) FROM prospects WHERE campaign_id = $1 AND status = 'ENRICHED'"
-                    " AND service_line IS NOT NULL", cid) == 3
+                    " AND service_line IS NULL AND pitch_type IS NULL", cid) == 3
             # Nothing left: a second run is a no-op.
             again = await prep.prepare_imported(pool, cid, generate=fake_generate, log=lambda _m: None)
             assert again["prepared"] == 0
@@ -131,7 +149,9 @@ async def test_live_prepare_writes_only_reachable_chosen_channels(monkeypatch):
 async def test_live_poller_finds_and_prepares_imports_as_the_campaign_org(monkeypatch):
     import poller
 
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
+    # Customer org: its own vault key must be used, never the platform key.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CREDENTIALS_KEY", base64.b64encode(VAULT_KEY).decode())
     seen_orgs: list[str | None] = []
 
     async def spy_generate(*args, **kwargs):

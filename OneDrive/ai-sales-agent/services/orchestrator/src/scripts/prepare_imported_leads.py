@@ -27,16 +27,18 @@ import sys
 from typing import Any, Awaitable, Callable, Optional
 
 try:
+    from db.provider_keys import provider_secret
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from scripts.smoke_test_campaign import (
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
-        insert_messages, pick_route, research_prospect,
+        insert_messages, load_campaign, research_prospect, route_for,
     )
 except ImportError:  # pragma: no cover
+    from src.db.provider_keys import provider_secret  # type: ignore
     from src.db.tenant import create_pool as create_tenant_pool, use_campaign_org  # type: ignore
     from src.scripts.smoke_test_campaign import (  # type: ignore
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
-        insert_messages, pick_route, research_prospect,
+        insert_messages, load_campaign, research_prospect, route_for,
     )
 
 DEFAULT_BATCH = 25
@@ -98,21 +100,15 @@ async def prepare_imported(
     Must run inside the campaign's tenant (poller / use_campaign_org).
     Returns {"ok", "prepared", "messages", "skipped_reason"?}.
     """
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY") or ""
+    # The operator org uses .env; customers their own connected account.
+    anthropic_key = await provider_secret(pool, "anthropic") or ""
     if not anthropic_key:
         return {"ok": False, "prepared": 0, "messages": 0,
-                "skipped_reason": "ANTHROPIC_API_KEY not set"}
+                "skipped_reason": "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"}
 
     async with pool.acquire() as conn:
-        camp = await conn.fetchrow(
-            """
-            SELECT id, name, goal, tone, sender_name, sender_company,
-                   value_proposition, channels
-              FROM campaigns WHERE id = $1
-            """,
-            campaign_id,
-        )
-        if camp is None:
+        campaign = await load_campaign(conn, campaign_id)
+        if campaign is None:
             return {"ok": False, "prepared": 0, "messages": 0, "skipped_reason": "campaign not found"}
         rows = await conn.fetch(
             """
@@ -131,7 +127,6 @@ async def prepare_imported(
             campaign_id, limit,
         )
 
-    campaign = dict(camp)
     channels = campaign_text_channels(campaign["channels"])
     written = 0
     for i, row in enumerate(rows, 1):
@@ -157,7 +152,7 @@ async def prepare_imported(
                 "source": brief.get("hiring_source", ""),
             }
 
-        routing = pick_route(p)
+        routing = route_for(campaign, p)
         pitch_type = routing["pitch_type"]
         eligible = reachable_channels(channels, contact)
         messages: dict[str, str] = {}

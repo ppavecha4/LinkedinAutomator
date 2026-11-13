@@ -159,11 +159,14 @@ const dailyLimitsSchema = z
 const createCampaignSchema = z.object({
   name: z.string().min(1).max(255),
   goal: z.string().min(1),
-  tone: z.string().min(1).max(30).default('professional'),
+  // tone / value_proposition / icp_criteria default from the offering
+  // when one is linked (slice 2.3); otherwise value_proposition is required.
+  tone: z.string().min(1).max(30).optional(),
   sender_company: z.string().min(1).max(255),
   sender_name: z.string().min(1).max(255),
-  value_proposition: z.string().min(1),
+  value_proposition: z.string().min(1).optional(),
   icp_criteria: z.record(z.unknown()).default({}),
+  offering_id: z.string().uuid().nullable().optional(),
   sequence_steps: z.array(sequenceStepSchema).default([]),
   daily_limits: dailyLimitsSchema,
   batch_size: z.number().int().min(1).max(10000).default(500),
@@ -200,6 +203,7 @@ const updateCampaignSchema = z
     channels: channelsSchema,
     languages: languagesSchema,
     language_fallback: languageFallbackSchema,
+    offering_id: z.string().uuid().nullable(),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, {
@@ -303,6 +307,11 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = req.validated!.body as z.infer<typeof planSchema>;
+      // This planner is Appson's own (two service lines, .env key). Customers
+      // describe their business via POST /api/offerings/generate instead.
+      if (req.user?.orgId !== env.authOrgId) {
+        throw ApiError.conflict('use POST /api/offerings/generate to plan from your business description');
+      }
       const plan = await planCampaign(body.goal, {
         sender_name: body.sender_name,
         sender_company: body.sender_company,
@@ -324,6 +333,26 @@ router.post(
       const userId = req.user?.id;
       if (!userId) throw ApiError.unauthorized('missing user id on request');
 
+      // Offering (slice 2.3): fills tone / value proposition / ICP that the
+      // caller left out. RLS hides other orgs' offerings, so a foreign id
+      // is simply "not found" (and the composite FK backs that up).
+      let offering: { tone: string; value_proposition: string; icp: Record<string, unknown> } | null = null;
+      if (body.offering_id) {
+        const o = await query<{ tone: string; value_proposition: string; icp: Record<string, unknown> }>(
+          `SELECT tone, value_proposition, icp FROM org_offerings WHERE id = $1`,
+          [body.offering_id],
+        );
+        if (o.rowCount === 0) throw ApiError.badRequest('offering not found');
+        offering = o.rows[0];
+      }
+      const valueProposition = body.value_proposition ?? offering?.value_proposition;
+      if (!valueProposition) {
+        throw ApiError.badRequest('value_proposition is required (or link an offering_id)');
+      }
+      const tone = body.tone ?? offering?.tone ?? 'professional';
+      const icpCriteria =
+        Object.keys(body.icp_criteria).length > 0 ? body.icp_criteria : (offering?.icp ?? {});
+
       // Channels: explicit, else whatever the steps use, else email.
       const fromSteps = channelsFromSteps(body.sequence_steps);
       const channels: Channel[] =
@@ -337,21 +366,22 @@ router.post(
           INSERT INTO campaigns (
             name, goal, tone, sender_company, sender_name, value_proposition,
             icp_criteria, daily_limits, batch_size, created_by,
-            heyreach_campaign_id, channels, languages, language_fallback
+            heyreach_campaign_id, channels, languages, language_fallback,
+            offering_id
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11,
-            $12, $13, $14
+            $12, $13, $14, $15
           )
           RETURNING *
           `,
           [
             body.name,
             body.goal,
-            body.tone,
+            tone,
             body.sender_company,
             body.sender_name,
-            body.value_proposition,
-            JSON.stringify(body.icp_criteria),
+            valueProposition,
+            JSON.stringify(icpCriteria),
             JSON.stringify(body.daily_limits),
             body.batch_size,
             userId,
@@ -360,6 +390,7 @@ router.post(
             channels,
             body.languages ?? null,
             body.language_fallback,
+            body.offering_id ?? null,
           ],
         );
         const campaign = inserted.rows[0];
@@ -641,6 +672,8 @@ router.patch(
         if (body.channels !== undefined)          push('channels', body.channels);
         if (body.languages !== undefined)         push('languages', body.languages);
         if (body.language_fallback !== undefined) push('language_fallback', body.language_fallback);
+        // Another org's offering id fails the composite FK (V16) → 400 below.
+        if (body.offering_id !== undefined)       push('offering_id', body.offering_id);
 
         if (sets.length === 0 && body.sequence_steps === undefined) {
           throw ApiError.badRequest('no editable fields supplied');
@@ -654,6 +687,12 @@ router.patch(
         );
         if (before.rowCount === 0) throw ApiError.notFound('campaign not found');
         const beforeRow = before.rows[0] as Record<string, unknown>;
+
+        if (body.offering_id) {
+          // RLS hides other orgs' offerings: clean 400 instead of an FK error.
+          const o = await client.query(`SELECT 1 FROM org_offerings WHERE id = $1`, [body.offering_id]);
+          if (o.rowCount === 0) throw ApiError.badRequest('offering not found');
+        }
 
         // Channels and steps must stay consistent with each other and
         // with the org's entitlement, whichever of the two is changing.

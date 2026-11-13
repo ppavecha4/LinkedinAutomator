@@ -34,10 +34,12 @@ import asyncpg
 
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
+    from db.provider_keys import is_operator_org, provider_secret
 except ImportError:  # pragma: no cover
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
+    from src.db.provider_keys import is_operator_org, provider_secret  # type: ignore
 import httpx
 
 # Service-line routing + global market positioning. Import works both
@@ -70,6 +72,38 @@ ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # ─── Channel order in the sequence ──────────────────────────────────────
 CHANNELS = ["linkedin", "email", "whatsapp"]  # channels with a text generator
+
+
+async def load_campaign(conn: Any, campaign_id: str) -> Optional[dict]:
+    """The campaign row the writer needs, with its offering (or None)
+    under `campaign["offering"]`. Runs inside the campaign's tenant."""
+    row = await conn.fetchrow(
+        """
+        SELECT id, org_id, offering_id, name, goal, tone, sender_name,
+               sender_company, value_proposition, icp_criteria, channels
+          FROM campaigns
+         WHERE id = $1
+        """,
+        campaign_id,
+    )
+    if not row:
+        return None
+    campaign = dict(row)
+    if isinstance(campaign["icp_criteria"], str):
+        campaign["icp_criteria"] = json.loads(campaign["icp_criteria"])
+    campaign["offering"] = None
+    if campaign.get("offering_id"):
+        o = await conn.fetchrow(
+            "SELECT name, value_proposition, tone, icp, routing FROM org_offerings WHERE id = $1",
+            campaign["offering_id"],
+        )
+        if o:
+            off = dict(o)
+            for k in ("icp", "routing"):
+                if isinstance(off.get(k), str):
+                    off[k] = json.loads(off[k] or "{}")
+            campaign["offering"] = off
+    return campaign
 
 
 def campaign_text_channels(chosen: list[str] | None) -> list[str]:
@@ -295,12 +329,175 @@ PROMPT = textwrap.dedent("""\
 """)
 
 
+def _research_context(prospect: dict) -> str:
+    """Live research (or the customer's own note) as prompt context.
+    Empty research collapses to a "no verified research" note so the model
+    personalises from company details rather than inventing."""
+    research = prospect.get("research") or {}
+    hook = (research.get("personalization_hook") or "").strip()
+    signal = (research.get("recent_signal") or "").strip()
+    roles = research.get("roles") or []
+    stack = research.get("tech_stack") or []
+    if hook or signal or roles:
+        parts = []
+        if hook:
+            parts.append(f"Opening hook: {hook}")
+        if signal:
+            parts.append(f"Recent signal: {signal}")
+        if roles:
+            parts.append(f"Currently hiring: {', '.join(roles[:5])}")
+        if stack:
+            parts.append(f"Tech stack: {', '.join(stack[:6])}")
+        return "\n    ".join(parts)
+    return ("No verified research available — personalise from the company "
+            "name/industry above; do NOT invent specifics.")
+
+
+def uses_operator_playbook(campaign: dict) -> bool:
+    """Appson's own campaigns (the env-configured operator org) with no
+    offering keep the original service-line prompt + routing. Everything
+    else — every customer campaign — is written from its own offering."""
+    return is_operator_org(str(campaign.get("org_id") or "")) and not campaign.get("offering")
+
+
+def route_for(campaign: dict, prospect: dict) -> dict:
+    """Appson's service-line router for its own campaigns; customers have
+    no Appson service lines, so no routing (pitch_type None)."""
+    if uses_operator_playbook(campaign):
+        return pick_route(prospect)
+    return {"pitch_type": None}
+
+
+GENERIC_PROMPT = textwrap.dedent("""\
+    You are writing a personalised first outreach message on behalf of
+    {sender_name} at {sender_company}. Tone: {tone}. Goal: {goal}.
+
+    What {sender_company} offers (use ONLY these facts about the sender;
+    never invent clients, numbers, awards or claims):
+    {value_prop}
+    {offering_details}
+
+    Prospect:
+      - Name:    {contact_name}
+      - Title:   {contact_title}
+      - Company: {company_name} ({industry})
+      - Country: {country}
+
+    CONTEXT ABOUT THIS PROSPECT (real; use it to open if present):
+    {research_context}
+
+    HARD RULES:
+      - Pick the ONE angle above that best fits this prospect and lead with
+        it. Do not list everything {sender_company} does.
+      - Ground the message in one specific, real detail about them. No
+        generic "I came across your profile".
+      - Ask for: {cta}.
+    {guardrails}
+    Channel: {channel}
+    Constraints by channel:
+      - linkedin: connection-request note STRICTLY ≤ 300 characters. Warm,
+        one relevant detail, soft ask to connect. NO sign-off.
+      - email: 80–120 words, ONE clear call to action. No subject line in
+        the body. No sign-off (a signature is appended automatically).
+      - whatsapp: ≤ 300 chars, conversational, include
+        "Reply STOP to opt out."
+
+    Output ONLY the message body. No preamble, no surrounding quotes.
+""")
+
+
+def _offering_details(offering: dict | None) -> tuple[str, str, str]:
+    """(details, cta, guardrails) prompt fragments from an offering."""
+    if not offering:
+        return "", "a short call", ""
+    routing = offering.get("routing") or {}
+    if isinstance(routing, str):
+        routing = json.loads(routing or "{}")
+    lines = []
+    for a in (routing.get("angles") or [])[:5]:
+        proof = "; ".join((a.get("proof_points") or [])[:5])
+        lines.append(f"  - Angle \"{a.get('label', '')}\": for {a.get('fits', '')} — "
+                     f"lead with {a.get('lead_with', '')}"
+                     + (f" (proof: {proof})" if proof else ""))
+    details = ("Angles:\n" + "\n".join(lines)) if lines else ""
+    cta = (routing.get("cta") or "").strip() or "a short call"
+    rules = [g for g in (routing.get("guardrails") or []) if isinstance(g, str) and g.strip()][:10]
+    guardrails = "".join(f"  - {g.strip()}\n" for g in rules)
+    return details, cta, guardrails
+
+
+def build_prompt(*, campaign: dict, prospect: dict, channel: str, routing: dict) -> str:
+    """The writer prompt for one prospect + channel."""
+    if uses_operator_playbook(campaign):
+        return _operator_prompt(campaign=campaign, prospect=prospect, channel=channel, routing=routing)
+    details, cta, guardrails = _offering_details(campaign.get("offering"))
+    return GENERIC_PROMPT.format(
+        sender_name=campaign["sender_name"],
+        sender_company=campaign["sender_company"],
+        tone=campaign["tone"],
+        goal=campaign["goal"],
+        value_prop=campaign["value_proposition"],
+        offering_details=details,
+        contact_name=prospect["contact"]["full_name"],
+        contact_title=prospect["contact"].get("title") or "—",
+        company_name=prospect["company"].get("company_name") or "—",
+        industry=prospect["company"].get("industry") or "—",
+        country=prospect["company"].get("country") or "—",
+        research_context=_research_context(prospect),
+        cta=cta,
+        guardrails=guardrails,
+        channel=channel,
+    )
+
+
+def _operator_prompt(*, campaign: dict, prospect: dict, channel: str, routing: dict) -> str:
+    """Appson's original prompt: two service lines + market-tier positioning."""
+    country = prospect["company"].get("country") or "—"
+    brief = positioning_brief(prospect["company"].get("country"))
+    return PROMPT.format(
+        sender_name=campaign["sender_name"],
+        sender_company=campaign["sender_company"],
+        tone=campaign["tone"],
+        goal=campaign["goal"],
+        value_prop=campaign["value_proposition"],
+        contact_name=prospect["contact"]["full_name"],
+        contact_title=prospect["contact"]["title"] or "—",
+        company_name=prospect["company"]["company_name"] or "—",
+        industry=prospect["company"]["industry"] or "—",
+        employee_count=prospect["company"]["employee_count"] or "—",
+        country=country,
+        channel=channel,
+        service_line=routing.get("service_line", "staff_augmentation"),
+        capability=routing.get("capability", "general"),
+        market_tier=routing.get("market_tier", brief["tier"]),
+        positioning_angle=brief["angle"],
+        proof_points="; ".join(brief["proof_points"]),
+        research_context=_research_context(prospect),
+    )
+
+
 def _fallback_message(
     *, campaign: dict, prospect: dict, channel: str, pitch_type: str
 ) -> str:
-    """Deterministic template used when Anthropic is unreachable or out of
-    credit. Lets the smoke test still produce realistic-looking drafts so
-    the dashboard demo isn't empty."""
+    """Deterministic template when Anthropic is unreachable or out of
+    credit. Customer campaigns get a neutral one that makes no claims."""
+    if uses_operator_playbook(campaign):
+        return _operator_fallback(campaign=campaign, prospect=prospect, channel=channel)
+    name = (prospect["contact"]["full_name"] or "").split()[0] or "there"
+    sender, company = campaign["sender_name"], campaign["sender_company"]
+    vp = (campaign["value_proposition"] or "").strip().split("\n")[0]
+    vp = vp if len(vp) <= 200 else vp[:197].rsplit(" ", 1)[0] + "…"
+    _, cta, _ = _offering_details(campaign.get("offering"))
+    if channel == "whatsapp":
+        return (f"Hi {name}, {sender} from {company} here. {vp} "
+                f"Open to {cta}? Reply STOP to opt out.")[:300]
+    if channel == "linkedin":
+        return f"Hi {name}, {sender} from {company}. {vp} Would be glad to connect."[:300]
+    return f"Hi {name},\n\nI'm {sender} from {company}. {vp}\n\nWould {cta} be useful?"
+
+
+def _operator_fallback(*, campaign: dict, prospect: dict, channel: str) -> str:
+    """Appson's original template (its own campaigns only)."""
     name = (prospect["contact"]["full_name"] or "").split()[0] or "there"
     company = prospect["company"]["company_name"] or "your team"
     sender = campaign["sender_name"]
@@ -341,58 +538,12 @@ async def generate_message(
 ) -> tuple[str, str]:
     """Returns (body, source) where source is 'anthropic' or 'fallback'.
 
-    `routing` is the service_router decision (service_line, capability,
-    market_tier). When present we inject the market-tiered positioning
-    so the copy adapts per region + service line.
+    The prompt depends on whose campaign this is (see `build_prompt`):
+    Appson's own campaigns use its service-line playbook; customer
+    campaigns are written from their own offering.
     """
     routing = routing or {}
-    country = prospect["company"].get("country") or "—"
-    brief = positioning_brief(prospect["company"].get("country"))
-
-    # Build the live-research context string. Empty/low-confidence
-    # research collapses to a "no verified research" note so the model
-    # falls back to company-detail personalisation rather than inventing.
-    research = prospect.get("research") or {}
-    hook = (research.get("personalization_hook") or "").strip()
-    signal = (research.get("recent_signal") or "").strip()
-    roles = research.get("roles") or []
-    stack = research.get("tech_stack") or []
-    if hook or signal or roles:
-        parts = []
-        if hook:
-            parts.append(f"Opening hook: {hook}")
-        if signal:
-            parts.append(f"Recent signal: {signal}")
-        if roles:
-            parts.append(f"Currently hiring: {', '.join(roles[:5])}")
-        if stack:
-            parts.append(f"Tech stack: {', '.join(stack[:6])}")
-        research_context = "\n    ".join(parts)
-    else:
-        research_context = (
-            "No verified research available — personalise from the company "
-            "name/industry above; do NOT invent specifics."
-        )
-    body = PROMPT.format(
-        sender_name=campaign["sender_name"],
-        sender_company=campaign["sender_company"],
-        tone=campaign["tone"],
-        goal=campaign["goal"],
-        value_prop=campaign["value_proposition"],
-        contact_name=prospect["contact"]["full_name"],
-        contact_title=prospect["contact"]["title"] or "—",
-        company_name=prospect["company"]["company_name"] or "—",
-        industry=prospect["company"]["industry"] or "—",
-        employee_count=prospect["company"]["employee_count"] or "—",
-        country=country,
-        channel=channel,
-        service_line=routing.get("service_line", "staff_augmentation"),
-        capability=routing.get("capability", "general"),
-        market_tier=routing.get("market_tier", brief["tier"]),
-        positioning_angle=brief["angle"],
-        proof_points="; ".join(brief["proof_points"]),
-        research_context=research_context,
-    )
+    body = build_prompt(campaign=campaign, prospect=prospect, channel=channel, routing=routing)
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             r = await client.post(
@@ -688,27 +839,19 @@ async def process_campaign(
           "skipped_reason": str | None, # populated when ok=False
         }
     """
-    apollo_key = apollo_key or os.environ.get("APOLLO_API_KEY") or ""
-    anthropic_key = anthropic_key or os.environ.get("ANTHROPIC_API_KEY") or ""
+    # Keys: the operator org uses .env; customers their own vault accounts.
+    apollo_key = apollo_key or await provider_secret(pool, "apollo") or ""
+    anthropic_key = anthropic_key or await provider_secret(pool, "anthropic") or ""
     if not apollo_key:
-        return {"ok": False, "discovered": 0, "skipped_reason": "APOLLO_API_KEY not set"}
+        return {"ok": False, "discovered": 0, "skipped_reason": "no Apollo key (connect Apollo / set APOLLO_API_KEY)"}
     if not anthropic_key:
-        return {"ok": False, "discovered": 0, "skipped_reason": "ANTHROPIC_API_KEY not set"}
+        return {"ok": False, "discovered": 0, "skipped_reason": "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"}
 
-    # 1. Load the campaign config from DB.
+    # 1. Load the campaign config (+ its offering) from DB.
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, name, goal, tone, sender_name, sender_company,
-                   value_proposition, icp_criteria, channels
-              FROM campaigns
-             WHERE id = $1
-            """,
-            campaign_id,
-        )
-    if not row:
+        campaign = await load_campaign(conn, campaign_id)
+    if campaign is None:
         return {"ok": False, "discovered": 0, "skipped_reason": "campaign not found"}
-    campaign = dict(row)
     if isinstance(campaign["icp_criteria"], str):
         campaign["icp_criteria"] = json.loads(campaign["icp_criteria"])
     # SaaS phase 2: write only for the channels this campaign chose (a
@@ -780,7 +923,7 @@ async def process_campaign(
             if enriched.get("mobile"):
                 c["whatsapp_number"] = enriched["mobile"]
 
-        routing = pick_route(p)
+        routing = route_for(campaign, p)
         pitch_type = routing["pitch_type"]
         research_note = ""
         if p.get("research"):
@@ -793,8 +936,8 @@ async def process_campaign(
             f"  [{i}/{len(prospects)}] {p['contact']['full_name']} "
             f"({p['contact']['title']}) @ {p['company']['company_name']} "
             f"[{p['company'].get('country') or '—'}] — "
-            f"{routing['service_line']}/{routing['capability']}/"
-            f"tier {routing['market_tier']}{research_note}"
+            f"{routing.get('service_line') or 'offering'}/{routing.get('capability') or '-'}/"
+            f"tier {routing.get('market_tier') or '-'}{research_note}"
         )
         messages: dict[str, str] = {}
         for ch in channels:

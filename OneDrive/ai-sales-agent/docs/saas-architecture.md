@@ -74,7 +74,7 @@ runbook](#v17-deploy-runbook).
 | # | Phase | Main deliverables |
 |---|---|---|
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
-| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · 2.3 prompt-to-ICP (`org_offerings`) · 2.4 language-aware generation + multilingual opt-out · 2.5 dashboard screens |
+| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · 2.4 language-aware generation + multilingual opt-out · 2.5 dashboard screens |
 | 3 | Onboarding + connectors | Signup, invite flow, setup wizard: email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
@@ -310,6 +310,45 @@ where it came from (`source` = `ai_discovery` | `file_import`, plus
    `org_offerings.routing` instead of the V13 `service_line` enum. The
    legacy org's two service lines are migrated into two `org_offerings`
    rows.
+
+**Built (slice 2.3, 2026-11-13)**, with two deliberate changes to the plan
+above: offerings got their own generator (`services/api/src/lib/offering.ts`)
+instead of a new mode in Appson's `campaignPlanner.ts`, and Appson's two
+service lines were *not* migrated into offerings. Appson keeps its
+existing playbook untouched; it can opt into offerings per campaign.
+
+- **API** (`routes/offerings.ts`): `POST /api/offerings/generate
+  {description}` → draft (offering + suggested channels within the
+  entitlement + suggested languages + campaign goal), not saved; CRUD on
+  `/api/offerings` (owners/admins/members write; delete refused while a
+  campaign uses it). The description may be in any language; the draft
+  is in English. The generator prompt forbids invented clients, numbers
+  or certifications; output is validated with Zod (422 if unusable).
+- **Offering shape**: `value_proposition`, `tone`, `icp {titles,
+  industries, company_sizes, countries (English names for Apollo),
+  keywords}`, `routing {angles: [{label, fits, lead_with,
+  proof_points}], cta, guardrails}`.
+- **Campaigns**: `offering_id` on create/update; tone, value proposition
+  and ICP default from the offering. Another org's offering → 400 (RLS +
+  composite FK). `POST /api/campaigns/plan` (Appson's planner) now
+  answers 409 for customers and points to the offering generator.
+- **Writer** (`smoke_test_campaign.py`): `build_prompt()` uses Appson's
+  original service-line prompt + router only for the operator org's
+  campaigns without an offering. Every other campaign gets a generic
+  prompt built from its offering: pick the best-fitting angle, cite only
+  its proof points, ask for its CTA, obey its guardrails. No Appson
+  service lines, positioning or routing (`pitch_type` NULL). The fallback
+  template for customers makes no claims.
+- **Whose key pays (BYO)**: generation, discovery and writing use the
+  org's own Anthropic / Apollo accounts from the vault
+  (`lib/providerKeys.ts`, `db/provider_keys.py`); the env-configured
+  operator org uses `.env`. A customer with no connected account gets 409
+  (API) or a skipped run with a reason (orchestrator), never the
+  platform's credits.
+
+Not yet: messages in the prospect's language (slice 2.4); sending
+channels (SMTP / Twilio) still read `.env` until the onboarding phase
+wires `from_credentials()`.
 
 ### B. Excel / CSV upload
 
