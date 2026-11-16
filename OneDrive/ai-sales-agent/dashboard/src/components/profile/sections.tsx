@@ -1,0 +1,284 @@
+/**
+ * The five business-profile sections as controlled forms. Used by the
+ * onboarding wizard (one per step) and Settings › Business profile (one
+ * per card in edit mode). `prepareSection()` turns form state into the
+ * exact body PUT /api/profile/:section accepts.
+ */
+
+import { Plus, Trash2 } from 'lucide-react';
+import * as React from 'react';
+
+import {
+  clean,
+  COMPANY_SIZES,
+  type CompanySection,
+  type CustomersSection,
+  type OfferSection,
+  type RulesSection,
+  type Section,
+  SIGNAL_LABELS,
+  SIGNALS,
+  TONE_LABELS,
+  TONES,
+  type VoiceSection,
+} from '../../lib/profile';
+import { CountriesPicker, CountrySelect, Field, LanguagesPicker, Segmented, TagInput, ToggleChips } from './fields';
+
+const SIZE_LABELS = Object.fromEntries(COMPANY_SIZES.map((s) => [s, s.replace('-', '–')])) as Record<
+  (typeof COMPANY_SIZES)[number],
+  string
+>;
+
+function withScheme(url: string | null | undefined): string | undefined {
+  const u = (url ?? '').trim();
+  if (!u) return undefined;
+  return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+}
+
+/** Form state → the body the API validates (trimmed, no empty values). */
+export function prepareSection(section: Section, value: object): object {
+  switch (section) {
+    case 'company': {
+      const v = value as CompanySection;
+      return clean({ ...v, website: withScheme(v.website) });
+    }
+    case 'offer': {
+      const v = value as OfferSection;
+      return clean({
+        ...v,
+        offers: (v.offers ?? []).filter((o) => o.name.trim()).map((o) => clean(o)),
+        proof: (v.proof ?? []).filter((p) => p.text.trim()).map((p) => ({ text: p.text.trim(), may_mention: p.may_mention })),
+      });
+    }
+    case 'customers': {
+      const v = value as CustomersSection;
+      const seen = new Set<string>();
+      const never = (v.never_contact ?? [])
+        .map((s) => s.trim())
+        .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
+      return clean({ ...v, never_contact: never });
+    }
+    case 'voice': {
+      const v = value as VoiceSection;
+      return clean({ ...v, meeting_link: withScheme(v.meeting_link) });
+    }
+    default:
+      return clean(value);
+  }
+}
+
+export interface SectionProps<T> {
+  value: T;
+  onChange: (next: T) => void;
+  /** Fields pre-filled from the website, shown with a badge. */
+  fromWebsite?: ReadonlySet<string>;
+}
+
+// ── Company ──────────────────────────────────────────────────────────────
+
+export function CompanyForm({ value: v, onChange, fromWebsite }: SectionProps<CompanySection>): React.ReactElement {
+  const set = <K extends keyof CompanySection>(k: K, x: CompanySection[K]) => onChange({ ...v, [k]: x });
+  const fw = (k: string) => fromWebsite?.has(`company.${k}`);
+  return (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <Field label="Company name" fromWebsite={fw('name')} htmlFor="p-name">
+        <input id="p-name" className="input" value={v.name ?? ''} onChange={(e) => set('name', e.target.value)} maxLength={255} required />
+      </Field>
+      <Field label="Industry" fromWebsite={fw('industry')} htmlFor="p-industry">
+        <input id="p-industry" className="input" value={v.industry ?? ''} onChange={(e) => set('industry', e.target.value)} maxLength={150} placeholder="e.g. Food packaging manufacturing" />
+      </Field>
+      <Field label="Company size" htmlFor="p-size">
+        <select id="p-size" className="input" value={v.size ?? ''} onChange={(e) => set('size', (e.target.value || undefined) as CompanySection['size'])}>
+          <option value="">Choose a size</option>
+          {COMPANY_SIZES.map((s) => (
+            <option key={s} value={s}>{SIZE_LABELS[s]} people</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Headquarters" fromWebsite={fw('hq_country')} htmlFor="p-hq">
+        <CountrySelect id="p-hq" value={v.hq_country} onChange={(x) => set('hq_country', x)} />
+      </Field>
+      <Field label="What you do, in one or two sentences" fromWebsite={fw('description')} className="md:col-span-2" htmlFor="p-desc">
+        <textarea id="p-desc" className="input min-h-[90px]" value={v.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={1500} />
+      </Field>
+      <Field
+        label="Languages your team can answer replies in"
+        fromWebsite={fw('languages_handled')}
+        hint="The AI only writes in these, so nobody gets a reply you can't read."
+        className="md:col-span-2"
+      >
+        <LanguagesPicker values={v.languages_handled ?? []} onChange={(x) => set('languages_handled', x)} />
+      </Field>
+    </div>
+  );
+}
+
+// ── What you sell ────────────────────────────────────────────────────────
+
+export function OfferForm({ value: v, onChange, fromWebsite }: SectionProps<OfferSection>): React.ReactElement {
+  const offers = v.offers ?? [];
+  const proof = v.proof ?? [];
+  const setOffer = (i: number, patch: Partial<(typeof offers)[number]>) =>
+    onChange({ ...v, offers: offers.map((o, j) => (j === i ? { ...o, ...patch } : o)) });
+  const setProof = (i: number, patch: Partial<(typeof proof)[number]>) =>
+    onChange({ ...v, proof: proof.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
+  return (
+    <div className="space-y-6">
+      <Field label="Products or services" fromWebsite={fromWebsite?.has('offer.offers')}>
+        <div className="space-y-3">
+          {offers.map((o, i) => (
+            <div key={i} className="rounded-xl border border-border/70 bg-card/40 p-3 space-y-2">
+              <div className="flex gap-2">
+                <input className="input" aria-label="Product or service name" placeholder="Name, e.g. Export-grade fruit boxes" value={o.name} maxLength={150} onChange={(e) => setOffer(i, { name: e.target.value })} />
+                <button type="button" className="btn-ghost px-2" aria-label={`Remove ${o.name || 'this offer'}`} onClick={() => onChange({ ...v, offers: offers.filter((_, j) => j !== i) })}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <input className="input" aria-label="Short description" placeholder="What it is, in one line" value={o.description ?? ''} maxLength={600} onChange={(e) => setOffer(i, { description: e.target.value })} />
+              <input className="input" aria-label="Typical buyer" placeholder="Typical buyer, e.g. fruit exporters shipping to Europe" value={o.typical_buyer ?? ''} maxLength={300} onChange={(e) => setOffer(i, { typical_buyer: e.target.value })} />
+            </div>
+          ))}
+          {offers.length < 10 && (
+            <button type="button" className="btn-secondary" onClick={() => onChange({ ...v, offers: [...offers, { name: '' }] })}>
+              <Plus className="h-4 w-4" /> Add a product or service
+            </button>
+          )}
+        </div>
+      </Field>
+      <Field label="Why customers choose you" htmlFor="p-vp">
+        <textarea id="p-vp" className="input min-h-[80px]" value={v.value_proposition ?? ''} maxLength={1500} onChange={(e) => onChange({ ...v, value_proposition: e.target.value })} />
+      </Field>
+      <Field
+        label="Proof"
+        fromWebsite={fromWebsite?.has('offer.proof')}
+        hint="Tick what the AI may mention. Unticked items are never sent to the AI."
+      >
+        <div className="space-y-2">
+          {proof.map((p, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[hsl(var(--primary))]"
+                checked={p.may_mention}
+                onChange={(e) => setProof(i, { may_mention: e.target.checked })}
+                aria-label={`The AI may mention: ${p.text || 'this proof'}`}
+              />
+              <input className="input" aria-label="Proof point" placeholder="e.g. ISO 22000 certified plant" value={p.text} maxLength={300} onChange={(e) => setProof(i, { text: e.target.value })} />
+              <button type="button" className="btn-ghost px-2" aria-label="Remove this proof point" onClick={() => onChange({ ...v, proof: proof.filter((_, j) => j !== i) })}>
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          {proof.length < 15 && (
+            <button type="button" className="btn-secondary" onClick={() => onChange({ ...v, proof: [...proof, { text: '', may_mention: true }] })}>
+              <Plus className="h-4 w-4" /> Add proof
+            </button>
+          )}
+        </div>
+      </Field>
+      <Field label="Prices in messages">
+        <Segmented
+          name="Prices in messages"
+          options={['never', 'starting_price'] as const}
+          value={v.price_policy ?? 'never'}
+          onChange={(x) => onChange({ ...v, price_policy: x })}
+          labels={{ never: 'Never mention prices', starting_price: 'May offer to share pricing' }}
+        />
+      </Field>
+    </div>
+  );
+}
+
+// ── Ideal customers ──────────────────────────────────────────────────────
+
+export function CustomersForm({ value: v, onChange }: SectionProps<CustomersSection>): React.ReactElement {
+  const set = <K extends keyof CustomersSection>(k: K, x: CustomersSection[K]) => onChange({ ...v, [k]: x });
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <Field label="Industries" htmlFor="p-ind">
+          <TagInput id="p-ind" values={v.industries ?? []} onChange={(x) => set('industries', x)} max={15} placeholder="e.g. Fruit exporters" />
+        </Field>
+        <Field label="Who to contact" htmlFor="p-roles">
+          <TagInput id="p-roles" values={v.roles ?? []} onChange={(x) => set('roles', x)} max={15} placeholder="e.g. Head of Procurement" />
+        </Field>
+      </div>
+      <Field label="Company size">
+        <ToggleChips options={COMPANY_SIZES} values={v.company_sizes ?? []} onChange={(x) => set('company_sizes', x)} labels={SIZE_LABELS} />
+      </Field>
+      <Field label="Countries">
+        <CountriesPicker values={v.countries ?? []} onChange={(x) => set('countries', x)} />
+      </Field>
+      <Field label="Problems they have that you solve" htmlFor="p-prob">
+        <textarea id="p-prob" className="input min-h-[70px]" value={v.problems ?? ''} maxLength={1500} onChange={(e) => set('problems', e.target.value)} />
+      </Field>
+      <Field label="Signals they're ready to buy" hint="Prospects showing these are contacted first.">
+        <ToggleChips options={SIGNALS} values={v.signals ?? []} onChange={(x) => set('signals', x)} labels={SIGNAL_LABELS} />
+      </Field>
+      <Field
+        label="Never contact"
+        htmlFor="p-never"
+        hint="Existing customers, competitors, partners. One per line: a domain (acme.com), an email, or a company name. Checked when finding prospects, importing lists and sending."
+      >
+        <textarea
+          id="p-never"
+          className="input min-h-[100px] font-mono text-xs"
+          value={(v.never_contact ?? []).join('\n')}
+          onChange={(e) => set('never_contact', e.target.value.split('\n'))}
+          placeholder={'grupoandino.pe\ncompetitor-pack.com'}
+        />
+      </Field>
+    </div>
+  );
+}
+
+// ── Voice and sender ─────────────────────────────────────────────────────
+
+export function VoiceForm({ value: v, onChange }: SectionProps<VoiceSection>): React.ReactElement {
+  const set = <K extends keyof VoiceSection>(k: K, x: VoiceSection[K]) => onChange({ ...v, [k]: x });
+  return (
+    <div className="space-y-6">
+      <Field label="Tone">
+        <Segmented name="Tone" options={TONES} value={v.tone ?? 'professional'} onChange={(x) => set('tone', x)} labels={TONE_LABELS} />
+      </Field>
+      <Field label="Formality in languages that have it">
+        <Segmented
+          name="Formality"
+          options={['formal', 'informal'] as const}
+          value={v.formality ?? 'formal'}
+          onChange={(x) => set('formality', x)}
+          labels={{ formal: 'Formal (usted, Sie, vous)', informal: 'Informal (tú, du, tu)' }}
+        />
+      </Field>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <Field label="Sender name" htmlFor="p-sn">
+          <input id="p-sn" className="input" value={v.sender_name ?? ''} maxLength={120} onChange={(e) => set('sender_name', e.target.value)} placeholder="Ana Torres" />
+        </Field>
+        <Field label="Sender title" htmlFor="p-st">
+          <input id="p-st" className="input" value={v.sender_title ?? ''} maxLength={120} onChange={(e) => set('sender_title', e.target.value)} placeholder="Export Sales Lead" />
+        </Field>
+        <Field label="Meeting link" htmlFor="p-ml" hint="Added to emails and WhatsApp messages that ask for a meeting.">
+          <input id="p-ml" className="input" type="url" value={v.meeting_link ?? ''} maxLength={500} onChange={(e) => set('meeting_link', e.target.value)} placeholder="https://calendly.com/you/15min" />
+        </Field>
+        <Field label="Words or claims to avoid" htmlFor="p-avoid">
+          <TagInput id="p-avoid" values={v.avoid ?? []} onChange={(x) => set('avoid', x)} max={30} placeholder="cheapest, guaranteed" />
+        </Field>
+      </div>
+      <Field label="A message you've sent that worked (optional)" htmlFor="p-ex" hint="The AI copies its style, never its facts.">
+        <textarea id="p-ex" className="input min-h-[90px]" value={v.example ?? ''} maxLength={3000} onChange={(e) => set('example', e.target.value)} placeholder="Paste it here." />
+      </Field>
+    </div>
+  );
+}
+
+// ── Rules ────────────────────────────────────────────────────────────────
+
+export function RulesForm({ value: v, onChange }: SectionProps<RulesSection>): React.ReactElement {
+  return (
+    <div className="space-y-6">
+      <Field label="Countries never to contact" hint="Prospects and imported leads in these countries are skipped.">
+        <CountriesPicker values={v.blocked_countries ?? []} onChange={(x) => onChange({ ...v, blocked_countries: x })} max={250} />
+      </Field>
+    </div>
+  );
+}

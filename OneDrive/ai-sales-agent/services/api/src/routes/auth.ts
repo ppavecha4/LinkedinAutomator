@@ -218,6 +218,11 @@ router.post(
 
 // ── Sign out / current session ─────────────────────────────────────────
 
+// Public: what the sign-in page should offer (no secrets, no session).
+router.get('/api/auth/config', (_req, res) => {
+  ok(res, { mode: env.authMode, signup_enabled: env.authMode === 'local' && env.signupEnabled });
+});
+
 router.post('/api/auth/logout', (_req, res) => {
   res.clearCookie(env.authCookieName, { path: '/' });
   ok(res, { ok: true });

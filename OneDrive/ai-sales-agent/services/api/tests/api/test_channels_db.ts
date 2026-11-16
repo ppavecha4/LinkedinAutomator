@@ -56,7 +56,7 @@ describeIfDb('channels + entitlement + launch gate (live DB)', () => {
   it('a customer org is entitled to email, WhatsApp and voice only', async () => {
     const res = await asCustomer(request(app()).get('/api/organization'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ id: CUSTOMER, channels: ['email', 'whatsapp', 'voice'], default_language: 'en' });
+    expect(res.body.data).toMatchObject({ id: CUSTOMER, channels: ['email', 'whatsapp', 'voice'], default_language: 'en', operator: false });
   });
 
   it('a customer cannot create a LinkedIn campaign', async () => {

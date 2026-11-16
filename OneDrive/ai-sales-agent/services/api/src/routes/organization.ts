@@ -13,6 +13,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 
 import { query } from '../db/client';
+import { env } from '../env';
 import { ApiError } from '../lib/errors';
 import { ok } from '../lib/response';
 import { requireRole } from '../middleware/requireRole';
@@ -41,9 +42,11 @@ const patchBody = z
 
 router.get('/api/organization', async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const r = await query(`SELECT ${COLUMNS} FROM organizations`);
+    const r = await query<{ id: string }>(`SELECT ${COLUMNS} FROM organizations`);
     if (r.rowCount === 0) throw ApiError.notFound('organization not found');
-    return ok(res, r.rows[0]);
+    // The operator (Appson) runs on the server's .env keys, not the vault;
+    // the dashboard says so instead of showing "not connected".
+    return ok(res, { ...r.rows[0], operator: r.rows[0].id === env.authOrgId });
   } catch (err) {
     next(err);
   }

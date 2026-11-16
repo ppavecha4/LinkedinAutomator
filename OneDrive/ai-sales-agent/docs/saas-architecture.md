@@ -74,7 +74,7 @@ runbook](#v17-deploy-runbook).
 | # | Phase | Main deliverables |
 |---|---|---|
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
-| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · **2.4 language-aware writing + multilingual opt-out (done)** · 2.5 dashboard screens |
+| 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · **2.4 language-aware writing + multilingual opt-out (done)** · **2.5 dashboard screens (done)** |
 | 3 | Onboarding + connectors | Signup + sign-in, invite flow, onboarding wizard that builds the **business profile** (see "Business profile and onboarding"), then connect email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
@@ -562,8 +562,8 @@ Not built, on purpose:
 **Designed (2026-11-14)** — screens A–C on the "Login & onboarding" page
 of the design canvas. **Backend built (slice 3.1, 2026-11-14)** — see
 "Slice 3.1 as built" below. **Engine wiring built (slice 3.2,
-2026-11-14)** — see "Slice 3.2 as built". The dashboard screens (3.3)
-are next. The profile is the org-wide
+2026-11-14)** — see "Slice 3.2 as built". **Screens built (slice 3.3,
+2026-11-16)** — see "Slice 3.3 as built". The profile is the org-wide
 knowledge the engine uses for every campaign; offerings (slice 2.3) stay
 per product/angle and are generated *from* it.
 
@@ -679,6 +679,111 @@ The profile now drives the engine. No migration: everything reads
   the generated offering's ICP); the onboarding sample does not apply the
   languages-handled limit (the API has no country → language table);
   fallback templates (used when the AI is unreachable) are English only.
+
+### Slice 3.3 as built
+
+Dashboard (`dashboard/src`), styled with the app's own theme rather than
+the canvas mock-ups' palette:
+
+- **Sign in / create account** (`pages/LoginPage.tsx`): two panels as
+  designed. "Create account" appears only when the API says sign-up is
+  open — new public `GET /api/auth/config` → `{mode, signup_enabled}`.
+  After sign-in, a company that hasn't finished setup goes to
+  `/onboarding`. Not built: Google sign-in, password reset (the page says
+  to ask the owner/admin), Terms/Privacy pages (the checkbox names them
+  but there is nothing to link to yet).
+- **Session** (`lib/authContext.tsx`): user + org + `needsOnboarding`,
+  `signup()`, `switchOrg()`; `errorMessage()` turns API errors (including
+  Zod issues) into one sentence.
+- **Onboarding** (`pages/Onboarding.tsx`, full screen, `/onboarding`):
+  five steps — business (with "Read my website", which fills only empty
+  fields and marks them "from website"), what you sell, ideal customers +
+  blocked countries, voice, review. Every "Continue" saves that step's
+  section(s); "Save and finish later" saves and leaves. Review shows the
+  AI's offering draft ("understanding"), who it will look for / skip, and
+  a sample-message panel; "Finish setup" posts `/api/onboarding/complete`
+  with the draft offering (or none if the AI step failed).
+- **Business profile** (`pages/BusinessProfile.tsx`, `/settings/profile`,
+  in the sidebar under Account): a card per section with a summary and
+  in-place editing (same forms as onboarding,
+  `components/profile/sections.tsx`), profile strength with the next
+  hints, "how the AI uses your profile", and the sample-message test.
+  Viewers see no Edit buttons (the API also refuses their writes).
+- **Layout**: company name and initials in the account menu, "Switch
+  company" when the user belongs to more than one, a "Finish setting up"
+  banner while onboarding is incomplete, and the old "Dev mode" card
+  shown only in auth-bypass mode. Settings' unsaved "Company profile"
+  placeholder now links to the Business profile.
+- **Fix found while testing**: the API's CORS allow-list lacked `PUT`, so
+  every `PUT` from a dashboard on another origin failed (profile
+  sections, but also credentials and import mapping). Added.
+- **Checked** in the browser against a throwaway V1–V21 database: sign-up,
+  password rule, all five steps saving, website read failing cleanly,
+  review with the AI unavailable, finish, profile view/edit, sign-out,
+  wrong-password message, sign-in to the dashboard, phone width. The AI
+  calls themselves were not exercised with a real key.
+- **Not yet**: contact hours are not editable (not enforced yet either).
+  Onboarding still ends on the dashboard with a "connect your accounts"
+  toast; slice 2.5 below adds the Connected accounts page it points to.
+
+### Slice 2.5 as built (2026-11-16)
+
+Dashboard screens for phase 2, from the "Main", "Connect", "Import" and
+"Channels" canvas pages:
+
+- **Connected accounts** (`pages/Connections.tsx`, `/settings/connections`,
+  sidebar › Account): a card per account the org may use — email (Google
+  Workspace / SMTP / SES), WhatsApp (Twilio), AI calls ("coming soon"),
+  LinkedIn (Heyreach, only when entitled), lead search (Apollo), AI model
+  (Anthropic). Connect/Manage opens a form; saving is `PUT
+  /api/credentials/:provider` (secrets encrypted, never shown again, so
+  Manage asks for them afresh); Disconnect (confirmed) is `DELETE`, which
+  wipes the secret. Status reads "Saved, not checked yet" because nothing
+  verifies a credential yet. Field names per provider live in
+  `lib/workspace.ts` — they are the contract for the senders when sending
+  from customer accounts is wired (today only `anthropic.api_key` and
+  `apollo.api_key` are read). Organization defaults (language, country,
+  time zone) are edited here via `PATCH /api/organization`.
+  `GET /api/organization` now also returns `operator` (the org is
+  `AUTH_ORG_ID`), so the operator workspace is told it runs on `.env`
+  keys instead of seeing "not connected".
+- **New campaign** (`pages/NewCampaign.tsx`, `/campaigns/new`): 1 Leads —
+  "Ask the AI agent" (a saved offering, or describe an audience →
+  `POST /api/offerings/generate` → editable titles/industries/sizes/
+  countries) or "Upload a list" (file + which offering to pitch, falling
+  back to the profile's value proposition); 2 Channels & language
+  (entitled channels with their connection state, presets, each
+  contact's own language or one fixed language, unknown-language
+  fallback); 3 Details (name, goal, sender — prefilled from the profile);
+  4 Review (lists what still has to be connected). Create saves a new
+  offering if one was drafted, then `POST /api/campaigns` as DRAFT. AI
+  campaigns can "Create and launch" (`PATCH …/status` ACTIVE; a 409 from
+  the launch gate keeps the draft and opens Connected accounts). The old
+  hand-built wizard is `/campaigns/new/manual`, linked for the operator
+  only; "Plan with AI" and "LinkedIn Drafts" are hidden from customers.
+- **Upload a list** (`pages/ImportLeads.tsx`, `/campaigns/:id/import`):
+  the wizard hands the file over in memory; the import id goes in the URL
+  (`?import=`) so a reload resumes. Column mapping table (suggested from
+  headers in any language, "from header / from values"), country for
+  rows without one, "Check the rows" (`PUT …/mapping`), counts by outcome
+  with the rows behind each (`GET …/rows?status=`), the consent text from
+  the API, "Import N contacts" (`POST …/commit`), cancel (`DELETE`). After
+  import, "Launch campaign" — offered only when contacts came in, because
+  an ACTIVE campaign with no prospects is picked up by AI discovery.
+- **Settings**: the static channel cards (made-up statuses) are replaced
+  by a link to Connected accounts.
+- **Checked** in the browser on a throwaway V1–V21 database with a seeded
+  customer: connect WhatsApp (bad Account SID caught in the form), AI
+  draft without an AI account (clear error), upload wizard with a Spanish
+  CSV (headers matched; ready 2 / duplicate 1 / invalid 1 / never-contact
+  1), consent gate, import, launch refused while WhatsApp was
+  disconnected, launch succeeding once reconnected, reload resuming.
+  Not exercised: a real AI draft, an .xlsx file, the operator workspace.
+- **Not yet**: verifying a credential against its provider ("Verified");
+  sending from customer email/WhatsApp accounts (the cron senders still
+  refuse customer campaigns, so a launched customer campaign is prepared
+  but nothing is sent); sequence/follow-up editing for customer
+  campaigns; contact hours.
 
 ## Voice channel
 

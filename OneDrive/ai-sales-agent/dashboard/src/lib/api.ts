@@ -65,10 +65,22 @@ export const api = {
       method: 'POST',
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: 'PUT',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: 'PATCH',
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  /** POST a file as the raw request body (e.g. lead imports). */
+  upload: <T>(path: string, file: Blob) =>
+    request<T>(path, {
+      method: 'POST',
+      body: file,
+      headers: { 'Content-Type': 'application/octet-stream' },
+    }),
 };

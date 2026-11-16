@@ -7,26 +7,33 @@
  *   - `/campaigns/new` → wizard
  *   - `/prospects`, `/analytics`, `/settings` — unchanged
  *
- * Auth: a thin <ProtectedRoutes/> guard wraps Layout. When the backend
- * is in local-auth mode and there's no session, it redirects to /login.
- * In bypass mode the guard is a no-op.
+ * Auth: <RequireAuth/> wraps every signed-in route. When the backend is
+ * in local-auth mode and there's no session, it redirects to /login. In
+ * bypass mode the guard is a no-op. /onboarding is full-screen (no
+ * Layout); a company that hasn't finished setup is sent there after
+ * sign-in and sees a "finish setup" banner inside the app.
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './lib/authContext';
 import ActiveCampaigns from './pages/ActiveCampaigns';
 import Analytics from './pages/Analytics';
+import BusinessProfile from './pages/BusinessProfile';
 import CampaignBuilder from './pages/CampaignBuilder';
 import CampaignEditor from './pages/CampaignEditor';
 import CampaignPlanner from './pages/CampaignPlanner';
+import Connections from './pages/Connections';
+import ImportLeads from './pages/ImportLeads';
 import Inbox from './pages/Inbox';
 import LinkedInDrafts from './pages/LinkedInDrafts';
 import LoginPage from './pages/LoginPage';
+import NewCampaign from './pages/NewCampaign';
+import Onboarding from './pages/Onboarding';
 import Overview from './pages/Overview';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
@@ -41,8 +48,10 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoutes(): React.ReactElement {
+/** Signed in (or bypass mode) — else to /login, remembering where they were going. */
+function RequireAuth(): React.ReactElement {
   const { user, loading, bypassMode } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -51,9 +60,9 @@ function ProtectedRoutes(): React.ReactElement {
     );
   }
   if (!user && !bypassMode) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  return <Layout />;
+  return <Outlet />;
 }
 
 export default function App() {
@@ -63,17 +72,24 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoutes />}>
+            <Route element={<RequireAuth />}>
+             <Route path="/onboarding" element={<Onboarding />} />
+             <Route element={<Layout />}>
               <Route path="/" element={<Overview />} />
               <Route path="/campaigns" element={<ActiveCampaigns />} />
               <Route path="/campaigns/plan" element={<CampaignPlanner />} />
-              <Route path="/campaigns/new" element={<CampaignBuilder />} />
+              <Route path="/campaigns/new" element={<NewCampaign />} />
+              <Route path="/campaigns/new/manual" element={<CampaignBuilder />} />
+              <Route path="/campaigns/:id/import" element={<ImportLeads />} />
               <Route path="/campaigns/:id/edit" element={<CampaignEditor />} />
               <Route path="/prospects" element={<ProspectPipeline />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/linkedin-drafts" element={<LinkedInDrafts />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/profile" element={<BusinessProfile />} />
+              <Route path="/settings/connections" element={<Connections />} />
+             </Route>
             </Route>
           </Routes>
         </AuthProvider>

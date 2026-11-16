@@ -15,7 +15,10 @@
 
 import { motion } from 'framer-motion';
 import {
+  ArrowRight,
   BarChart3,
+  Building2,
+  Check,
   ChevronsLeft,
   Command,
   HelpCircle,
@@ -25,6 +28,7 @@ import {
   LogOut,
   Moon,
   PanelLeft,
+  Plug,
   PlusCircle,
   Search,
   Settings as SettingsIcon,
@@ -37,9 +41,13 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
-import { useAuth } from '../lib/authContext';
+import { useOrganization } from '../hooks/useWorkspace';
+import { api } from '../lib/api';
+import { errorMessage, type Membership, useAuth } from '../lib/authContext';
 import { cn } from '../lib/cn';
 import { useSidebarCollapse } from '../lib/sidebar';
 import { useTheme } from '../lib/theme';
@@ -57,6 +65,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { Separator } from './ui/separator';
@@ -68,17 +79,21 @@ interface NavItem {
   end: boolean;
   icon: LucideIcon;
   section?: string;
+  /** Only the operator (Appson) workspace has this feature. */
+  operatorOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
   { to: '/', label: 'Overview', end: true, icon: LayoutDashboard, section: 'Workspace' },
   { to: '/campaigns', label: 'Campaigns', end: false, icon: Sparkles, section: 'Workspace' },
-  { to: '/campaigns/plan', label: 'Plan with AI', end: true, icon: Wand2, section: 'Workspace' },
+  { to: '/campaigns/plan', label: 'Plan with AI', end: true, icon: Wand2, section: 'Workspace', operatorOnly: true },
   { to: '/prospects', label: 'Prospects', end: false, icon: Users, section: 'Workspace' },
   { to: '/inbox', label: 'Inbox', end: false, icon: Inbox, section: 'Workspace' },
-  { to: '/linkedin-drafts', label: 'LinkedIn Drafts', end: false, icon: Briefcase, section: 'Operator' },
+  { to: '/linkedin-drafts', label: 'LinkedIn Drafts', end: false, icon: Briefcase, section: 'Operator', operatorOnly: true },
   { to: '/analytics', label: 'Analytics', end: false, icon: BarChart3, section: 'Insights' },
-  { to: '/settings', label: 'Settings', end: false, icon: SettingsIcon, section: 'Account' },
+  { to: '/settings/profile', label: 'Business profile', end: true, icon: Building2, section: 'Account' },
+  { to: '/settings/connections', label: 'Connected accounts', end: true, icon: Plug, section: 'Account' },
+  { to: '/settings', label: 'Settings', end: true, icon: SettingsIcon, section: 'Account' },
 ];
 
 /** Resolve the active NAV entry, handling `/campaigns/new` → `/campaigns`. */
@@ -99,8 +114,10 @@ function buildBreadcrumbs(pathname: string): { label: string; href?: string }[] 
   if (current.to !== '/') {
     trail.push({ label: current.label, href: current.to });
   }
-  if (pathname === '/campaigns/new') {
-    trail.push({ label: 'New Campaign' });
+  if (pathname.startsWith('/campaigns/new')) {
+    trail.push({ label: 'New campaign' });
+  } else if (/^\/campaigns\/[^/]+\/import$/.test(pathname)) {
+    trail.push({ label: 'Upload a list' });
   }
   return trail;
 }
@@ -109,23 +126,37 @@ export default function Layout(): React.ReactElement {
   const { resolvedTheme, toggle: toggleTheme } = useTheme();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user, org, bypassMode, needsOnboarding, switchOrg } = useAuth();
+  // Companies this person belongs to (local auth only), for the switcher.
+  const { data: orgs } = useQuery({
+    queryKey: ['auth', 'orgs', user?.uid],
+    queryFn: async () => (await api.get<Membership[]>('/api/auth/orgs')).data,
+    enabled: !bypassMode && !!user?.uid,
+    staleTime: 60_000,
+  });
+  const orgName = org?.name ?? (bypassMode ? 'Dev workspace' : 'Your company');
+  const initials = orgName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'AI';
+  const otherOrgs = (orgs ?? []).filter((o) => o.org_id !== user?.org_id);
   const { collapsed, toggle: toggleSidebar } = useSidebarCollapse();
   const palette = useCommandPalette();
 
   const current = resolveCurrent(pathname);
   const breadcrumbs = buildBreadcrumbs(pathname);
 
+  // Operator-only entries stay hidden from customer workspaces.
+  const { data: orgInfo } = useOrganization();
+  const isOperator = orgInfo?.operator ?? bypassMode;
+
   // Group NAV by section for the sidebar.
   const grouped = React.useMemo(() => {
     const map = new Map<string, NavItem[]>();
-    NAV.forEach((n) => {
+    NAV.filter((n) => !n.operatorOnly || isOperator).forEach((n) => {
       const key = n.section ?? 'Other';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(n);
     });
     return Array.from(map.entries());
-  }, []);
+  }, [isOperator]);
 
   return (
     <>
@@ -260,16 +291,16 @@ export default function Layout(): React.ReactElement {
             ))}
           </nav>
 
-          {/* Footer — collapse toggle + promo card */}
+          {/* Footer — collapse toggle (+ a dev-mode note in auth bypass) */}
           <div className="p-3 space-y-3 border-t border-border/60">
-            {!collapsed && (
+            {!collapsed && bypassMode && (
               <div className="glass-strong rounded-xl p-3.5 gradient-border">
                 <div className="flex items-center gap-1.5 text-xs font-semibold">
                   <Zap className="h-3.5 w-3.5 text-primary" />
                   <span className="text-gradient">Dev mode</span>
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground leading-relaxed">
-                  Auth bypass · local docker · 82 tests green
+                  Auth bypass: no sign-in required
                 </div>
               </div>
             )}
@@ -378,19 +409,55 @@ export default function Layout(): React.ReactElement {
                   aria-label="User menu"
                 >
                   <Avatar className="h-7 w-7">
-                    <AvatarFallback>OP</AvatarFallback>
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="text-xs font-medium hidden sm:inline">
-                    Operator
+                  <span className="text-xs font-medium hidden sm:inline max-w-[10rem] truncate">
+                    {orgName}
                   </span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My account</DropdownMenuLabel>
+                <DropdownMenuLabel>
+                  <div className="truncate">{orgName}</div>
+                  {user?.email && !bypassMode && (
+                    <div className="truncate text-xs font-normal text-muted-foreground">{user.email}</div>
+                  )}
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => navigate('/settings')}>
+                {otherOrgs.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Users className="h-4 w-4" />
+                      Switch company
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem disabled>
+                        <Check className="h-4 w-4" />
+                        {orgName}
+                      </DropdownMenuItem>
+                      {otherOrgs.map((o) => (
+                        <DropdownMenuItem
+                          key={o.org_id}
+                          onSelect={async () => {
+                            try {
+                              await switchOrg(o.org_id);
+                              navigate('/', { replace: true });
+                              window.location.reload(); // drop every cached query of the old company
+                            } catch (e) {
+                              toast.error(errorMessage(e, 'Could not switch company.'));
+                            }
+                          }}
+                        >
+                          <span className="w-4" />
+                          {o.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                <DropdownMenuItem onSelect={() => navigate('/settings/profile')}>
                   <User className="h-4 w-4" />
-                  Profile
+                  Business profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate('/settings')}>
                   <SettingsIcon className="h-4 w-4" />
@@ -425,6 +492,19 @@ export default function Layout(): React.ReactElement {
           {/* Page content */}
           <div className="flex-1 overflow-auto">
             <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 animate-fade-in">
+              {needsOnboarding && (
+                <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:flex-row sm:items-center">
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">Finish setting up {orgName}.</span>{' '}
+                    <span className="text-muted-foreground">
+                      The AI needs your business profile before it can find prospects and write for you.
+                    </span>
+                  </div>
+                  <button type="button" className="btn-primary shrink-0" onClick={() => navigate('/onboarding')}>
+                    Continue setup <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
               <Outlet />
             </div>
           </div>
