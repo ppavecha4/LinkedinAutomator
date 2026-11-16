@@ -17,6 +17,11 @@ behaviour does not change.
 """
 from __future__ import annotations
 
+try:
+    from agents.iso_countries import ISO_COUNTRY_NAMES
+except ImportError:  # imported as src.agents.language
+    from src.agents.iso_countries import ISO_COUNTRY_NAMES  # type: ignore
+
 # ISO-3166 alpha-2 → (English name(s) as Apollo / imports spell them,
 # main business language). Curated for the markets we sell into; unknown
 # countries fall back to the org's default language.
@@ -48,7 +53,10 @@ _COUNTRIES: dict[str, tuple[tuple[str, ...], str]] = {
     "TW": (("Taiwan",), "zh"), "HK": (("Hong Kong",), "en"), "IL": (("Israel",), "he"),
 }
 
-_NAME_TO_ISO2 = {name.lower(): code for code, (names, _l) in _COUNTRIES.items() for name in names}
+# Every ISO country is recognised (blocked countries can be anywhere); the
+# curated spellings above win where they differ.
+_NAME_TO_ISO2 = {name.lower(): code for code, names in ISO_COUNTRY_NAMES.items() for name in names}
+_NAME_TO_ISO2.update({name.lower(): code for code, (names, _l) in _COUNTRIES.items() for name in names})
 
 LANGUAGE_NAMES = {
     "en": "English", "es": "Spanish", "pt": "Portuguese", "fr": "French", "de": "German",
@@ -63,14 +71,15 @@ def country_iso2(country: str | None) -> str | None:
     if not country:
         return None
     c = country.strip()
-    if len(c) == 2 and c.upper() in _COUNTRIES:
+    if len(c) == 2 and (c.upper() in _COUNTRIES or c.upper() in ISO_COUNTRY_NAMES):
         return c.upper()
     return _NAME_TO_ISO2.get(c.lower())
 
 
 def country_language(country: str | None) -> str | None:
     iso = country_iso2(country)
-    return _COUNTRIES[iso][1] if iso else None
+    entry = _COUNTRIES.get(iso) if iso else None
+    return entry[1] if entry else None
 
 
 def primary(tag: str) -> str:
@@ -91,8 +100,14 @@ def resolve_language(
     fallback: str,
     org_default: str | None,
     operator_playbook: bool = False,
+    languages_handled: list[str] | tuple[str, ...] | None = None,
 ) -> str:
-    """The BCP 47 tag to write this contact's messages in."""
+    """The BCP 47 tag to write this contact's messages in.
+
+    A campaign's explicit language list wins. Without one, the profile's
+    `languages_handled` (the languages the team can answer replies in)
+    limits the choice — writing in a language nobody can answer is worse
+    than writing in English. Appson's playbook campaigns stay English."""
     org_default = org_default or "en"
     candidate = contact_language
     if not candidate:
@@ -106,7 +121,23 @@ def resolve_language(
         allowed = {primary(l) for l in campaign_languages}
         if primary(candidate) not in allowed:
             candidate = campaign_languages[0]
+    elif languages_handled and not operator_playbook:
+        candidate = limit_to_handled(candidate, languages_handled)
     return candidate
+
+
+def limit_to_handled(language: str, handled) -> str:
+    """`language` if the team handles it, else the handled language to use
+    instead: English when they handle it, otherwise their first one."""
+    handled = [h for h in (handled or []) if h]
+    if not handled:
+        return language
+    by_primary: dict[str, str] = {}
+    for h in handled:
+        by_primary.setdefault(primary(h), h)
+    if primary(language) in by_primary:
+        return language
+    return by_primary.get("en") or handled[0]
 
 
 # The WhatsApp opt-out line, per language. The keyword stays "STOP" in every

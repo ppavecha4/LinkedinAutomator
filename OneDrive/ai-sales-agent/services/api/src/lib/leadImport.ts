@@ -317,7 +317,9 @@ export interface NormalizedLead {
 export type Problem =
   | 'missing_name' | 'no_contact_method' | 'invalid_email' | 'invalid_phone'
   | 'unknown_country' | 'unknown_language' | 'duplicate_in_file'
-  | 'already_a_contact' | 'opted_out';
+  | 'already_a_contact' | 'opted_out'
+  // Slice 3.2 — the org's business profile: never-contact list, blocked countries.
+  | 'never_contact' | 'blocked_country';
 
 /** Problems that make a row unusable (the rest are warnings). */
 export const BLOCKING: ReadonlySet<Problem> = new Set(['missing_name', 'no_contact_method']);

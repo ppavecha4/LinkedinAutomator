@@ -23,6 +23,7 @@ import { z } from 'zod';
 
 import { query, withTransaction } from '../db/client';
 import { ApiError } from '../lib/errors';
+import { NeverContact } from '../lib/neverContact';
 import {
   BLOCKING,
   countryName,
@@ -150,6 +151,8 @@ const mappingBody = z
 
 const PROBLEM_STATUS: Array<[Problem, string]> = [
   ['opted_out', 'SUPPRESSED'],
+  ['never_contact', 'SUPPRESSED'],
+  ['blocked_country', 'SUPPRESSED'],
   ['duplicate_in_file', 'DUPLICATE'],
   ['already_a_contact', 'DUPLICATE'],
 ];
@@ -182,6 +185,17 @@ router.put(
 
       const org = await query<{ default_country: string | null }>(`SELECT default_country FROM organizations`);
       const defaultCountry = body.default_country ?? org.rows[0]?.default_country ?? null;
+      // Slice 3.2: the business profile's never-contact list + blocked countries.
+      const prof = await query<{ never_contact: unknown; blocked: unknown }>(
+        `SELECT customers->'never_contact' AS never_contact, rules->'blocked_countries' AS blocked
+           FROM org_profiles`,
+      );
+      const neverContact = new NeverContact(
+        Array.isArray(prof.rows[0]?.never_contact) ? (prof.rows[0].never_contact as unknown[]) : [],
+      );
+      const blockedCountries = new Set(
+        Array.isArray(prof.rows[0]?.blocked) ? (prof.rows[0].blocked as unknown[]).map((c) => String(c).toUpperCase()) : [],
+      );
 
       const raw = await query<{ row_number: number; raw: string[] }>(
         `SELECT row_number, raw FROM lead_import_rows WHERE import_id = $1 ORDER BY row_number`,
@@ -224,6 +238,9 @@ router.put(
         if (r.lead) {
           const keys = identityKeys(r.lead);
           if (keys.some((k) => suppressedKeys.has(k))) problems.push('opted_out');
+          else if (neverContact.match({ email: r.lead.email, domain: r.lead.company_domain, companyName: r.lead.company })) {
+            problems.push('never_contact');
+          } else if (r.lead.country && blockedCountries.has(r.lead.country)) problems.push('blocked_country');
           else if (keys.some((k) => seen.has(k))) problems.push('duplicate_in_file');
           else if (keys.some((k) => existingKeys.has(k))) problems.push('already_a_contact');
           keys.forEach((k) => seen.add(k));

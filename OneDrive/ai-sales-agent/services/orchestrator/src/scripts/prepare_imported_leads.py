@@ -32,6 +32,7 @@ try:
     from scripts.smoke_test_campaign import (
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
         insert_messages, language_for, load_campaign, research_prospect, route_for,
+        ProfileRules, skip_reason_for_prospect,
     )
 except ImportError:  # pragma: no cover
     from src.db.provider_keys import provider_secret  # type: ignore
@@ -39,6 +40,7 @@ except ImportError:  # pragma: no cover
     from src.scripts.smoke_test_campaign import (  # type: ignore
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
         insert_messages, language_for, load_campaign, research_prospect, route_for,
+        ProfileRules, skip_reason_for_prospect,
     )
 
 DEFAULT_BATCH = 25
@@ -130,11 +132,14 @@ async def prepare_imported(
         )
 
     channels = campaign_text_channels(campaign["channels"])
+    # Slice 3.2: rules added to the profile after the import still hold.
+    rules = ProfileRules.from_profile(campaign.get("profile"))
     written = 0
     for i, row in enumerate(rows, 1):
         p = _prospect_dict(row)
         contact = p["contact"]
-        if ENABLE_RESEARCH:
+        blocked = skip_reason_for_prospect(rules, p)
+        if ENABLE_RESEARCH and not blocked:
             import httpx  # local: only when research is on
 
             async with httpx.AsyncClient() as client:
@@ -157,7 +162,7 @@ async def prepare_imported(
         routing = route_for(campaign, p)
         pitch_type = routing["pitch_type"]
         p["language"] = language_for(campaign, p)
-        eligible = reachable_channels(channels, contact)
+        eligible = [] if blocked else reachable_channels(channels, contact)
         messages: dict[str, str] = {}
         for ch in eligible:
             body, _source = await generate(
@@ -196,17 +201,18 @@ async def prepare_imported(
                         INSERT INTO prospect_events (campaign_id, prospect_id, contact_id,
                                                      event_type, source, payload)
                         VALUES ($1, $2, $3, 'skipped', 'system',
-                                jsonb_build_object('reason', 'no_reachable_channel',
+                                jsonb_build_object('reason', $5::text, 'detail', $6::text,
                                                    'campaign_channels', $4::text[]))
                         """,
                         campaign_id, row["prospect_id"], row["contact_id"], channels,
+                        "business_profile" if blocked else "no_reachable_channel", blocked,
                     )
                 await conn.execute(
                     "UPDATE contacts SET prepared_at = now() WHERE id = $1", row["contact_id"]
                 )
         written += len(messages)
         log(f"  [{i}/{len(rows)}] {contact['full_name']} — "
-            f"{', '.join(messages) or 'no reachable channel'}")
+            f"{', '.join(messages) or blocked or 'no reachable channel'}")
 
     return {"ok": True, "prepared": len(rows), "messages": written}
 

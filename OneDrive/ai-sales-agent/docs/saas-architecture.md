@@ -561,8 +561,9 @@ Not built, on purpose:
 
 **Designed (2026-11-14)** — screens A–C on the "Login & onboarding" page
 of the design canvas. **Backend built (slice 3.1, 2026-11-14)** — see
-"Slice 3.1 as built" below; the engine wiring (3.2) and the dashboard
-screens (3.3) are next. The profile is the org-wide
+"Slice 3.1 as built" below. **Engine wiring built (slice 3.2,
+2026-11-14)** — see "Slice 3.2 as built". The dashboard screens (3.3)
+are next. The profile is the org-wide
 knowledge the engine uses for every campaign; offerings (slice 2.3) stay
 per product/angle and are generated *from* it.
 
@@ -629,8 +630,55 @@ for confirmation).
   8 s. Residual: DNS rebinding between our lookup and the fetch.
 - **Not yet**: Google sign-in, password reset and email verification,
   invites (the org switcher works; adding members does not exist yet),
-  and slices 3.2 (profile → writer / discovery / suppression) and 3.3
-  (dashboard).
+  and slice 3.3 (dashboard).
+
+### Slice 3.2 as built
+
+The profile now drives the engine. No migration: everything reads
+`org_profiles` (V21) inside the campaign's tenant.
+
+- **Rules module** (orchestrator `agents/profile_rules.py`, API twin
+  `lib/neverContact.ts`; shared test cases in `test_profile_rules.py` and
+  `neverContact.test.ts` — change both together). A never-contact entry
+  is an exact email (`jane@acme.com`), a domain (`acme.com` or
+  `@acme.com`: matches the domain and its subdomains, by email domain or
+  company website) or a company name (compared after lowercasing,
+  removing accents and punctuation and trailing legal forms, so "Grupo
+  Andino S.A.C." = "grupo andino"). Blocked countries accept any ISO
+  country: the orchestrator's country lookup now falls back to a full
+  ISO-3166 name table (`agents/iso_countries.py`, generated from the
+  API's `i18n-iso-countries`).
+- **Where the rules apply**:
+
+  | Point | Never-contact | Blocked country | Result |
+  |---|---|---|---|
+  | Discovery (`process_campaign`) | company name/domain before enrichment (saves credits), email after | company country | prospect skipped, logged |
+  | Import validation (`PUT /api/imports/:id/mapping`) | email, company domain, company name | contact country | row `SUPPRESSED` with problem `never_contact` / `blocked_country` |
+  | Imported-lead writer (`prepare_imported_leads`) | same as discovery | same | no messages; `prospect_events` skipped, reason `business_profile` |
+  | Send gate (`compliance/send_gate.py`, both cron senders) | contact email, prospect domain + name | prospect country | message `SUPPRESSED`, `compliance_log` `send_blocked` |
+
+  The send gate re-checks at send time, so a rule added after messages
+  were queued still holds. Opt-out confirmations are exempt (they only go
+  to people who wrote to us). Applies to the operator org too; its
+  backfilled profile has no rules, so nothing changes for Appson.
+- **Languages handled**: `resolve_language(..., languages_handled=)` —
+  when the campaign has no explicit language list, a language the team
+  can't answer (from the contact, their country or the org default) is
+  replaced by English if handled, else the first handled language. The
+  campaign's explicit list still wins; Appson's playbook stays English.
+- **Writer** (customer campaigns, `GENERIC_PROMPT`): a profile block after
+  the offering guardrails — sender title, formal/informal address,
+  proof the customer allowed (only those; if all proof is private, "cite
+  nothing"), price policy, words to avoid (and their translations),
+  meeting link once (email/WhatsApp; LinkedIn notes carry no link), and
+  the example message as a style reference only (facts never reused).
+  Sender name falls back to the profile's. The onboarding sample message
+  (`samplePrompt`) uses the same example-style rule.
+- **Not yet**: contact hours (phase 6 quiet hours); the profile's target
+  countries / roles / sizes feeding discovery directly (they reach it via
+  the generated offering's ICP); the onboarding sample does not apply the
+  languages-handled limit (the API has no country → language table);
+  fallback templates (used when the AI is unreachable) are English only.
 
 ## Voice channel
 

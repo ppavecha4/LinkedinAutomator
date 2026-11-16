@@ -196,6 +196,11 @@ export function samplePrompt(p: Profile, b: z.infer<typeof sampleBody>): string 
       ? 'Channel: WhatsApp, at most 300 characters, conversational, ending with a short line telling them to reply STOP to opt out (keep the word STOP).'
       : 'Channel: email, 80-120 words, one clear call to action, no subject line, no sign-off.',
     p.voice.meeting_link ? `The call to action may offer this meeting link: ${p.voice.meeting_link}` : 'Ask for a short call.',
+    // Same rule as the engine's writer (orchestrator agents/profile_rules.py).
+    ...(p.voice.example
+      ? ['STYLE REFERENCE — a message that worked for them. Match its length, rhythm and tone only; do NOT reuse its facts, names, numbers or claims:',
+        `<example>\n${p.voice.example.slice(0, 1500)}\n</example>`]
+      : []),
     'Output ONLY the message.',
   ].join('\n');
 }

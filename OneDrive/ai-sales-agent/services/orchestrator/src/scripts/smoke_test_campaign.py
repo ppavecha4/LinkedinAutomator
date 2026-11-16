@@ -36,6 +36,10 @@ try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org, provider_secret
     from agents.language import language_name, opt_out_line, primary, resolve_language
+    from agents.profile_rules import (
+        ProfileRules, load_profile, sender_name as profile_sender_name,
+        skip_reason_for_prospect, writer_rules,
+    )
 except ImportError:  # pragma: no cover
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
@@ -43,6 +47,10 @@ except ImportError:  # pragma: no cover
     from src.db.provider_keys import is_operator_org, provider_secret  # type: ignore
     from src.agents.language import (  # type: ignore
         language_name, opt_out_line, primary, resolve_language,
+    )
+    from src.agents.profile_rules import (  # type: ignore
+        ProfileRules, load_profile, sender_name as profile_sender_name,
+        skip_reason_for_prospect, writer_rules,
     )
 import httpx
 
@@ -80,7 +88,8 @@ CHANNELS = ["linkedin", "email", "whatsapp"]  # channels with a text generator
 
 async def load_campaign(conn: Any, campaign_id: str) -> Optional[dict]:
     """The campaign row the writer needs, with its offering (or None)
-    under `campaign["offering"]`. Runs inside the campaign's tenant."""
+    under `campaign["offering"]` and the org's business profile under
+    `campaign["profile"]`. Runs inside the campaign's tenant."""
     row = await conn.fetchrow(
         """
         SELECT id, org_id, offering_id, name, goal, tone, sender_name,
@@ -112,6 +121,8 @@ async def load_campaign(conn: Any, campaign_id: str) -> Optional[dict]:
                 if isinstance(off.get(k), str):
                     off[k] = json.loads(off[k] or "{}")
             campaign["offering"] = off
+    # Slice 3.2: the business profile drives the writer and the rules.
+    campaign["profile"] = await load_profile(conn, campaign["org_id"])
     return campaign
 
 
@@ -401,7 +412,7 @@ GENERIC_PROMPT = textwrap.dedent("""\
       - Ground the message in one specific, real detail about them. No
         generic "I came across your profile".
       - Ask for: {cta}.
-    {guardrails}
+    {guardrails}{profile_rules}
     LANGUAGE: {language_instruction}
 
     Channel: {channel}
@@ -442,6 +453,7 @@ def language_for(campaign: dict, prospect: dict) -> str:
         fallback=campaign.get("language_fallback") or "country",
         org_default=campaign.get("org_default_language"),
         operator_playbook=uses_operator_playbook(campaign),
+        languages_handled=ProfileRules.from_profile(campaign.get("profile")).languages_handled,
     )
 
 
@@ -481,12 +493,13 @@ def build_prompt(*, campaign: dict, prospect: dict, channel: str, routing: dict)
     return GENERIC_PROMPT.format(
         language_instruction=_language_instruction(language, country),
         whatsapp_opt_out=_whatsapp_opt_out(language),
-        sender_name=campaign["sender_name"],
+        sender_name=profile_sender_name(campaign, campaign.get("profile")),
         sender_company=campaign["sender_company"],
         tone=campaign["tone"],
         goal=campaign["goal"],
         value_prop=campaign["value_proposition"],
         offering_details=details,
+        profile_rules=writer_rules(campaign.get("profile"), channel),
         contact_name=prospect["contact"]["full_name"],
         contact_title=prospect["contact"].get("title") or "—",
         company_name=prospect["company"].get("company_name") or "—",
@@ -533,8 +546,9 @@ def _fallback_message(
     if uses_operator_playbook(campaign):
         return _operator_fallback(campaign=campaign, prospect=prospect, channel=channel)
     name = (prospect["contact"]["full_name"] or "").split()[0] or "there"
-    sender, company = campaign["sender_name"], campaign["sender_company"]
-    vp = (campaign["value_proposition"] or "").strip().split("\n")[0]
+    sender = profile_sender_name(campaign, campaign.get("profile"))
+    company = campaign["sender_company"]
+    vp =(campaign["value_proposition"] or "").strip().split("\n")[0]
     vp = vp if len(vp) <= 200 else vp[:197].rsplit(" ", 1)[0] + "…"
     _, cta, _ = _offering_details(campaign.get("offering"))
     if channel == "whatsapp":
@@ -866,6 +880,18 @@ def _enforce_char_cap(body: str, channel: str) -> str:
 
 
 # ─── Main ───────────────────────────────────────────────────────────────
+def filter_by_profile(rules: "ProfileRules", prospects: list[dict], log: Any = print) -> list[dict]:
+    """Drop prospects the org's profile says never to contact."""
+    kept = []
+    for p in prospects:
+        reason = skip_reason_for_prospect(rules, p)
+        if reason:
+            log(f"  [skip] {(p.get('company') or {}).get('company_name') or '?'} — {reason}")
+            continue
+        kept.append(p)
+    return kept
+
+
 async def process_campaign(
     pool: asyncpg.Pool,
     campaign_id: str,
@@ -922,9 +948,19 @@ async def process_campaign(
         }
     log(f"[prospects] {len(prospects)} discovered")
 
+    # Slice 3.2: the profile's never-contact list and blocked countries.
+    # Checked before enrichment (saves credits on company/country hits) and
+    # again after (enrichment reveals the email, so its domain).
+    rules = ProfileRules.from_profile(campaign.get("profile"))
+    prospects = filter_by_profile(rules, prospects, log)
+    if not prospects:
+        return {"ok": False, "discovered": 0,
+                "skipped_reason": "every prospect found is on the never-contact list or in a blocked country"}
+
     # 3. Enrich each contact via /people/match (1 credit each).
     prospects = await enrich_prospects(apollo_key, prospects)
     log(f"[prospects] {len(prospects)} enriched")
+    prospects = filter_by_profile(rules, prospects, log)
 
     # 4. For each prospect: (optionally) run web research, route
     #    (service line + capability + market tier), personalise per
@@ -1014,7 +1050,7 @@ async def process_campaign(
     if research_client is not None:
         await research_client.aclose()
 
-    log(f"[done] {len(prospects)} prospects + {len(prospects) * 3} messages written")
+    log(f"[done] {len(prospects)} prospects + {len(prospects) * len(channels)} messages written")
     return {"ok": True, "discovered": len(prospects), "skipped_reason": None}
 
 
