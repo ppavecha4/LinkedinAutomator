@@ -10,6 +10,7 @@ import { buildApp } from '../app';
 import { closePool, query } from '../../src/db/client';
 import { env } from '../../src/env';
 import { LEGACY_ORG_ID, runWithTenant } from '../../src/lib/tenantContext';
+import { setCredentialCheckHooks } from '../../src/lib/credentialCheck';
 import { aadFor, decryptSecret } from '../../src/lib/vault';
 
 const HAS_DB = !!process.env.DATABASE_URL;
@@ -85,6 +86,43 @@ describeIfDb('credential vault (live DB)', () => {
     expect(r.rows[0].org).toBe(LEGACY_ORG_ID);
   });
 
+  it('verify checks with the decrypted secret and records the outcome; other orgs cannot', async () => {
+    env.authMode = 'bypass';
+    env.credentialsKey = KEY_B64;
+    const app = buildApp();
+    const saved = await request(app)
+      .put('/api/credentials/twilio')
+      .send({ label: 'vault-test', secret: { auth_token: 'super-secret-token' }, meta: { account_id: SID, whatsapp_from: '+51987654321' } });
+    const id = saved.body.data.id;
+    const seen: string[] = [];
+    try {
+      setCredentialCheckHooks({
+        fetch: (async (_u: string, init?: RequestInit) => {
+          seen.push(String((init?.headers as Record<string, string>).Authorization));
+          return new Response('{}', { status: 401 });
+        }) as typeof fetch,
+      });
+      const bad = await request(app).post(`/api/credentials/${id}/verify`);
+      expect(bad.status).toBe(200);
+      expect(bad.body.data).toMatchObject({ status: 'FAILED', last_error: 'Twilio rejected this Account SID and auth token.' });
+      expect(bad.body.data.last_checked_at).toBeTruthy();
+      // The check used the real (decrypted) token.
+      expect(seen[0]).toBe(`Basic ${Buffer.from(`${SID}:super-secret-token`).toString('base64')}`);
+
+      setCredentialCheckHooks({ fetch: (async () => new Response(JSON.stringify({ status: 'active' }), { status: 200 })) as typeof fetch });
+      const good = await request(app).post(`/api/credentials/${id}/verify`);
+      expect(good.body.data).toMatchObject({ status: 'VERIFIED', last_error: null });
+      expect(good.body.data.verified_at).toBeTruthy();
+
+      const theirs = await request(app).post(`/api/credentials/${id}/verify`).set('x-dev-org', OTHER_ORG);
+      expect(theirs.status).toBe(404);
+      const viewer = await request(app).post(`/api/credentials/${id}/verify`).set('x-dev-role', 'viewer');
+      expect(viewer.status).toBe(403);
+    } finally {
+      setCredentialCheckHooks({});
+    }
+  });
+
   it('re-saving resets verification; revoking wipes the secret', async () => {
     env.authMode = 'bypass';
     env.credentialsKey = KEY_B64;
@@ -95,10 +133,12 @@ describeIfDb('credential vault (live DB)', () => {
     const again = await request(app)
       .put('/api/credentials/twilio')
       .send({ label: 'vault-test', secret: { auth_token: 'rotated' }, meta: { account_id: SID } });
-    expect(again.body.data.status).toBe('UNVERIFIED');
+    expect(again.body.data).toMatchObject({ status: 'UNVERIFIED', last_checked_at: null, last_error: null });
 
     const del = await request(app).delete(`/api/credentials/${again.body.data.id}`);
     expect(del.status).toBe(200);
     expect(del.body.data).toMatchObject({ status: 'REVOKED', has_secret: false });
+    const gone = await request(app).post(`/api/credentials/${again.body.data.id}/verify`);
+    expect(gone.status).toBe(409);
   });
 });

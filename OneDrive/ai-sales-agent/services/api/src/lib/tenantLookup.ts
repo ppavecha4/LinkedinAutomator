@@ -14,6 +14,7 @@ import { query } from '../db/client';
 import { env } from '../env';
 import { logger } from '../logger';
 import { isUuid, runWithTenant } from './tenantContext';
+import { aadFor, decryptSecret, vaultKey } from './vault';
 
 /** Actor id recorded for work done on behalf of an org by the system. */
 export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
@@ -58,4 +59,41 @@ export async function orgForInbound(
   }
   logger.info('inbound event routed to default org', { source });
   return env.authOrgId;
+}
+
+/**
+ * The auth token that signs webhooks for this Twilio account (slice 3.4).
+ *
+ * A customer who connected their own Twilio account gets webhooks signed
+ * with THEIR token, so checking them against the operator's .env token
+ * would reject every one. The account's owner is found by AccountSid
+ * (V17 org_of_provider_account), then its token is read and decrypted as
+ * that org. Unknown accounts and the operator fall back to the .env token.
+ */
+export async function twilioAuthTokenFor(accountSid: unknown): Promise<string> {
+  if (typeof accountSid !== 'string' || !/^AC[0-9a-fA-F]{32}$/.test(accountSid)) return env.twilioAuthToken;
+  try {
+    const r = await query<{ org: string | null }>(
+      `SELECT org_of_provider_account('twilio', $1) AS org`,
+      [accountSid],
+    );
+    const org = r.rows[0]?.org;
+    if (!org || org === env.authOrgId) return env.twilioAuthToken;
+    const key = vaultKey();
+    if (!key) return env.twilioAuthToken;
+    const cred = await runAsOrg(org, () =>
+      query<{ org_id: string; label: string; secret_enc: Buffer }>(
+        `SELECT org_id, label, secret_enc FROM org_credentials
+          WHERE provider = 'twilio' AND meta->>'account_id' = $1 AND secret_enc IS NOT NULL
+          ORDER BY (status = 'VERIFIED') DESC, updated_at DESC LIMIT 1`,
+        [accountSid],
+      ),
+    );
+    const row = cred.rows[0];
+    if (!row) return env.twilioAuthToken;
+    return decryptSecret(row.secret_enc, aadFor(row.org_id, 'twilio', row.label), key).auth_token ?? '';
+  } catch (e) {
+    logger.warn('twilio token lookup failed', { error: (e as Error).message });
+    return '';
+  }
 }

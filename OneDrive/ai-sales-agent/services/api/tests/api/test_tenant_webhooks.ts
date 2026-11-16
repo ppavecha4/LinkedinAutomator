@@ -18,6 +18,7 @@ import { buildApp } from '../app';
 import { closePool, query } from '../../src/db/client';
 import { env } from '../../src/env';
 import { LEGACY_ORG_ID, runWithTenant } from '../../src/lib/tenantContext';
+import { aadFor, encryptSecret } from '../../src/lib/vault';
 import trackingRouter from '../../src/routes/tracking';
 
 const HAS_DB = !!process.env.DATABASE_URL;
@@ -151,5 +152,43 @@ describeIfDb('V17 tenant routing for webhooks, unsubscribe and tracking', () => 
       query(`SELECT 1 FROM inbound_events WHERE payload->>'AccountSid' = 'AC_nobody_connected'`),
     );
     expect(fallback.rowCount).toBe(1);
+  });
+
+  it("a customer's WhatsApp webhook is checked with that customer's own Twilio token (slice 3.4)", async () => {
+    const original = { ...env };
+    const sid = 'AC' + 'e'.repeat(32);
+    const key = Buffer.alloc(32, 5);
+    env.credentialsKey = key.toString('base64');
+    env.nodeEnv = 'production';
+    env.twilioAuthToken = 'operator-token';
+    try {
+      await asOrg(ORG, () =>
+        query(
+          `INSERT INTO org_credentials (provider, label, meta, secret_enc, status)
+           VALUES ('twilio', 'signed', $1::jsonb, $2, 'VERIFIED')`,
+          [JSON.stringify({ account_id: sid }), encryptSecret({ auth_token: 'customer-token' }, aadFor(ORG, 'twilio', 'signed'), key)],
+        ),
+      );
+      const body = { AccountSid: sid, From: 'whatsapp:+10000000003', Body: 'BAJA' };
+      const sign = (token: string) => {
+        const data = 'http://hooks.example.test/webhooks/whatsapp/inbound' +
+          Object.keys(body).sort().map((k) => `${k}${body[k as keyof typeof body]}`).join('');
+        return crypto.createHmac('sha1', token).update(data).digest('base64');
+      };
+      const send = (token: string) => request(buildApp())
+        .post('/webhooks/whatsapp/inbound')
+        .set('Host', 'hooks.example.test')
+        .set('x-twilio-signature', sign(token))
+        .type('form')
+        .send(body);
+      expect((await send('operator-token')).status).toBe(403);
+      expect((await send('customer-token')).status).toBe(200);
+      const mine = await asOrg(ORG, () =>
+        query(`SELECT 1 FROM inbound_events WHERE payload->>'AccountSid' = $1`, [sid]),
+      );
+      expect(mine.rowCount).toBe(1);
+    } finally {
+      Object.assign(env, original);
+    }
   });
 });

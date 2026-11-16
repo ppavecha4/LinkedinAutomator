@@ -4,12 +4,14 @@
  *   GET    /api/credentials            list this org's connections (no secrets)
  *   PUT    /api/credentials/:provider  connect / replace (owner, admin)
  *   DELETE /api/credentials/:id        revoke: wipe the secret (owner, admin)
+ *   POST   /api/credentials/:id/verify one read-only call to the provider
+ *                                       → VERIFIED / FAILED (owner, admin)
  *
  * Secrets are encrypted with lib/vault.ts before the INSERT and are never
  * returned by any endpoint. Row-level security (V17) scopes every query to
- * the caller's org. Checking a credential against the provider ("Verify")
- * belongs to the onboarding wizard (phase 3); saving resets the status to
- * UNVERIFIED.
+ * the caller's org. Saving resets the status to UNVERIFIED; "verify"
+ * (lib/credentialCheck.ts, slice 3.4) sets VERIFIED or FAILED with the
+ * reason. Customer campaigns only send through VERIFIED accounts.
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
@@ -19,7 +21,8 @@ import { query } from '../db/client';
 import { assertChannelsAllowed, CHANNEL_PROVIDERS, type Channel } from '../lib/channels';
 import { ApiError } from '../lib/errors';
 import { ok } from '../lib/response';
-import { aadFor, encryptSecret, vaultKey, VaultError } from '../lib/vault';
+import { CHECKABLE, checkCredential } from '../lib/credentialCheck';
+import { aadFor, decryptSecret, encryptSecret, vaultKey, VaultError } from '../lib/vault';
 import { requireRole } from '../middleware/requireRole';
 import { validate } from '../middleware/validate';
 
@@ -32,7 +35,8 @@ export const PROVIDERS = [
 ] as const;
 
 const PUBLIC_COLUMNS = `id, provider, label, meta, status, verified_at,
-  created_at, updated_at, (secret_enc IS NOT NULL) AS has_secret`;
+  last_checked_at, last_error, created_at, updated_at,
+  (secret_enc IS NOT NULL) AS has_secret`;
 
 const providerParams = z.object({ provider: z.enum(PROVIDERS) });
 const idParams = z.object({ id: z.string().uuid() });
@@ -130,6 +134,8 @@ router.put(
                meta        = EXCLUDED.meta,
                status      = 'UNVERIFIED',
                verified_at = NULL,
+               last_checked_at = NULL,
+               last_error  = NULL,
                updated_at  = now()
         RETURNING ${PUBLIC_COLUMNS}
         `,
@@ -161,6 +167,53 @@ router.delete(
         [id],
       );
       if ((r.rowCount ?? 0) === 0) throw ApiError.notFound('credential not found');
+      return ok(res, r.rows[0]);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.post(
+  '/api/credentials/:id/verify',
+  requireRole('owner', 'admin'),
+  validate({ params: idParams }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.validated!.params as z.infer<typeof idParams>;
+      const found = await query<{ org_id: string; provider: string; label: string; meta: Record<string, unknown>; secret_enc: Buffer | null }>(
+        `SELECT org_id, provider, label, meta, secret_enc FROM org_credentials WHERE id = $1`,
+        [id],
+      );
+      const row = found.rows[0];
+      if (!row) throw ApiError.notFound('credential not found');
+      if (!row.secret_enc) throw ApiError.conflict('this account was disconnected; connect it again first');
+      if (!CHECKABLE.has(row.provider)) throw ApiError.badRequest(`checking ${row.provider} accounts is not supported yet`);
+
+      let key: Buffer | null;
+      try {
+        key = vaultKey();
+      } catch (e) {
+        throw ApiError.internal((e as VaultError).message);
+      }
+      if (!key) throw ApiError.internal('credential vault not configured (CREDENTIALS_KEY)');
+      const secret = decryptSecret(row.secret_enc, aadFor(row.org_id, row.provider, row.label), key);
+
+      const result = (await checkCredential(row.provider, secret, row.meta))!;
+      const r = await query(
+        `
+        UPDATE org_credentials
+           SET status          = $2::varchar,
+               verified_at     = CASE WHEN $2::varchar = 'VERIFIED' THEN now() ELSE NULL END,
+               last_checked_at = now(),
+               last_error      = $3,
+               updated_at      = now()
+         WHERE id = $1 AND secret_enc IS NOT NULL
+        RETURNING ${PUBLIC_COLUMNS}
+        `,
+        [id, result.ok ? 'VERIFIED' : 'FAILED', result.ok ? null : (result.error ?? 'check failed').slice(0, 500)],
+      );
+      if ((r.rowCount ?? 0) === 0) throw ApiError.conflict('this account changed while it was being checked; try again');
       return ok(res, r.rows[0]);
     } catch (err) {
       next(err);

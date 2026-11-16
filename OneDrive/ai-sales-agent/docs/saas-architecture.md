@@ -779,11 +779,68 @@ Dashboard screens for phase 2, from the "Main", "Connect", "Import" and
   1), consent gate, import, launch refused while WhatsApp was
   disconnected, launch succeeding once reconnected, reload resuming.
   Not exercised: a real AI draft, an .xlsx file, the operator workspace.
-- **Not yet**: verifying a credential against its provider ("Verified");
-  sending from customer email/WhatsApp accounts (the cron senders still
-  refuse customer campaigns, so a launched customer campaign is prepared
-  but nothing is sent); sequence/follow-up editing for customer
-  campaigns; contact hours.
+- **Not yet**: sequence/follow-up editing for customer campaigns; contact
+  hours. (Verification and sending from customer accounts: slice 3.4.)
+
+### Slice 3.4 as built (2026-11-16): sending from the customer's accounts
+
+Customer campaigns now send from, and read replies in, the customer's own
+accounts — only accounts that passed a check with the provider.
+
+- **V22**: `org_credentials.last_checked_at` + `last_error` (the reason a
+  check failed, shown to the customer, never the secret);
+  `customer_mailboxes()` — SECURITY DEFINER, returns (org, provider, label)
+  of every VERIFIED Google Workspace / SMTP account, for the reply poller.
+- **Verify** — `POST /api/credentials/:id/verify` (owner/admin),
+  `lib/credentialCheck.ts`: one read-only call with the decrypted secret.
+  Anthropic `GET /v1/models`; Apollo `/v1/auth/health`; Twilio
+  `GET /Accounts/{sid}.json` (account active, number in E.164); Google
+  Workspace SMTP login to smtp.gmail.com:587; a customer's own SMTP server
+  only if its name resolves exclusively to public addresses, ports
+  25/465/587/2525, connecting to the checked address with TLS verified
+  against the name. Sets VERIFIED or FAILED + `last_error`; saving resets
+  both. The dashboard checks right after saving ("Save and check") and
+  offers "Check again". Amazon SES left the Connect form (no sender).
+- **Launch gate**: a customer channel counts only with a VERIFIED account
+  (`missingChannelCredentials`), because the senders use nothing else.
+- **Email sender** (`send_pending_emails.py`, `db/accounts.py`): customer
+  campaigns load the org's VERIFIED email account from the vault and send
+  through it; no operator signature, logo or Calendly link (the writer
+  already puts the customer's own link in, in the prospect's language).
+  No verified account → nothing sent, messages stay QUEUED.
+- **WhatsApp sender**: the customer's VERIFIED Twilio account; the first
+  message must be a Meta-approved template, so the customer gives Content
+  SIDs — a default (`meta.template_sid`) and/or per language
+  (`meta.template_sid_<lang>`), filled with {{1}} first name, {{2}}
+  company, like the operator's. No template for the message's language →
+  it waits. Opt-out confirmations go as free text (inside the 24-hour
+  window). `--customers-only` skips operator campaigns; `auto_sends.sh`
+  now runs WhatsApp for customers (the operator's stays dormant).
+- **Reply poller** (`poll_email_replies.py`): after the operator's .env
+  mailbox (now optional), every `customer_mailboxes()` entry is read as
+  its org — Gmail at imap.gmail.com; other servers at the IMAP host given
+  when connecting (public only, pinned like SMTP). Each mailbox has its own
+  UID position (`poller_state` key `email_last_uid:<org>:<provider>:<label>`;
+  the operator keeps its old keys). A reply in a customer's mailbox is
+  recorded only for that customer — a match to another org's contact is
+  skipped.
+- **WhatsApp webhooks**: `X-Twilio-Signature` is checked with the auth
+  token of the org that owns the receiving AccountSid (decrypted from the
+  vault); before, only the operator's .env token was used, so every
+  customer webhook would have been refused in production.
+- **Tests**: API 189 (verify, launch gate, per-customer webhook signature,
+  SSRF and secret-redaction units); orchestrator 177 + the 3 known
+  model-name failures (customer email from their mailbox with no operator
+  branding, WhatsApp with their template, replies kept in their org,
+  unverified accounts send nothing). Browser: save-and-check against the
+  real Twilio API with made-up credentials (rejected, reason shown),
+  template list validation, "Check again", reopening keeps templates.
+- **Not yet**: a real end-to-end send from a real customer mailbox (only
+  fakes in tests); SES; email bounce/complaint handling per customer; a
+  periodic re-check of verified accounts (a revoked app password shows up
+  as failed sends, not a FAILED status); per-customer Twilio webhook URLs
+  must still be set by the customer in Twilio (no automatic setup);
+  open tracking and the unsubscribe link use the platform's domain.
 
 ## Voice channel
 

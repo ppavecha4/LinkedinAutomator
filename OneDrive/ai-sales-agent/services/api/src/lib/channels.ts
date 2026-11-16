@@ -76,14 +76,15 @@ export function channelsFromSteps(steps: ReadonlyArray<{ channel: Channel }>): C
  *
  * The operator org configured through `.env` (AUTH_ORG_ID: today's
  * single-operator deploy) sends with its env keys, so it has nothing
- * missing. Until provider verification ships (phase 3), a saved,
- * non-revoked, non-failed credential counts as connected.
+ * missing. For everyone else a channel counts only once one of its
+ * accounts passed "verify" (slice 3.4): the senders use VERIFIED
+ * accounts only, so launching on an unchecked one would send nothing.
  */
 export async function missingChannelCredentials(channels: readonly Channel[]): Promise<Channel[]> {
   if (currentTenant()?.orgId === env.authOrgId) return [];
   const r = await query<{ provider: string }>(
     `SELECT DISTINCT provider FROM org_credentials
-      WHERE secret_enc IS NOT NULL AND status NOT IN ('REVOKED', 'FAILED')`,
+      WHERE secret_enc IS NOT NULL AND status = 'VERIFIED'`,
   );
   const connected = new Set(r.rows.map((x) => x.provider));
   return channels.filter((c) => !CHANNEL_PROVIDERS[c].some((p) => connected.has(p)));
@@ -94,7 +95,7 @@ export async function assertReadyToLaunch(channels: readonly Channel[]): Promise
   const missing = await missingChannelCredentials(channels);
   if (missing.length > 0) {
     throw ApiError.conflict(
-      `connect ${missing.map((c) => CHANNEL_LABELS[c]).join(', ')} before launching`,
+      `connect and verify ${missing.map((c) => CHANNEL_LABELS[c]).join(', ')} before launching`,
       { missing },
     );
   }

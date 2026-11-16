@@ -41,6 +41,14 @@ export function useSaveCredential() {
   });
 }
 
+export function useVerifyCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.post<Credential>(`/api/credentials/${id}/verify`)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: ['credentials'] }),
+  });
+}
+
 export function useRemoveCredential() {
   const qc = useQueryClient();
   return useMutation({

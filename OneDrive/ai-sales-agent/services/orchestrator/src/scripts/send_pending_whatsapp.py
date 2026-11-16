@@ -32,7 +32,14 @@ Optional flags:
     --dry-run       preview what would send, don't actually send
     --to <e164>     override every recipient with this number (self-test)
 
-Env vars required:
+Customer campaigns (slice 3.4) send from the customer's own VERIFIED
+Twilio account in the vault, with the Meta-approved template they gave
+for the message's language (meta.template_sid_<lang>, else
+meta.template_sid; variables {{1}} first name, {{2}} company). No
+verified account or no template → the message waits, nothing is sent.
+--customers-only skips the operator's campaigns (cron).
+
+Env vars required (operator campaigns):
     TWILIO_ACCOUNT_SID
     TWILIO_AUTH_TOKEN
     TWILIO_WHATSAPP_FROM       (whatsapp:+15559134046)
@@ -55,9 +62,11 @@ import asyncpg
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org
+    from db.accounts import AccountError, WhatsAppAccount, whatsapp_account
     from compliance.send_gate import block_send, check_send
 except ImportError:  # pragma: no cover
     from src.db.provider_keys import is_operator_org  # type: ignore
+    from src.db.accounts import AccountError, WhatsAppAccount, whatsapp_account  # type: ignore
     from src.compliance.send_gate import block_send, check_send  # type: ignore
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
@@ -174,37 +183,48 @@ async def _record_result(pool, r, ok: bool, twilio_sid: Optional[str], error: Op
 
 async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
-    account_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
-    auth_token = (os.environ.get("TWILIO_AUTH_TOKEN") or "").strip()
-    from_number = (os.environ.get("TWILIO_WHATSAPP_FROM") or "").strip()
-
-    if not (account_sid and auth_token and from_number):
-        raise SystemExit(
-            "twilio not configured — set TWILIO_ACCOUNT_SID, "
-            "TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM in .env"
-        )
     if TwilioClient is None:
         raise SystemExit("twilio package not installed in this image")
-
-    twilio = TwilioClient(account_sid, auth_token)
 
     pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
         # SaaS phase 1: everything below runs as this campaign's org.
         org = await use_campaign_org(pool, args.campaign_id)
-        # This sender uses the operator's .env Twilio number and the
-        # operator's pitch templates. A customer's WhatsApp needs its own
-        # number + per-language templates (onboarding phase) — never send a
-        # customer's outreach as the operator.
-        if not is_operator_org(org):
-            print("Refusing: this campaign belongs to a customer org; its own WhatsApp "
-                  "number and templates are not wired yet (onboarding phase).")
-            return
+        account: Optional[WhatsAppAccount] = None
+        if is_operator_org(org):
+            if args.customers_only:
+                print("Skipping: operator campaign (--customers-only).")
+                return
+            # The operator: .env Twilio number and its pitch templates.
+            account_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
+            auth_token = (os.environ.get("TWILIO_AUTH_TOKEN") or "").strip()
+            from_number = (os.environ.get("TWILIO_WHATSAPP_FROM") or "").strip()
+            if not (account_sid and auth_token and from_number):
+                raise SystemExit(
+                    "twilio not configured — set TWILIO_ACCOUNT_SID, "
+                    "TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM in .env"
+                )
+            twilio = TwilioClient(account_sid, auth_token)
+        else:
+            # A customer (slice 3.4): their own verified Twilio account.
+            try:
+                async with pool.acquire() as conn:
+                    account = await whatsapp_account(conn)
+            except AccountError as e:
+                print(f"Not sending: this company's WhatsApp account can't be used ({e}).")
+                return
+            if account is None:
+                print("Not sending: this company has no verified WhatsApp account. "
+                      "Connect Twilio and press Verify in Connected accounts.")
+                return
+            twilio = TwilioClient(account.account_sid, account.auth_token)
+            from_number = account.from_number
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
                 SELECT m.id::text       AS message_id,
                        m.body,
+                       m.language,
                        c.full_name,
                        c.whatsapp_number,
                        p.company_name,
@@ -270,7 +290,13 @@ async def main(args: argparse.Namespace) -> None:
                 failed += not ok
                 continue
 
-            template_sid, source = resolve_template_sid(r["pitch_type"])
+            if account is not None:
+                # Customer: their approved template for this language.
+                template_sid = account.template_for(r["language"])
+                source = (f"no approved WhatsApp template for language "
+                          f"{r['language'] or 'unknown'} (add one in Connected accounts)")
+            else:
+                template_sid, source = resolve_template_sid(r["pitch_type"])
             if not template_sid:
                 print(
                     f"  skip {r['full_name']:24s} — {source} "
@@ -360,6 +386,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("campaign_id", help="platform campaign UUID")
     p.add_argument("--limit", type=int, help="cap number of sends")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--customers-only", action="store_true",
+                   help="skip the operator's campaigns (used by cron)")
     p.add_argument(
         "--to",
         help="override every recipient with this E.164 number (self-test)",

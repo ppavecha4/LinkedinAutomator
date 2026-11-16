@@ -32,9 +32,12 @@ for cid in $CAMPAIGN_IDS; do
     docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/send_drafts_to_heyreach.py "$cid" 2>&1 \
         | tail -3 >> "$LOG" || log "  heyreach push errored (see above)"
 
-    # WhatsApp dormant — we don't have phone data for LATAM.
-    # Uncomment when we start Indian ICP campaigns:
-    # docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/send_pending_whatsapp.py "$cid" 2>&1 | tail -3 >> "$LOG"
+    # WhatsApp: customers' campaigns send from their own verified Twilio
+    # account (slice 3.4). The operator's WhatsApp stays dormant (no phone
+    # data for LATAM) — --customers-only skips operator campaigns. Drop the
+    # flag when the operator starts Indian ICP campaigns.
+    log "campaign=$cid — draining WhatsApp (customers)"
+    docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/send_pending_whatsapp.py "$cid" --customers-only 2>&1         | tail -3 >> "$LOG" || log "  whatsapp send errored (see above)"
 done
 
 log "=== tick end ==="

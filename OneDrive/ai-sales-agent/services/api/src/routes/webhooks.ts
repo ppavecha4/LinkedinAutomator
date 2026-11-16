@@ -27,6 +27,7 @@ import {
   orgOfContact,
   orgOfMessage,
   runAsOrg,
+  twilioAuthTokenFor,
 } from '../lib/tenantLookup';
 import { logger } from '../logger';
 import { dashboardHub } from '../ws/server';
@@ -106,12 +107,12 @@ function verifyCalendlySignature(rawBody: string, header: string | undefined): b
  *
  * Ref: https://www.twilio.com/docs/usage/webhooks/webhooks-security
  */
-function verifyTwilioSignature(
+export function verifyTwilioSignature(
   fullUrl: string,
   body: Record<string, unknown> | undefined,
   header: string | undefined,
+  token: string,
 ): boolean {
-  const token = env.twilioAuthToken;
   if (!token || !header || !body) return false;
   const sortedKeys = Object.keys(body).sort();
   const data =
@@ -336,7 +337,9 @@ router.get('/track/open/:messageId', async (req: Request, res: Response) => {
 router.post('/webhooks/whatsapp/inbound', async (req: Request, res: Response) => {
   const sigHeader = req.header('x-twilio-signature');
   const fullUrl = `${req.protocol}://${req.get('host') ?? ''}${req.originalUrl}`;
-  const verified = verifyTwilioSignature(fullUrl, req.body, sigHeader);
+  // Signed with the receiving account's own token (a customer's Twilio, or ours).
+  const token = await twilioAuthTokenFor(req.body?.AccountSid);
+  const verified = verifyTwilioSignature(fullUrl, req.body, sigHeader, token);
   logger.info('webhook.whatsapp.inbound', {
     from: req.body?.From ?? null,
     sid: req.body?.MessageSid ?? null,
@@ -352,7 +355,9 @@ router.post('/webhooks/whatsapp/inbound', async (req: Request, res: Response) =>
 router.post('/webhooks/whatsapp/status', async (req: Request, res: Response) => {
   const sigHeader = req.header('x-twilio-signature');
   const fullUrl = `${req.protocol}://${req.get('host') ?? ''}${req.originalUrl}`;
-  const verified = verifyTwilioSignature(fullUrl, req.body, sigHeader);
+  // Signed with the receiving account's own token (a customer's Twilio, or ours).
+  const token = await twilioAuthTokenFor(req.body?.AccountSid);
+  const verified = verifyTwilioSignature(fullUrl, req.body, sigHeader, token);
   logger.info('webhook.whatsapp.status', {
     sid: req.body?.MessageSid ?? null,
     status: req.body?.MessageStatus ?? null,

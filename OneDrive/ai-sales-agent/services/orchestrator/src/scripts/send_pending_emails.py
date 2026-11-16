@@ -1,5 +1,11 @@
 """send_pending_emails.py — flush QUEUED email rows via Google Workspace.
 
+Operator campaigns send from the .env Google Workspace mailbox with the
+operator's signature, logo and Calendly link. Customer campaigns (slice
+3.4) send from the customer's own VERIFIED account in the vault (Google
+Workspace or their own SMTP server, see db/accounts.py) with none of the
+operator's branding; without a verified account nothing is sent.
+
 The smoke-test driver writes email messages to the DB as `status=QUEUED`
 because the orchestrator's queue node is the same code path SES uses,
 and we don't want to send anything until you opt in. This script
@@ -55,12 +61,14 @@ import asyncpg
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org
+    from db.accounts import AccountError, EmailAccount, email_account
     from compliance.send_gate import block_send, check_send
 except ImportError:  # pragma: no cover
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
     from src.db.provider_keys import is_operator_org  # type: ignore
+    from src.db.accounts import AccountError, EmailAccount, email_account  # type: ignore
     from src.compliance.send_gate import block_send, check_send  # type: ignore
 
 try:
@@ -211,6 +219,7 @@ def build_message(
     signature_text: Optional[str] = None,
     logo_bytes: Optional[bytes] = None,
     logo_mime: Optional[str] = None,
+    meeting_url: Optional[str] = "env",
 ) -> email.message.EmailMessage:
     """Construct the multipart/alternative (or multipart/related when a
     logo is attached) message with all the deliverability-sensitive
@@ -263,7 +272,11 @@ def build_message(
     # occasionally forget to include the Calendly URL — this block
     # guarantees every email carries a booking link. Skipped if the URL
     # is already present in the body (idempotent).
-    calendly_url = (os.environ.get("CALENDLY_MEETING_URL") or "").strip()
+    # The operator's Calendly link comes from .env ("env", the default).
+    # Customer emails pass None: their writer already puts their own link
+    # in, in the prospect's language — never append the operator's.
+    calendly_url = ((os.environ.get("CALENDLY_MEETING_URL") or "") if meeting_url == "env"
+                    else (meeting_url or "")).strip()
     if calendly_url and calendly_url not in full_text:
         cta_text = (
             f"\n\nIf a 15-min chat makes sense, here's my calendar:\n{calendly_url}\n"
@@ -317,21 +330,51 @@ def build_message(
 
 
 async def smtp_send(
-    msg: email.message.EmailMessage, *, username: str, password: str
+    msg: email.message.EmailMessage, *, username: str = "", password: str = "",
+    account: "Optional[EmailAccount]" = None,
 ) -> None:
+    """Send via the operator's Google Workspace (.env) or, for customers,
+    their own verified account. A customer's own mail server is reached at
+    the address that was checked to be public (account.connect_ip), with
+    TLS verified against its name."""
     if aiosmtplib is None:
         raise RuntimeError(
             "aiosmtplib not installed — rebuild the orchestrator image"
         )
-    await aiosmtplib.send(
-        msg,
-        hostname=SMTP_HOST,
-        port=SMTP_PORT,
-        start_tls=True,
-        username=username,
-        password=password,
+    if account is None:
+        await aiosmtplib.send(
+            msg, hostname=SMTP_HOST, port=SMTP_PORT, start_tls=True,
+            username=username, password=password, timeout=30,
+        )
+        return
+    kwargs = dict(
+        hostname=account.smtp_host,
+        port=account.smtp_port,
+        username=account.username,
+        password=account.password,
         timeout=30,
     )
+    if account.implicit_tls:
+        kwargs["use_tls"] = True
+    else:
+        kwargs["start_tls"] = account.smtp_port != 25
+    sock = None
+    if account.connect_ip:
+        import socket
+
+        sock = await asyncio.to_thread(
+            socket.create_connection, (account.connect_ip, account.smtp_port), 15,
+        )
+        kwargs["sock"] = sock
+        kwargs.pop("port")
+    try:
+        await aiosmtplib.send(msg, **kwargs)
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
 
 
 # ─── Main ─────────────────────────────────────────────────────────────
@@ -339,10 +382,6 @@ async def smtp_send(
 
 async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
-    from_email = (os.environ.get("GOOGLE_WORKSPACE_EMAIL") or "").strip()
-    from_name = (os.environ.get("GOOGLE_WORKSPACE_FROM_NAME") or "").strip()
-    reply_to = (os.environ.get("GOOGLE_WORKSPACE_REPLY_TO") or from_email).strip()
-    app_password = (os.environ.get("GOOGLE_WORKSPACE_APP_PASSWORD") or "").strip()
     unsubscribe_base = os.environ.get("UNSUBSCRIBE_BASE_URL", "")
     hmac_secret = (
         os.environ.get("UNSUBSCRIBE_HMAC_SECRET")
@@ -359,33 +398,52 @@ async def main(args: argparse.Namespace) -> None:
             " base (cloudflared tunnel for local dev).",
         )
 
-    if not from_email or not app_password:
-        raise SystemExit(
-            "GOOGLE_WORKSPACE_EMAIL and GOOGLE_WORKSPACE_APP_PASSWORD must be set"
-        )
-
-    # Load the signature + logo once at startup. Each row reuses these
-    # in-memory; saves re-reading the files for every send.
-    signature_html, signature_text, logo_bytes, logo_mime = load_signature()
-    sig_status = []
-    sig_status.append(f"html={'yes' if signature_html else 'no'}")
-    sig_status.append(f"text={'yes' if signature_text else 'no'}")
-    sig_status.append(
-        f"logo={'yes (' + str(len(logo_bytes)) + ' bytes)' if logo_bytes else 'no'}"
-    )
-    print(f"[signature] " + ", ".join(sig_status))
-
     pool = await create_tenant_pool(db_url, min_size=1, max_size=4)
     try:
         # SaaS phase 1: everything below runs as this campaign's org.
         org = await use_campaign_org(pool, args.campaign_id)
-        # This sender uses the operator's .env mailbox + signature. Until a
-        # customer's own connected mailbox is wired in (onboarding phase),
-        # never send a customer's outreach as the operator.
-        if not is_operator_org(org):
-            print("Refusing: this campaign belongs to a customer org; sending from "
-                  "its own connected mailbox is not wired yet (onboarding phase).")
-            return
+        account: Optional[EmailAccount] = None
+        if is_operator_org(org):
+            # The operator: its .env mailbox, signature, logo and Calendly.
+            from_email = (os.environ.get("GOOGLE_WORKSPACE_EMAIL") or "").strip()
+            from_name = (os.environ.get("GOOGLE_WORKSPACE_FROM_NAME") or "").strip()
+            reply_to = (os.environ.get("GOOGLE_WORKSPACE_REPLY_TO") or from_email).strip()
+            app_password = (os.environ.get("GOOGLE_WORKSPACE_APP_PASSWORD") or "").strip()
+            if not from_email or not app_password:
+                raise SystemExit(
+                    "GOOGLE_WORKSPACE_EMAIL and GOOGLE_WORKSPACE_APP_PASSWORD must be set"
+                )
+            signature_html, signature_text, logo_bytes, logo_mime = load_signature()
+            print("[signature] " + ", ".join([
+                f"html={'yes' if signature_html else 'no'}",
+                f"text={'yes' if signature_text else 'no'}",
+                f"logo={'yes (' + str(len(logo_bytes)) + ' bytes)' if logo_bytes else 'no'}",
+            ]))
+            meeting_url: Optional[str] = "env"
+        else:
+            # A customer (slice 3.4): their own verified mailbox, no operator
+            # signature/logo/Calendly. No verified account → send nothing.
+            try:
+                async with pool.acquire() as conn:
+                    account = await email_account(conn)
+            except AccountError as e:
+                print(f"Not sending: this company's email account can't be used ({e}).")
+                return
+            if account is None:
+                print("Not sending: this company has no verified email account. "
+                      "Connect one and press Verify in Connected accounts.")
+                return
+            async with pool.acquire() as conn:
+                sender = await conn.fetchval(
+                    "SELECT sender_name FROM campaigns WHERE id = $1", args.campaign_id)
+            from_email = account.from_email
+            from_name = account.from_name or (sender or "")
+            reply_to = from_email
+            app_password = ""
+            signature_html = signature_text = None
+            logo_bytes = logo_mime = None
+            meeting_url = None
+            print(f"[account] {account.provider} {from_email}")
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -461,6 +519,7 @@ async def main(args: argparse.Namespace) -> None:
                 signature_text=signature_text,
                 logo_bytes=logo_bytes,
                 logo_mime=logo_mime,
+                meeting_url=meeting_url,
             )
 
             preview = textwrap.shorten(r["body"].replace("\n", " "), width=70)
@@ -474,7 +533,7 @@ async def main(args: argparse.Namespace) -> None:
                 continue
 
             try:
-                await smtp_send(msg, username=from_email, password=app_password)
+                await smtp_send(msg, username=from_email, password=app_password, account=account)
             except Exception as e:
                 error_str = str(e)[:200]
                 print(f"    ✗ FAILED: {error_str}")

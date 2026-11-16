@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app';
 import { closePool, query, withTransaction } from '../../src/db/client';
 import { env } from '../../src/env';
+import { setCredentialCheckHooks } from '../../src/lib/credentialCheck';
 import { LEGACY_ORG_ID, runWithTenant } from '../../src/lib/tenantContext';
 
 const HAS_DB = !!process.env.DATABASE_URL;
@@ -99,7 +100,14 @@ describeIfDb('channels + entitlement + launch gate (live DB)', () => {
     });
   });
 
-  it('launch is blocked until every chosen channel has a connected account', async () => {
+  it('launch is blocked until every chosen channel has a verified account', async () => {
+    // The provider calls are faked: a public mail server that accepts the
+    // login, and Twilio answering "active".
+    setCredentialCheckHooks({
+      resolve: async () => ['93.184.216.34'],
+      smtpVerify: async () => undefined,
+      fetch: (async () => new Response(JSON.stringify({ status: 'active' }), { status: 200 })) as typeof fetch,
+    });
     const created = await asCustomer(request(app()).post('/api/campaigns')).send({ ...base, channels: ['email', 'whatsapp'] });
     const id = created.body.data.id;
 
@@ -107,16 +115,23 @@ describeIfDb('channels + entitlement + launch gate (live DB)', () => {
     expect(blocked.status).toBe(409);
     expect(blocked.body.error.details.missing).toEqual(['email', 'whatsapp']);
 
-    await asCustomer(request(app()).put('/api/credentials/smtp')).send({
-      label: 'channels-test', secret: { password: 'p' }, meta: { host: 'smtp.acme.test' },
+    const smtp = await asCustomer(request(app()).put('/api/credentials/smtp')).send({
+      label: 'channels-test', secret: { password: 'p' }, meta: { host: 'smtp.acme.test', port: 587, username: 'ana' },
     });
+    // Saved but not checked: still not enough to launch.
+    const unchecked = await asCustomer(request(app()).post(`/api/campaigns/${id}/launch`));
+    expect(unchecked.body.error.details.missing).toEqual(['email', 'whatsapp']);
+    const v1 = await asCustomer(request(app()).post(`/api/credentials/${smtp.body.data.id}/verify`));
+    expect(v1.body.data).toMatchObject({ status: 'VERIFIED', last_error: null });
     const stillWhatsapp = await asCustomer(request(app()).patch(`/api/campaigns/${id}/status`)).send({ status: 'ACTIVE' });
     expect(stillWhatsapp.status).toBe(409);
     expect(stillWhatsapp.body.error.details.missing).toEqual(['whatsapp']);
 
-    await asCustomer(request(app()).put('/api/credentials/twilio')).send({
-      label: 'channels-test', secret: { auth_token: 't' }, meta: { account_id: 'AC' + 'c'.repeat(32) },
+    const tw = await asCustomer(request(app()).put('/api/credentials/twilio')).send({
+      label: 'channels-test', secret: { auth_token: 't' }, meta: { account_id: 'AC' + 'c'.repeat(32), whatsapp_from: '+51987654321' },
     });
+    await asCustomer(request(app()).post(`/api/credentials/${tw.body.data.id}/verify`));
+    setCredentialCheckHooks({});
     const launched = await asCustomer(request(app()).post(`/api/campaigns/${id}/launch`));
     expect(launched.status).toBe(200);
   });

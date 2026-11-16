@@ -5,11 +5,12 @@
  * shown again, so "Manage" asks for them afresh. Below: organization
  * defaults used when a contact has no language or country of their own.
  *
- * Honest status: nothing checks a credential against the provider yet,
- * so a saved account reads "Saved, not checked yet".
+ * Saving an account checks it with the provider straight away
+ * (POST /api/credentials/:id/verify, slice 3.4); campaigns only send
+ * through VERIFIED accounts. A failed check shows the provider's reason.
  */
 
-import { CheckCircle2, CircleDashed, KeyRound, Loader2, Plug, ShieldCheck, Trash2 } from 'lucide-react';
+import { CheckCircle2, CircleDashed, KeyRound, Loader2, Plug, RefreshCw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
@@ -30,6 +31,7 @@ import {
   useRemoveCredential,
   useSaveCredential,
   useUpdateOrganization,
+  useVerifyCredential,
 } from '../hooks/useWorkspace';
 import { errorMessage, useAuth } from '../lib/authContext';
 import { cn } from '../lib/cn';
@@ -37,9 +39,11 @@ import { LANGUAGES, languageName } from '../lib/profile';
 import {
   ACCOUNT_KINDS,
   type AccountKind,
+  CHECKABLE,
   connectedFor,
   type Credential,
   type Provider,
+  verifiedFor,
 } from '../lib/workspace';
 
 export default function Connections(): React.ReactElement {
@@ -50,7 +54,7 @@ export default function Connections(): React.ReactElement {
 
   const kinds = ACCOUNT_KINDS.filter((k) => !k.channel || org.data?.channels.includes(k.channel));
   const countable = kinds.filter((k) => !k.comingSoon);
-  const done = countable.filter((k) => connectedFor(creds.data, k.providers.map((p) => p.id))).length;
+  const done = countable.filter((k) => verifiedFor(creds.data, k.providers.map((p) => p.id))).length;
 
   return (
     <div className="space-y-8">
@@ -86,11 +90,11 @@ export default function Connections(): React.ReactElement {
             <section className="glass rounded-2xl p-5">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-base font-semibold">Setup progress</h2>
-                <span className="text-sm tabular-nums text-muted-foreground">{done} of {countable.length} connected</span>
+                <span className="text-sm tabular-nums text-muted-foreground">{done} of {countable.length} verified</span>
               </div>
-              <Progress value={countable.length ? (done / countable.length) * 100 : 0} className="mt-3" aria-label={`${done} of ${countable.length} accounts connected`} />
+              <Progress value={countable.length ? (done / countable.length) * 100 : 0} className="mt-3" aria-label={`${done} of ${countable.length} accounts verified`} />
               <p className="mt-3 text-xs text-muted-foreground">
-                A campaign can launch once every channel it uses has an account connected.
+                A campaign can launch once every channel it uses has a verified account. Unverified accounts send nothing.
               </p>
             </section>
             {org.data && <OrgDefaults canManage={canManage} />}
@@ -109,9 +113,13 @@ function StatusBadge({ cred }: { cred: Credential | undefined }): React.ReactEle
     return <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Verified</span>;
   }
   if (cred.status === 'FAILED') {
-    return <span className="text-xs font-medium text-destructive">Check failed — update it</span>;
+    return <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><XCircle className="h-3.5 w-3.5" aria-hidden="true" />Check failed</span>;
   }
-  return <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400"><KeyRound className="h-3.5 w-3.5" aria-hidden="true" />Saved, not checked yet</span>;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+      <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />{CHECKABLE.has(cred.provider) ? 'Not checked yet' : 'Saved'}
+    </span>
+  );
 }
 
 function AccountCard({ kind, creds, canManage }: { kind: AccountKind; creds: Credential[]; canManage: boolean }): React.ReactElement {
@@ -120,7 +128,18 @@ function AccountCard({ kind, creds, canManage }: { kind: AccountKind; creds: Cre
   const [open, setOpen] = React.useState(false);
   const [confirmRemove, setConfirmRemove] = React.useState(false);
   const remove = useRemoveCredential();
+  const verify = useVerifyCredential();
   const summary = provider?.summary ? cred?.meta[provider.summary] : undefined;
+
+  async function checkAgain() {
+    try {
+      const r = await verify.mutateAsync(cred!.id);
+      if (r.status === 'VERIFIED') toast.success(`${kind.title} verified`);
+      else toast.error(`${kind.title} check failed`, { description: r.last_error ?? undefined });
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not check this account.'));
+    }
+  }
 
   return (
     <section className={cn('glass rounded-2xl p-5', kind.comingSoon && 'opacity-70')} aria-labelledby={`acct-${kind.id}`}>
@@ -137,23 +156,32 @@ function AccountCard({ kind, creds, canManage }: { kind: AccountKind; creds: Cre
               {summary ? <span className="text-muted-foreground"> · {String(summary)}</span> : null}
             </p>
           )}
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          {kind.comingSoon ? <span className="text-xs font-medium text-muted-foreground">Coming soon</span> : <StatusBadge cred={cred} />}
-          {!kind.comingSoon && canManage && (
-            <div className="flex gap-2">
-              {cred && (
-                <button type="button" className="btn-ghost px-2.5 py-1.5 text-xs text-destructive" onClick={() => setConfirmRemove(true)} aria-label={`Disconnect ${kind.title}`}>
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Disconnect
-                </button>
-              )}
-              <button type="button" className={cred ? 'btn-secondary px-3 py-1.5 text-xs' : 'btn-primary px-3 py-1.5 text-xs'} onClick={() => setOpen(true)}>
-                {cred ? 'Manage' : 'Connect'}
-              </button>
-            </div>
+          {cred?.status === 'FAILED' && cred.last_error && (
+            <p role="status" className="mt-2 text-sm text-destructive">{cred.last_error}</p>
           )}
         </div>
+        <div className="shrink-0">
+          {kind.comingSoon ? <span className="text-xs font-medium text-muted-foreground">Coming soon</span> : <StatusBadge cred={cred} />}
+        </div>
       </div>
+      {!kind.comingSoon && canManage && (
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          {cred && CHECKABLE.has(cred.provider) && cred.status !== 'VERIFIED' && (
+            <button type="button" className="btn-ghost px-2.5 py-1.5 text-xs" onClick={checkAgain} disabled={verify.isPending}>
+              {verify.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+              {cred.status === 'FAILED' ? 'Check again' : 'Check now'}
+            </button>
+          )}
+          {cred && (
+            <button type="button" className="btn-ghost px-2.5 py-1.5 text-xs text-destructive" onClick={() => setConfirmRemove(true)} aria-label={`Disconnect ${kind.title}`}>
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Disconnect
+            </button>
+          )}
+          <button type="button" className={cred ? 'btn-secondary px-3 py-1.5 text-xs' : 'btn-primary px-3 py-1.5 text-xs'} onClick={() => setOpen(true)}>
+            {cred ? 'Manage' : 'Connect'}
+          </button>
+        </div>
+      )}
 
       {open && <ConnectDialog kind={kind} current={cred} onClose={() => setOpen(false)} />}
 
@@ -197,11 +225,23 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
   const provider = kind.providers.find((p) => p.id === providerId) as Provider;
   const [values, setValues] = React.useState<Record<string, string>>(() => {
     const v: Record<string, string> = {};
-    if (current && current.provider === providerId) for (const [k, x] of Object.entries(current.meta)) v[k] = String(x);
+    if (current && current.provider === providerId) {
+      for (const [k, x] of Object.entries(current.meta)) v[k] = String(x);
+      // Per-language entries (template_sid_es …) back into "es=HX…, …".
+      for (const f of kind.providers.find((p) => p.id === providerId)?.fields ?? []) {
+        const prefix = f.langPrefix;
+        if (!prefix) continue;
+        v[f.key] = Object.entries(current.meta)
+          .filter(([k]) => k.startsWith(`${prefix}_`))
+          .map(([k, x]) => `${k.slice(prefix.length + 1)}=${String(x)}`)
+          .join(', ');
+      }
+    }
     return v;
   });
   const [error, setError] = React.useState<string | null>(null);
   const save = useSaveCredential();
+  const verify = useVerifyCredential();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -210,6 +250,17 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
     const meta: Record<string, string | number> = {};
     for (const f of provider.fields) {
       const v = (values[f.key] ?? '').trim();
+      if (f.langPrefix) {
+        for (const part of v.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)) {
+          const m = /^([a-z]{2,3})\s*[=:]\s*(HX[0-9a-fA-F]{32})$/i.exec(part);
+          if (!m) {
+            setError(`${f.label}: write each as language=Content SID, e.g. es=HX… ("${part}" isn't).`);
+            return;
+          }
+          meta[`${f.langPrefix}_${m[1].toLowerCase()}`] = m[2];
+        }
+        continue;
+      }
       if (!v) {
         if (f.optional) continue;
         setError(`${f.label} is required.`);
@@ -223,9 +274,20 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
       else meta[f.key] = f.type === 'number' ? Number(v) : v;
     }
     try {
-      await save.mutateAsync({ provider: provider.id, secret, meta });
-      toast.success(`${kind.title} saved`, { description: 'Encrypted and stored.' });
-      onClose();
+      const saved = await save.mutateAsync({ provider: provider.id, secret, meta });
+      if (!CHECKABLE.has(provider.id)) {
+        toast.success(`${kind.title} saved`, { description: 'Encrypted and stored.' });
+        onClose();
+        return;
+      }
+      // Check it with the provider right away; campaigns only use verified accounts.
+      const checked = await verify.mutateAsync(saved.id);
+      if (checked.status === 'VERIFIED') {
+        toast.success(`${kind.title} connected and verified`);
+        onClose();
+      } else {
+        setError(`Saved, but the check failed: ${checked.last_error ?? 'unknown reason'}`);
+      }
     } catch (err) {
       setError(errorMessage(err, 'Could not save. Check the fields and try again.'));
     }
@@ -268,9 +330,9 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
           {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={save.isPending}>
-              {save.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Save
+            <button type="submit" className="btn-primary" disabled={save.isPending || verify.isPending}>
+              {(save.isPending || verify.isPending) && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {verify.isPending ? 'Checking…' : CHECKABLE.has(provider.id) ? 'Save and check' : 'Save'}
             </button>
           </DialogFooter>
         </form>

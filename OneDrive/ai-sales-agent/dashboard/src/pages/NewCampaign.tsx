@@ -25,7 +25,7 @@ import { errorMessage } from '../lib/authContext';
 import { cn } from '../lib/cn';
 import { setPendingImport } from '../lib/pendingImport';
 import { COMPANY_SIZES, LANGUAGES, languageName, type Offering } from '../lib/profile';
-import { CHANNEL_LABEL, CHANNEL_PROVIDERS, connectedFor, type OrgChannel } from '../lib/workspace';
+import { CHANNEL_LABEL, CHANNEL_PROVIDERS, connectedFor, type OrgChannel, verifiedFor } from '../lib/workspace';
 
 type Source = 'ai' | 'upload';
 
@@ -194,9 +194,10 @@ export default function NewCampaign(): React.ReactElement {
     }
   }
 
-  const missing = channels.filter((c) => !connectedFor(creds.data, CHANNEL_PROVIDERS[c]));
-  const needsAiKey = !org.data?.operator && !connectedFor(creds.data, ['anthropic']);
-  const needsApollo = source === 'ai' && !org.data?.operator && !connectedFor(creds.data, ['apollo']);
+  // Campaigns send only through verified accounts (slice 3.4).
+  const missing = channels.filter((c) => !verifiedFor(creds.data, CHANNEL_PROVIDERS[c]));
+  const needsAiKey = !org.data?.operator && !verifiedFor(creds.data, ['anthropic']);
+  const needsApollo = source === 'ai' && !org.data?.operator && !verifiedFor(creds.data, ['apollo']);
 
   return (
     <div className="space-y-8">
@@ -261,7 +262,7 @@ export default function NewCampaign(): React.ReactElement {
                       {generating ? 'Drafting…' : 'Draft my ideal customer profile'}
                     </button>
                     {needsAiKey && (
-                      <span className="text-xs text-muted-foreground">Needs your AI model account — <Link className="underline" to="/settings/connections">connect it</Link>.</span>
+                      <span className="text-xs text-muted-foreground">Needs your verified AI model account — <Link className="underline" to="/settings/connections">connect it</Link>.</span>
                     )}
                   </div>
                 </div>
@@ -308,13 +309,14 @@ export default function NewCampaign(): React.ReactElement {
                   const usable = USABLE.includes(c);
                   const on = channels.includes(c);
                   const cred = connectedFor(creds.data, CHANNEL_PROVIDERS[c]);
+                  const verified = verifiedFor(creds.data, CHANNEL_PROVIDERS[c]);
                   return (
                     <label key={c} className={cn('glass flex items-center gap-3 rounded-xl p-3.5', !usable && 'opacity-60')}>
                       <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" disabled={!usable} checked={on}
                         onChange={() => setChannels(on ? channels.filter((x) => x !== c) : [...channels, c])} />
                       <span className="flex-1 text-sm font-medium">{CHANNEL_LABEL[c]}</span>
                       <span className="text-xs text-muted-foreground">
-                        {!usable ? 'Coming soon' : org.data?.operator ? 'Uses server keys' : cred ? 'Account connected' : 'Not connected yet'}
+                        {!usable ? 'Coming soon' : org.data?.operator ? 'Uses server keys' : verified ? 'Account verified' : cred ? 'Connected, not verified' : 'Not connected yet'}
                       </span>
                     </label>
                   );
@@ -399,9 +401,9 @@ export default function NewCampaign(): React.ReactElement {
               <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
                 <p className="font-medium">Before it can run</p>
                 <ul className="mt-1 list-disc pl-5 text-muted-foreground">
-                  {missing.map((c) => <li key={c}>Connect a {CHANNEL_LABEL[c]} account</li>)}
-                  {needsAiKey && <li>Connect your AI model account (it writes the messages)</li>}
-                  {needsApollo && <li>Connect lead search (Apollo) so the agent can find people</li>}
+                  {missing.map((c) => <li key={c}>Connect and verify a {CHANNEL_LABEL[c]} account</li>)}
+                  {needsAiKey && <li>Connect and verify your AI model account (it writes the messages)</li>}
+                  {needsApollo && <li>Connect and verify lead search (Apollo) so the agent can find people</li>}
                 </ul>
                 <Link to="/settings/connections" className="mt-2 inline-block text-sm font-medium underline">Open connected accounts</Link>
                 <p className="mt-2 text-xs text-muted-foreground">You can save the campaign as a draft now.</p>

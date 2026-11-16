@@ -29,8 +29,17 @@ Usage (inside the orchestrator container / from cron):
 
 Env:
     DATABASE_URL
-    GOOGLE_WORKSPACE_EMAIL, GOOGLE_WORKSPACE_APP_PASSWORD
+    GOOGLE_WORKSPACE_EMAIL, GOOGLE_WORKSPACE_APP_PASSWORD   (operator mailbox)
     IMAP_HOST (default imap.gmail.com), IMAP_PORT (default 993)
+    CREDENTIALS_KEY                                         (customer mailboxes)
+
+Customer mailboxes (slice 3.4): after the operator's mailbox, every
+VERIFIED customer email account (V22 customer_mailboxes()) is read too —
+Google Workspace at imap.gmail.com, other servers at the IMAP host given
+when connecting (a public address only; connected to the address that was
+checked). Each mailbox keeps its own UID position in poller_state, and a
+reply found in a customer's mailbox is only ever recorded for THAT
+customer, even if the sender is also someone else's contact.
 """
 from __future__ import annotations
 
@@ -41,6 +50,8 @@ import email.utils
 import imaplib
 import os
 import re
+import socket
+import ssl
 import sys
 from email.message import Message
 from typing import Optional
@@ -49,10 +60,16 @@ import asyncpg
 
 try:
     from db.tenant import create_pool as create_tenant_pool, tenant
+    from db.accounts import AccountError, email_account_from, resolve_public
+    from db.provider_keys import is_operator_org
+    from db.vault import VaultError, load_credential
     from agents.optout import detect_opt_out
     from agents.reply_recorder import record_opt_out
 except ImportError:  # pragma: no cover
     from src.db.tenant import create_pool as create_tenant_pool, tenant  # type: ignore
+    from src.db.accounts import AccountError, email_account_from, resolve_public  # type: ignore
+    from src.db.provider_keys import is_operator_org  # type: ignore
+    from src.db.vault import VaultError, load_credential  # type: ignore
     from src.agents.optout import detect_opt_out  # type: ignore
     from src.agents.reply_recorder import record_opt_out  # type: ignore
 
@@ -153,12 +170,27 @@ def _is_auto_reply(msg: Message) -> bool:
 
 # ─── IMAP (blocking — run in a thread) ──────────────────────────────────
 
+class _PinnedIMAP4_SSL(imaplib.IMAP4_SSL):
+    """IMAP over TLS to an address checked beforehand, certificate verified
+    against the server's name (no DNS rebinding between check and use)."""
+
+    def __init__(self, host: str, port: int, ip: str):
+        self._pinned_ip = ip
+        super().__init__(host, port, ssl_context=ssl.create_default_context(), timeout=30)
+
+    def _create_socket(self, timeout):  # noqa: D401 — imaplib hook
+        sock = socket.create_connection((self._pinned_ip, self.port), timeout)
+        return self.ssl_context.wrap_socket(sock, server_hostname=self.host)
+
+
 def _fetch_new_messages(
     email_addr: str, app_password: str, last_uid: int, uidvalidity: str,
-    since_days: int,
+    since_days: int, host: str = IMAP_HOST, port: int = IMAP_PORT,
+    connect_ip: Optional[str] = None,
 ) -> tuple[list[tuple[int, Message]], int, str]:
     """Return (messages, new_last_uid, uidvalidity). Blocking."""
-    imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+    imap = (_PinnedIMAP4_SSL(host, port, connect_ip) if connect_ip
+            else imaplib.IMAP4_SSL(host, port, timeout=30))
     try:
         imap.login(email_addr, app_password)
         imap.select("INBOX")
@@ -202,23 +234,34 @@ def _fetch_new_messages(
 
 # ─── DB helpers ─────────────────────────────────────────────────────────
 
-async def _get_state(conn) -> tuple[int, str]:
+OPERATOR_STATE = ("email_last_uid", "email_uidvalidity")
+
+
+def mailbox_state_keys(org_id: str, provider: str, label: str) -> tuple[str, str]:
+    """poller_state keys for one customer mailbox (the operator keeps the
+    original keys, so its position survives the upgrade)."""
+    suffix = f"{org_id}:{provider}:{label}"
+    return f"email_last_uid:{suffix}", f"email_uidvalidity:{suffix}"
+
+
+async def _get_state(conn, keys: tuple[str, str] = OPERATOR_STATE) -> tuple[int, str]:
     rows = await conn.fetch(
         "SELECT key, value FROM poller_state WHERE key = ANY($1)",
-        ["email_last_uid", "email_uidvalidity"],
+        list(keys),
     )
     kv = {r["key"]: r["value"] for r in rows}
-    return int(kv.get("email_last_uid", "0") or 0), kv.get("email_uidvalidity", "")
+    return int(kv.get(keys[0], "0") or 0), kv.get(keys[1], "")
 
 
-async def _set_state(conn, last_uid: int, uidvalidity: str) -> None:
+async def _set_state(conn, last_uid: int, uidvalidity: str,
+                     keys: tuple[str, str] = OPERATOR_STATE) -> None:
     await conn.execute(
         """
         INSERT INTO poller_state (key, value, updated_at)
-        VALUES ('email_last_uid', $1, now()), ('email_uidvalidity', $2, now())
+        VALUES ($3, $1, now()), ($4, $2, now())
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
         """,
-        str(last_uid), uidvalidity or "",
+        str(last_uid), uidvalidity or "", keys[0], keys[1],
     )
 
 
@@ -341,66 +384,122 @@ async def handle_email_reply(conn, row, *, body: str, dry_run: bool) -> str:
     return "opt_out"
 
 
+async def poll_mailbox(
+    pool, args: argparse.Namespace, *, email_addr: str, password: str,
+    host: str = IMAP_HOST, port: int = IMAP_PORT, connect_ip: Optional[str] = None,
+    state_keys: tuple[str, str] = OPERATOR_STATE, only_org: Optional[str] = None,
+    fetch=None,
+) -> tuple[int, int]:
+    """Read one mailbox's new mail and record the replies. `only_org`: a
+    customer's mailbox — replies are recorded for that org or not at all.
+    Returns (matched, skipped)."""
+    async with pool.acquire() as conn:
+        last_uid, uidvalidity = await _get_state(conn, state_keys)
+
+    messages, new_last_uid, cur_validity = await asyncio.to_thread(
+        fetch or _fetch_new_messages, email_addr, password, last_uid, uidvalidity,
+        args.since_days, host, port, connect_ip,
+    )
+    print(f"[{email_addr}] fetched {len(messages)} new inbound message(s)")
+
+    matched = skipped = 0
+    for uid, msg in messages:
+        from_hdr = msg.get("From", "")
+        sender = email.utils.parseaddr(from_hdr)[1].lower()
+        # Ignore our own sent copies / automated noise.
+        if not sender or sender == email_addr.lower():
+            skipped += 1
+            continue
+        # Out-of-office / vacation autoresponders are not real replies.
+        if _is_auto_reply(msg):
+            print(f"  skip auto-reply from {sender}")
+            skipped += 1
+            continue
+        ref_ids = _referenced_message_ids(msg)
+        async with pool.acquire() as conn:
+            row = await _match_contact(conn, sender, ref_ids)
+        if not row:
+            skipped += 1
+            continue
+        if only_org and str(row["org_id"]) != only_org:
+            # Mail in one customer's inbox never touches another's data.
+            print(f"  skip reply from {sender}: matches another company's contact")
+            skipped += 1
+            continue
+        body = _clean_reply(_extract_body(msg))
+        subj = msg.get("Subject", "")
+        print(
+            f"  {'[DRY] ' if args.dry_run else ''}reply from {sender} "
+            f"(subj='{subj[:40]}') → contact {row['contact_id']}"
+        )
+        # Record the reply as the contact's org (SaaS phase 1); an
+        # opt-out in any language also suppresses them (slice 2.4).
+        with tenant(row["org_id"]):
+            async with pool.acquire() as conn:
+                outcome = await handle_email_reply(
+                    conn, row, body=body or subj or "(empty reply)", dry_run=args.dry_run,
+                )
+        if outcome == "opt_out":
+            print(f"    ↳ opt-out: {sender} suppressed")
+        matched += 1
+
+    if not args.dry_run and (cur_validity or new_last_uid != last_uid):
+        async with pool.acquire() as conn:
+            await _set_state(conn, new_last_uid, cur_validity or uidvalidity, state_keys)
+    return matched, skipped
+
+
+async def poll_customer_mailboxes(pool, args: argparse.Namespace, *, fetch=None,
+                                  resolver=None) -> tuple[int, int]:
+    """Every verified customer mailbox (slice 3.4). One bad mailbox never
+    stops the others."""
+    async with pool.acquire() as conn:
+        boxes = await conn.fetch("SELECT org_id, provider, label FROM customer_mailboxes()")
+    matched = skipped = 0
+    for b in boxes:
+        org = str(b["org_id"])
+        if is_operator_org(org):
+            continue  # the operator's own mailbox is read from .env above
+        with tenant(org):
+            try:
+                async with pool.acquire() as conn:
+                    cred = await load_credential(conn, b["provider"], b["label"])
+                if cred is None:
+                    continue
+                acct = email_account_from(b["provider"], b["label"], cred.secret, cred.meta,
+                                          resolver=resolver)
+                if not acct.imap_host:
+                    print(f"[{acct.from_email}] no IMAP server given; replies are not read")
+                    continue
+                ip = (None if acct.provider == "google_workspace"
+                      else resolve_public(acct.imap_host, acct.imap_port, resolver))
+                m, sk = await poll_mailbox(
+                    pool, args, email_addr=acct.username, password=acct.password,
+                    host=acct.imap_host, port=acct.imap_port, connect_ip=ip,
+                    state_keys=mailbox_state_keys(org, b["provider"], b["label"]),
+                    only_org=org, fetch=fetch,
+                )
+                matched += m
+                skipped += sk
+            except (AccountError, VaultError, OSError, imaplib.IMAP4.error) as e:
+                print(f"[org {org}] mailbox {b['provider']}/{b['label']} skipped: {e}")
+    return matched, skipped
+
+
 async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
     email_addr = (os.environ.get("GOOGLE_WORKSPACE_EMAIL") or "").strip()
     app_pw = (os.environ.get("GOOGLE_WORKSPACE_APP_PASSWORD") or "").strip()
-    if not (email_addr and app_pw):
-        raise SystemExit("GOOGLE_WORKSPACE_EMAIL / _APP_PASSWORD not set")
 
     pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
-        async with pool.acquire() as conn:
-            last_uid, uidvalidity = await _get_state(conn)
-
-        messages, new_last_uid, cur_validity = await asyncio.to_thread(
-            _fetch_new_messages, email_addr, app_pw, last_uid, uidvalidity,
-            args.since_days,
-        )
-        print(f"fetched {len(messages)} new inbound message(s)")
-
         matched = skipped = 0
-        for uid, msg in messages:
-            from_hdr = msg.get("From", "")
-            sender = email.utils.parseaddr(from_hdr)[1].lower()
-            # Ignore our own sent copies / automated noise.
-            if not sender or sender == email_addr.lower():
-                skipped += 1
-                continue
-            # Out-of-office / vacation autoresponders are not real replies.
-            if _is_auto_reply(msg):
-                print(f"  skip auto-reply from {sender}")
-                skipped += 1
-                continue
-            ref_ids = _referenced_message_ids(msg)
-            async with pool.acquire() as conn:
-                row = await _match_contact(conn, sender, ref_ids)
-            if not row:
-                skipped += 1
-                continue
-            body = _clean_reply(_extract_body(msg))
-            subj = msg.get("Subject", "")
-            print(
-                f"  {'[DRY] ' if args.dry_run else ''}reply from {sender} "
-                f"(subj='{subj[:40]}') → contact {row['contact_id']}"
-            )
-            # Record the reply as the contact's org (SaaS phase 1); an
-            # opt-out in any language also suppresses them (slice 2.4).
-            with tenant(row["org_id"]):
-                async with pool.acquire() as conn:
-                    outcome = await handle_email_reply(
-                        conn, row, body=body or subj or "(empty reply)", dry_run=args.dry_run,
-                    )
-            if outcome == "opt_out":
-                print(f"    ↳ opt-out: {sender} suppressed")
-            matched += 1
-
-        if not args.dry_run and (cur_validity or new_last_uid != last_uid):
-            async with pool.acquire() as conn:
-                await _set_state(conn, new_last_uid, cur_validity or uidvalidity)
-
-        print(f"[done] matched={matched} skipped={skipped} "
-              f"last_uid={new_last_uid}")
+        if email_addr and app_pw:
+            matched, skipped = await poll_mailbox(pool, args, email_addr=email_addr, password=app_pw)
+        else:
+            print("operator mailbox not configured (GOOGLE_WORKSPACE_EMAIL / _APP_PASSWORD); skipping it")
+        m, sk = await poll_customer_mailboxes(pool, args)
+        print(f"[done] matched={matched + m} skipped={skipped + sk}")
     finally:
         await pool.close()
 
