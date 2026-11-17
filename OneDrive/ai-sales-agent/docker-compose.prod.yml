@@ -1,0 +1,164 @@
+# Production stack. The development file (docker-compose.yml) is unchanged.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml --profile edge up -d      # + Caddy (HTTPS)
+#
+# What differs from development:
+#   - the dashboard is a static nginx build, not the Vite dev server
+#   - the API runs without a file watcher or a source bind mount, as a non-root user
+#   - Postgres and Redis publish NO ports (only the other containers reach them)
+#   - passwords come from .env: nothing is hard-coded
+#   - restart policies, health checks, log rotation
+#
+# `name:` matches the development project, so container names (the cron
+# scripts in scripts/vps run `docker exec ai-sales-agent-postgres-1 ...`) and
+# the existing postgres_data volume are the same: this file takes over an
+# existing deployment's data. NOTE: POSTGRES_PASSWORD only takes effect when
+# the volume is first created; an existing database keeps its password.
+#
+# Needed in .env (see .env.example): POSTGRES_PASSWORD, APP_DATABASE_URL (the
+# database URL the api / orchestrator use: after the V17 runbook this is the
+# non-superuser sales_app_login), DOMAIN (for the edge profile), plus the
+# usual API settings (AUTH_*, CREDENTIALS_KEY, ...).
+
+name: ai-sales-agent
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: salesagent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d salesagent"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+    logging: *logging
+
+  flyway:
+    image: flyway/flyway:9
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/salesagent
+      FLYWAY_USER: agent
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./database/migrations:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in .env}
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    expose: ["3000"]
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.prod
+      args:
+        # Empty = same address as the API (the Caddy / reverse-proxy setup).
+        VITE_API_URL: ${DASHBOARD_API_URL:-}
+    restart: unless-stopped
+    expose: ["80"]
+    logging: *logging
+
+  # The cron scripts (scripts/vps) `docker exec` into this container.
+  orchestrator:
+    build: ./services/orchestrator
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in .env}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    logging: *logging
+
+  # Nightly encrypted database backup, copied offsite, with a weekly restore
+  # test. See ops/backup/backup.sh for the settings and docs/saas-architecture.md
+  # ("Production hardening") for the restore drill.
+  backup:
+    build: ./ops/backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+      BACKUP_ALLOW_UNENCRYPTED: ${BACKUP_ALLOW_UNENCRYPTED:-}
+      BACKUP_S3_URL: ${BACKUP_S3_URL:-}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+    volumes:
+      - backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  # Optional HTTPS front door: one address for the dashboard and the API.
+  # Skip it if the host already runs its own Caddy / nginx.
+  caddy:
+    profiles: ["edge"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api, dashboard]
+    logging: *logging
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+  backups:

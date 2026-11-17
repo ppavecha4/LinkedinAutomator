@@ -79,7 +79,7 @@ runbook](#v17-deploy-runbook).
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas (built, slices 4.1 / 4.2) | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
 | 6 | Per-tenant compliance (built in part, slices 5.1 / 5.2) | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
-| 7 | Hardening | Production dashboard build (not the Vite dev server), offsite backups, monitoring/alerting |
+| 7 | Hardening (built, slices 6.1-6.3) | Production dashboard build (not the Vite dev server), offsite backups, monitoring/alerting |
 
 ---
 
@@ -1145,6 +1145,99 @@ missing, and is now built:
   SMS and calls, so they come with the voice channel), call-recording consent
   (voice), automatic retention deletion, whole-company export / deletion when
   a customer leaves, and a viewer for the compliance log.
+
+### Production hardening (slices 6.1-6.3, 2026-11-17)
+
+The repo only had a development compose file (Vite dev server, `tsx watch`, a
+bind-mounted source tree, published database ports, `devpassword`). What exists
+now, all built and tested:
+
+- **Production stack** (`docker-compose.prod.yml`; the development file is
+  unchanged): `docker compose -f docker-compose.prod.yml up -d --build`.
+  - Dashboard: a static build served by nginx (`dashboard/Dockerfile.prod`,
+    `nginx.conf`): hashed assets cached for a year, `index.html` never cached so a
+    deploy takes effect at once, single-page-app fallback for deep links,
+    security headers. `VITE_API_URL` is baked in at build time (`DASHBOARD_API_URL`,
+    EMPTY = same address as the API, which the proxy below gives).
+  - API: `services/api/Dockerfile.prod`: `npm ci`, no watcher, no source mount,
+    runs as the unprivileged `node` user, health check that is only green when the
+    database answers.
+  - Postgres and Redis publish NO ports; passwords come from `.env`
+    (`POSTGRES_PASSWORD`, `APP_DATABASE_URL`); restart policies and log
+    rotation on every service. The project `name:` is `ai-sales-agent`, so
+    container names (the cron scripts `docker exec ai-sales-agent-postgres-1`)
+    and the `postgres_data` volume match an existing deployment: this file takes
+    over its data. The SQS-path `outreach-worker` / `reply-processor` are left out
+    (idle on Hetzner).
+  - Optional front door (`--profile edge`): Caddy (`infrastructure/caddy/Caddyfile`)
+    with automatic HTTPS, one public address for dashboard and API (`/api`,
+    `/webhooks`, `/track`, `/unsubscribe`, `/ws`, `/health` go to the API, the
+    rest to the dashboard), HSTS and friends. Skip it if the host already runs
+    its own Caddy / nginx and copy the routes.
+  - Tested: the whole stack built and started, `/health` through the proxy,
+    deep links, cache headers, API as uid 1000, no published database port, and a
+    sign-up plus a page load in a browser through the proxy.
+- **Backups** (`ops/backup`, the `backup` service in the prod compose):
+  - Every `BACKUP_INTERVAL_HOURS` (24): `pg_dump` (custom format) → encrypted with
+    **age** to `BACKUP_AGE_RECIPIENT` (a public key; the private key stays OFFLINE
+    with the owner, so a stolen bucket or server reveals nothing; the job REFUSES to
+    run without a key unless `BACKUP_ALLOW_UNENCRYPTED=true`) → local copy (7 days)
+    → offsite copy to any S3-compatible bucket (`BACKUP_S3_URL`, `..._ENDPOINT`;
+    30-day remote pruning, or use the bucket's own lifecycle rule).
+  - Sundays it **restores the newest backup into a scratch database** and checks
+    it holds real data (`verify-restore.sh`); that needs the private key mounted
+    somewhere safe, otherwise it says so and the owner does the drill by hand.
+    A backup nobody has restored is a hope.
+  - **Restore drill** (do it once now, then quarterly):
+    `docker run --rm --network ai-sales-agent_default -e PGPASSWORD=... -e PGHOST=postgres -e PGUSER=agent -v ./identity.txt:/key:ro -e BACKUP_AGE_IDENTITY=/key -v ai-sales-agent_backups:/backups --entrypoint sh <backup-image> -c 'createdb drill && restore.sh /backups/<file>.age drill'`
+    then inspect `drill`, then `dropdb drill`. To really recover: create an empty
+    database, `restore.sh <file> <db>`, point `APP_DATABASE_URL` at it, and run
+    `docker compose -f docker-compose.prod.yml run --rm flyway migrate`.
+  - **Not in the dump, and needed to read it**: `CREDENTIALS_KEY` (decrypts every
+    customer's connected-account secrets) and `.env`. Keep them in a password
+    manager, separately from the backups. Without `CREDENTIALS_KEY` a restore works
+    but customers must re-enter their connected accounts.
+  - Tested against a throwaway stack and an S3 server: refuses without a key;
+    encrypted dump (no plaintext in the object); offsite upload; the restore check
+    skips without the key and passes with it; a manual restore reads data back;
+    remote pruning removes an old backup.
+- **Monitoring and alerts** (V31, `lib/opsMonitor.ts`, Platform › System health):
+  - Every 5 minutes the API checks: database, Redis, each expected **heartbeat**
+    (the cron senders, the reply poller, the inbound processor, the nightly
+    backup, the weekly restore test report through `ops_heartbeat()`; the three
+    `scripts/vps/*.sh` crons and the backup service do it already), and the
+    database size (off by default).
+  - It alerts **on change**: one message when a check starts failing, a reminder
+    every 6 hours while it still fails, one when it recovers. Channels: a chat
+    webhook (`ALERT_WEBHOOK_URL`; Slack, Discord, Teams, ntfy) and/or email
+    (`ALERT_EMAIL`, through the platform mailbox). A webhook that is down never
+    breaks the monitor.
+  - **Dead-man's switch** (`OPS_PING_URL`, e.g. a healthchecks.io check): pinged on
+    each healthy cycle. A monitor cannot report its own death, so when the API, the
+    server or the loop dies nothing pings and THAT service alerts you. Also point
+    an external uptime monitor at `/health`.
+  - `OPS_EXPECTED_HEARTBEATS` is `name:max_age_minutes,...` (defaults match the
+    cron schedule and the backup interval). A job that has never reported is given
+    `OPS_GRACE_MINUTES` (120) after start-up before it counts as failing.
+- **Deploy runbook, updated** (extends "V17 deploy runbook" above; V22-V31 are new
+  since it was written): 1. `pg_dump` and copy it off the box. 2. Pause the crons,
+  stop api + orchestrator. 3. `git pull`; add the new `.env` values (see
+  `.env.example`: Stripe and Google are optional; `CREDENTIALS_KEY`,
+  `PLATFORM_*`, `DASHBOARD_URL`, backups and alerts are not). 4. `docker compose -f
+  docker-compose.prod.yml run --rm flyway migrate` (V22-V31). 5. `up -d --build`.
+  6. Copy `scripts/vps/*.sh` to `/usr/local/bin/` (they now report heartbeats) and
+  restore the crons. 7. Smoke test: sign in, open Platform › System health (every
+  check green after the first cron ticks and the first backup), send one test
+  email. 8. Only then switch `APP_DATABASE_URL` to `sales_app_login` (V17 step 5).
+- **Tests**: API 271 (new: heartbeat checks, staleness, never-reported grace,
+  alert-on-change with reminders and recovery, webhook shape, dead-man's ping,
+  platform health access, heartbeat table only reachable through its functions).
+- **Not built / owner's call**: running Postgres with replication or
+  point-in-time recovery (the nightly dump means up to a day of loss); log
+  aggregation and metrics dashboards (logs are JSON on stdout with rotation);
+  a host-level disk / CPU alert (use the provider's, or node-exporter); secrets in
+  a secrets manager instead of `.env`; zero-downtime deploys (a deploy restarts
+  the API for a few seconds); an actual deploy and the first restore drill.
 
 ## Voice channel
 

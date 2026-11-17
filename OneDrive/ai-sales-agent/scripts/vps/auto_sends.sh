@@ -12,6 +12,11 @@ LOG=/var/log/ai-sales-agent/auto_sends.log
 
 log() { echo "[$(date -Is)] $*" >> "$LOG"; }
 
+# Tell the monitor this cron ran (api: ops_heartbeat, V31). Never fails the job.
+heartbeat() { docker exec ai-sales-agent-postgres-1 psql -U agent -d salesagent -qtA -c "SELECT ops_heartbeat('$1')" >/dev/null 2>&1 || true; }
+
+heartbeat auto_sends
+
 log "=== tick start ==="
 
 # List ACTIVE campaign ids from the DB.

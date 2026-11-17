@@ -25,6 +25,7 @@ import {
   type PlatformOrg,
   useUpdateOrg,
   usePlatformAudit,
+  usePlatformHealth,
   usePlatformMembers,
   usePlatformOrgs,
 } from '../hooks/usePlatform';
@@ -45,7 +46,7 @@ export default function Platform(): React.ReactElement {
   const { user } = useAuth();
   const allowed = user?.platform_admin === true;
   const orgs = usePlatformOrgs(allowed);
-  const [tab, setTab] = React.useState<'companies' | 'audit'>('companies');
+  const [tab, setTab] = React.useState<'companies' | 'health' | 'audit'>('companies');
   const [filter, setFilter] = React.useState('');
   const [editing, setEditing] = React.useState<PlatformOrg | null>(null);
   const [suspending, setSuspending] = React.useState<PlatformOrg | null>(null);
@@ -72,15 +73,15 @@ export default function Platform(): React.ReactElement {
       ) : (
         <>
           <div role="tablist" aria-label="Platform sections" className="flex gap-1 rounded-xl bg-muted/60 p-1 w-fit">
-            {(['companies', 'audit'] as const).map((t) => (
+            {(['companies', 'health', 'audit'] as const).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
                 className={cn('rounded-lg px-4 py-1.5 text-sm font-semibold capitalize', tab === t ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-                {t === 'audit' ? 'Change log' : 'Companies'}
+                {t === 'audit' ? 'Change log' : t === 'health' ? 'System health' : 'Companies'}
               </button>
             ))}
           </div>
 
-          {tab === 'audit' ? <Audit /> : orgs.isLoading ? (
+          {tab === 'audit' ? <Audit /> : tab === 'health' ? <Health /> : orgs.isLoading ? (
             <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" /></div>
           ) : orgs.error ? (
             <p role="alert" className="text-sm text-destructive">{errorMessage(orgs.error, 'Could not load companies.')}</p>
@@ -266,6 +267,36 @@ function Audit(): React.ReactElement {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function Health(): React.ReactElement {
+  const { data, isLoading, error } = usePlatformHealth(true);
+  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" /></div>;
+  if (error || !data) return <p role="alert" className="text-sm text-destructive">{errorMessage(error, 'Could not load system health.')}</p>;
+  return (
+    <section className="glass max-w-3xl space-y-4 rounded-2xl p-6" aria-labelledby="health-title">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="health-title" className="text-base font-semibold">{data.ok ? 'Everything is running' : 'Something needs attention'}</h2>
+        <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold', data.ok ? 'bg-emerald-500/15 text-emerald-600' : 'bg-destructive/15 text-destructive')}>
+          {data.ok ? 'Healthy' : 'Failing'}
+        </span>
+      </div>
+      <ul className="divide-y divide-border">
+        {data.checks.map((c) => (
+          <li key={c.name} className="flex items-start justify-between gap-4 py-2.5 text-sm">
+            <span className="font-medium">{c.name.replace(/_/g, ' ')}</span>
+            <span className={cn('text-right text-xs', c.ok ? 'text-muted-foreground' : 'text-destructive')}>
+              {c.ok ? '✓ ' : '✗ '}{c.detail}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        {data.alerts_configured ? 'Alerts are sent when a check starts failing and when it recovers.' : 'No alert channel is set: set ALERT_WEBHOOK_URL or ALERT_EMAIL to be told when something fails.'}
+        {' '}{data.dead_mans_switch ? 'The outside watchdog is pinged while all is well.' : 'No outside watchdog is set (OPS_PING_URL): if the whole server dies, nothing tells you.'}
+      </p>
     </section>
   );
 }

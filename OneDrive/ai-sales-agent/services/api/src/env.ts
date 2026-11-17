@@ -119,6 +119,23 @@ export const env = {
   accountRecheckEnabled: str('ACCOUNT_RECHECK_ENABLED', 'true').toLowerCase() !== 'false',
   accountRecheckIntervalMinutes: int('ACCOUNT_RECHECK_INTERVAL_MINUTES', 60),
   accountRecheckAgeHours: int('ACCOUNT_RECHECK_AGE_HOURS', 24),
+  // Monitoring (slice 6.3). Alerts go to a chat webhook and/or email; with
+  // neither set the monitor still runs and the platform page shows the checks.
+  opsMonitorEnabled: str('OPS_MONITOR_ENABLED', 'true').toLowerCase() !== 'false',
+  opsMonitorIntervalMinutes: int('OPS_MONITOR_INTERVAL_MINUTES', 5),
+  opsReminderHours: int('OPS_REMINDER_HOURS', 6),
+  // How long after start-up a job that has never reported is still "starting".
+  opsGraceMinutes: int('OPS_GRACE_MINUTES', 120),
+  // "job:max_age_minutes,..." the jobs that must report (see lib/opsMonitor.ts).
+  opsExpectedHeartbeats: str(
+    'OPS_EXPECTED_HEARTBEATS',
+    'auto_sends:20,poll_replies:30,proc_inbound:30,backup:1560,backup_verified:11520',
+  ),
+  opsDbSizeAlertGb: int('OPS_DB_SIZE_ALERT_GB', 0),
+  alertWebhookUrl: str('ALERT_WEBHOOK_URL', ''),
+  alertEmail: str('ALERT_EMAIL', ''),
+  // Dead-man's switch: pinged each healthy cycle (e.g. a healthchecks.io URL).
+  opsPingUrl: str('OPS_PING_URL', ''),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
   authCookieName: str('AUTH_COOKIE_NAME', 'sa_session'),

@@ -87,3 +87,27 @@ export function useUpdateOrg() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['platform'] }),
   });
 }
+
+export interface HealthCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+  age_minutes?: number;
+}
+
+export interface PlatformHealth {
+  ok: boolean;
+  checks: HealthCheck[];
+  alerts_configured: boolean;
+  dead_mans_switch: boolean;
+}
+
+/** The same checks the monitor alerts on (database, redis, cron and backup heartbeats). */
+export function usePlatformHealth(enabled: boolean) {
+  return useQuery({
+    queryKey: ['platform', 'health'],
+    queryFn: async () => (await api.get<PlatformHealth>('/api/platform/health')).data,
+    enabled,
+    refetchInterval: 60_000,
+  });
+}

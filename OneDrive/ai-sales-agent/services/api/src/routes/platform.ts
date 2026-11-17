@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { query } from '../db/client';
 import { env } from '../env';
 import { CHANNELS } from '../lib/channels';
+import { alertsConfigured, runChecks } from '../lib/opsMonitor';
 import { ApiError } from '../lib/errors';
 import { ok } from '../lib/response';
 import { forgetSession } from '../lib/sessionState';
@@ -30,6 +31,21 @@ const router = Router();
 router.use('/api/platform', requirePlatformAdmin);
 
 const idParams = z.object({ id: z.string().uuid() });
+
+// Is the platform itself healthy? The same checks the monitor alerts on.
+router.get('/api/platform/health', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const checks = await runChecks();
+    return ok(res, {
+      ok: checks.every((c) => c.ok),
+      checks,
+      alerts_configured: alertsConfigured(),
+      dead_mans_switch: !!env.opsPingUrl,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 router.get('/api/platform/orgs', async (_req: Request, res: Response, next: NextFunction) => {
   try {

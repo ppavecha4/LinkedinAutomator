@@ -1,0 +1,24 @@
+# Production API: dependencies installed with `npm ci`, no file watcher, no
+# source bind mount, runs as the unprivileged `node` user.
+#
+# The API runs TypeScript through tsx (the project is ESM with bundler-style
+# imports, so plain `tsc` output is not directly runnable). That costs about a
+# second at start-up and nothing at run time.
+
+FROM node:20-alpine
+WORKDIR /app
+
+# Install BEFORE NODE_ENV=production: tsx is a devDependency and is what runs the API.
+COPY package.json package-lock.json* ./
+RUN npm ci
+ENV NODE_ENV=production
+COPY tsconfig.json ./
+COPY src ./src
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 3000
+# Healthy only when the database answers (the endpoint is 200 even when it does not).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>r.json()).then(j=>process.exit(j.data&&j.data.db==='connected'?0:1)).catch(()=>process.exit(1))"
+CMD ["npx", "tsx", "src/index.ts"]

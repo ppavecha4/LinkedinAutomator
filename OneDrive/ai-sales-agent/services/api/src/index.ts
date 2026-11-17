@@ -30,6 +30,7 @@ import googleAuthRouter from './routes/googleAuth';
 import recoveryRouter from './routes/recovery';
 import platformRouter from './routes/platform';
 import billingRouter from './routes/billing';
+import { startOpsMonitor } from './lib/opsMonitor';
 import privacyRouter from './routes/privacy';
 import stripeWebhookRouter from './routes/stripeWebhook';
 import teamRouter from './routes/team';
@@ -211,6 +212,8 @@ server.listen(port, () => {
   });
   // Hourly re-check of connected accounts (local-auth deployments only).
   startAccountHealth();
+  // Checks and alerts: database, redis, cron / backup heartbeats (slice 6.3).
+  startOpsMonitor();
 });
 
 // Graceful shutdown — drain HTTP, close WS, release Redis + DB.

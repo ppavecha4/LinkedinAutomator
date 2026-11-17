@@ -1,0 +1,39 @@
+# Reverse proxy for the production stack (docker-compose.prod.yml, profile "edge").
+#
+# One public address serves both the dashboard and the API, so the session
+# cookie, CORS and the WebSocket need no special handling and the dashboard is
+# built with an empty VITE_API_URL.
+#
+#   DOMAIN=app.example.com            -> automatic HTTPS (Let's Encrypt)
+#   DOMAIN=:80                        -> plain HTTP (local testing only)
+#
+# If the VPS already runs its own Caddy/nginx, skip this service and copy the
+# routes below into it.
+
+{$DOMAIN:localhost} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Everything the API answers: JSON API, provider webhooks (Twilio, Calendly,
+	# Stripe, LinkedIn), email tracking pixel + unsubscribe links, the live feed.
+	@api path /api/* /webhooks/* /track/* /unsubscribe /unsubscribe/* /ws /health
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		reverse_proxy dashboard:80
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
