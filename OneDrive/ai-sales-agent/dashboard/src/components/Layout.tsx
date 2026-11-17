@@ -21,6 +21,7 @@ import {
   Check,
   ChevronsLeft,
   Command,
+  Gauge,
   HelpCircle,
   Inbox,
   LayoutDashboard,
@@ -101,6 +102,7 @@ const NAV: NavItem[] = [
   { to: '/settings/profile', label: 'Business profile', end: true, icon: Building2, section: 'Account' },
   { to: '/settings/connections', label: 'Connected accounts', end: true, icon: Plug, section: 'Account' },
   { to: '/settings/team', label: 'Team', end: true, icon: Users, section: 'Account', managerOnly: true },
+  { to: '/settings/plan', label: 'Plan & usage', end: true, icon: Gauge, section: 'Account' },
   { to: '/platform', label: 'Companies', end: true, icon: Building2, section: 'Platform', platformOnly: true },
   { to: '/settings', label: 'Settings', end: true, icon: SettingsIcon, section: 'Account' },
 ];

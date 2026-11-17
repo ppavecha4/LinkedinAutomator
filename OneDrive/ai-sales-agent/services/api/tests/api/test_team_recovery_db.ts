@@ -72,6 +72,8 @@ describeIfDb('team, invitations, recovery (live DB)', () => {
     anaOrg = res.body.data.org.org_id;
     anaUid = (await ana.get('/api/auth/me')).body.data.user.uid;
     orgs.push({ org: anaOrg, uid: anaUid });
+    // These tests are about people, not plans: give the company room for the whole team.
+    await query(`SELECT * FROM platform_update_org($1, 'test', NULL, 'growth', NULL, NULL)`, [anaOrg]);
 
     const mail = lastMail(email('ana'));
     expect(mail?.subject).toMatch(/Verify/);

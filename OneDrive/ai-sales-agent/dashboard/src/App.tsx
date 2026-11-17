@@ -40,6 +40,7 @@ import Overview from './pages/Overview';
 import Platform from './pages/Platform';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
+import Plan from './pages/Plan';
 import Team from './pages/Team';
 
 const queryClient = new QueryClient({
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/settings/profile" element={<BusinessProfile />} />
               <Route path="/settings/connections" element={<Connections />} />
               <Route path="/settings/team" element={<Team />} />
+              <Route path="/settings/plan" element={<Plan />} />
               <Route path="/platform" element={<Platform />} />
              </Route>
             </Route>

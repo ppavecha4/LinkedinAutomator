@@ -101,6 +101,17 @@ export const env = {
   // Sign in with Google (optional). Create an OAuth client (type "Web
   // application") in Google Cloud; its redirect URI must be
   // GOOGLE_REDIRECT_URI (default: <DASHBOARD_URL>/api/auth/google/callback).
+  // Paid plans through Stripe (optional; without these the dashboard shows
+  // usage but no upgrade buttons, and plans are changed by a platform admin).
+  // Create one recurring Price per plan in Stripe and put its id here; the
+  // webhook (POST /webhooks/stripe) needs STRIPE_WEBHOOK_SECRET.
+  stripeSecretKey: str('STRIPE_SECRET_KEY', ''),
+  stripeWebhookSecret: str('STRIPE_WEBHOOK_SECRET', ''),
+  stripePrices: {
+    starter: str('STRIPE_PRICE_STARTER', ''),
+    growth: str('STRIPE_PRICE_GROWTH', ''),
+    scale: str('STRIPE_PRICE_SCALE', ''),
+  } as Record<string, string>,
   googleClientId: str('GOOGLE_CLIENT_ID', ''),
   googleClientSecret: str('GOOGLE_CLIENT_SECRET', ''),
   googleRedirectUri: str('GOOGLE_REDIRECT_URI', ''),

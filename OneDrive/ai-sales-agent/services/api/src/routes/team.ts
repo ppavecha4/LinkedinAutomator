@@ -28,6 +28,7 @@ import { env } from '../env';
 import { issueToken, RESET_TTL_MINUTES } from '../lib/accountTokens';
 import { ApiError } from '../lib/errors';
 import { dashboardLink, mailerConfigured, sendMail } from '../lib/mailer';
+import { assertCanAddSeat } from '../lib/quota';
 import { ok } from '../lib/response';
 import { forgetSession } from '../lib/sessionState';
 import { newToken } from '../lib/tokens';
@@ -107,6 +108,7 @@ router.post('/api/team/invites', manage, validate({ body: inviteBody }), async (
     const already = await query(
       `SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id WHERE lower(u.email) = $1`, [email]);
     if (already.rowCount) throw ApiError.conflict('that person is already in your team');
+    await assertCanAddSeat(req.user!.orgId, email);
 
     const { token, hash } = newToken();
     // Replace any open invitation for this address: revoke it, then insert

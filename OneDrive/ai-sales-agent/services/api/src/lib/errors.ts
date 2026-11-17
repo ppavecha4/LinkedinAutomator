@@ -27,6 +27,10 @@ export class ApiError extends Error {
   static unauthorized(message = 'unauthorized'): ApiError {
     return new ApiError(401, 'UNAUTHORIZED', message);
   }
+  /** The company's plan does not include this (HTTP 402); the dashboard offers an upgrade. */
+  static planLimit(message: string, details?: unknown): ApiError {
+    return new ApiError(402, 'PLAN_LIMIT', message, details);
+  }
   static forbidden(message = 'forbidden', details?: unknown): ApiError {
     return new ApiError(403, 'FORBIDDEN', message, details);
   }

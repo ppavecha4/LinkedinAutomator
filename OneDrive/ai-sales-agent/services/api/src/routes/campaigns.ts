@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { query, withTransaction } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { assertCanLaunch } from '../lib/quota';
 import { assertEmailVerified } from '../lib/sessionState';
 import { planCampaign, type CampaignPlan } from '../lib/campaignPlanner';
 import {
@@ -817,6 +818,7 @@ router.patch(
         // Going live needs a connected account for every chosen channel.
         if (status === 'ACTIVE' && previousStatus !== 'ACTIVE') {
           await assertEmailVerified(req.user);
+          await assertCanLaunch(req.user!.orgId);
           await assertReadyToLaunch(before.rows[0].channels);
         }
 
@@ -876,6 +878,7 @@ router.post(
         );
       }
       await assertEmailVerified(req.user);
+      await assertCanLaunch(req.user!.orgId);
       await assertReadyToLaunch(campaign.channels);
       const previousStatus = campaign.status;
 

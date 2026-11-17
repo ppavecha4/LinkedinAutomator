@@ -29,6 +29,8 @@ import authRouter from './routes/auth';
 import googleAuthRouter from './routes/googleAuth';
 import recoveryRouter from './routes/recovery';
 import platformRouter from './routes/platform';
+import billingRouter from './routes/billing';
+import stripeWebhookRouter from './routes/stripeWebhook';
 import teamRouter from './routes/team';
 import campaignsRouter from './routes/campaigns';
 import inboxRouter from './routes/inbox';
@@ -75,6 +77,9 @@ app.use(
     next();
   },
 );
+
+// Stripe signs the raw body: this router reads it itself, so it comes BEFORE express.json().
+app.use(stripeWebhookRouter);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -180,6 +185,7 @@ app.use(importsRouter);
 app.use(offeringsRouter);
 app.use(profileRouter);
 app.use(teamRouter);
+app.use(billingRouter);
 app.use(platformRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).

@@ -464,3 +464,40 @@ async def test_live_whatsapp_followup_uses_the_followup_template_and_waits_witho
     finally:
         await _cleanup(pool)
         await pool.close()
+
+
+# ── slice 4.1: the plan's monthly message allowance ─────────────────────
+
+@live
+async def test_live_send_gate_defers_when_the_monthly_allowance_is_used():
+    from compliance.send_gate import check_send
+
+    pool = await t.create_pool(os.environ["DATABASE_URL"], min_size=1, max_size=2)
+    try:
+        cid = await _setup(pool, steps=(), channels=("email",))
+        c = await _contact(pool, cid, "Carla", "carla@frutas.test", sent_at=dt.datetime.now(dt.timezone.utc))
+        with t.tenant(ORG):
+            async with pool.acquire() as conn:
+                queued = await conn.fetchval(
+                    "INSERT INTO messages (contact_id, campaign_id, channel, direction, subject, body, status, sequence_step, language)"
+                    " VALUES ($1, $2, 'email', 'outbound', 's', 'b', 'QUEUED', 2, 'es') RETURNING id", c["contact"], cid)
+                # The free plan includes 50 messages a month; the first email above is one of them.
+                await conn.execute(
+                    "INSERT INTO messages (contact_id, campaign_id, channel, direction, body, status, sequence_step, sent_at)"
+                    " SELECT $1, $2, 'email', 'outbound', 'b', 'SENT', 1, now() FROM generate_series(1, 49)", c["contact"], cid)
+                assert (await conn.fetchrow("SELECT messages_used, messages_limit FROM org_quota($1)", ORG))["messages_used"] == 50
+
+                d = await check_send(conn, str(queued), now=utc(2026, 11, 3, 15))
+                assert (d.allowed, d.defer) == (False, True)
+                assert "monthly message limit" in d.reason and "Free trial" in d.reason
+
+                # Upgrading releases it; the unlimited plan never defers.
+                await conn.execute("UPDATE organizations SET plan = 'growth' WHERE id = $1", ORG)
+                assert (await check_send(conn, str(queued), now=utc(2026, 11, 3, 15))).allowed
+                await conn.execute("UPDATE organizations SET plan = 'free' WHERE id = $1", ORG)
+                # Last month's messages do not count.
+                await conn.execute("UPDATE messages SET sent_at = sent_at - interval '40 days' WHERE sequence_step = 1")
+                assert (await check_send(conn, str(queued), now=utc(2026, 11, 3, 15))).allowed
+    finally:
+        await _cleanup(pool)
+        await pool.close()

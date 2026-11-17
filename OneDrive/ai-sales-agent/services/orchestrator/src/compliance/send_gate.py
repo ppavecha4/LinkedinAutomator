@@ -58,7 +58,7 @@ class SendDecision:
 async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -> SendDecision:
     row = await conn.fetchrow(
         """
-        SELECT m.metadata->>'kind' AS kind,
+        SELECT m.metadata->>'kind' AS kind, m.org_id,
                m.created_at > now() - make_interval(hours => $2) AS fresh,
                EXISTS (
                    SELECT 1 FROM suppression_list s
@@ -117,6 +117,17 @@ async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -
         )
         if not in_hours:
             return SendDecision(False, why, defer=True)
+        # The plan's monthly message allowance (V28). Deferred, not blocked:
+        # it goes out when the month rolls over or the plan is upgraded.
+        quota = await conn.fetchrow(
+            "SELECT plan_label, messages_limit, messages_used FROM org_quota($1)", row["org_id"])
+        if quota and quota["messages_limit"] is not None and quota["messages_used"] >= quota["messages_limit"]:
+            return SendDecision(
+                False,
+                f"monthly message limit reached on the {quota['plan_label']} plan "
+                f"({quota['messages_limit']}); upgrade or wait for next month",
+                defer=True,
+            )
         return SendDecision(True, "ok")
     if is_conf and row["fresh"] and not row["already_confirmed"]:
         return SendDecision(True, "opt-out confirmation (principle 1 exception)", True)

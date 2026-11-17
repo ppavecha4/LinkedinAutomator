@@ -31,7 +31,7 @@ runbook](#v17-deploy-runbook).
 | Channels | Email, WhatsApp, LinkedIn. Choice is implicit: the planner proposes `channels_enabled` and each `sequence_steps` row has a channel. No voice code. | Customers: an explicit per-campaign set of email / WhatsApp / AI voice (new). LinkedIn stays for Appson only. |
 | Language | English only; prompts and opt-out handling assume English. | Per-org default language, per-prospect language, messages and calls generated natively in that language. |
 | Auth | One operator (`AUTH_MODE=local`, bcrypt hash in env). | Signup, invites, roles, org-scoped sessions. |
-| Billing / limits | None. | Plans, usage metering, per-tenant quotas. |
+| Billing / limits | None. | Plans, usage metering, per-tenant quotas (built: slices 4.1 / 4.2). |
 | Compliance | Global suppression list, basic compliance log. | Per-tenant suppression, quiet hours, India DLT/TRAI, WhatsApp opt-in, call-recording consent. |
 
 ---
@@ -77,7 +77,7 @@ runbook](#v17-deploy-runbook).
 | 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · **2.4 language-aware writing + multilingual opt-out (done)** · **2.5 dashboard screens (done)** |
 | 3 | Onboarding + connectors | Signup + sign-in, invite flow, onboarding wizard that builds the **business profile** (see "Business profile and onboarding"), then connect email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
-| 5 | Billing + quotas | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
+| 5 | Billing + quotas (built, slices 4.1 / 4.2) | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
 | 6 | Per-tenant compliance | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
 | 7 | Hardening | Production dashboard build (not the Vite dev server), offsite backups, monitoring/alerting |
 
@@ -1030,9 +1030,67 @@ Companies page)
 - **Tests**: API 241 (new: Google flow, sign-out-everywhere, ownership
   transfer, channels); orchestrator +3 (WhatsApp follow-ups: template parsing,
   who gets one, follow-up template used / waits without one).
-- **Needs the owner, not code**: a real end-to-end send with real accounts, the
+- **Needs the owner, not code** (slice 3.10): a real end-to-end send with real accounts, the
   Google OAuth client, the deploy (V17 runbook, then V22–V27; rebuild the API
   image), the legal text, and pushing.
+
+### Slices 4.1 and 4.2 as built (2026-11-17): plans, quotas and paying (phase 5)
+
+Customers bring their own email, WhatsApp, AI and Apollo accounts, so what the
+platform meters is the VOLUME it orchestrates: three limits per plan.
+
+- **Plans (V28)**: table `plans` (free, starter, growth, scale, enterprise):
+  `monthly_messages`, `active_campaigns`, `seats`; NULL = unlimited. The numbers
+  seeded are PLACEHOLDERS (free 50 / 1 / 2, starter 1,000 / 3 / 5, growth
+  5,000 / 10 / 15, scale 25,000 / 50 / 50, enterprise unlimited): they are data,
+  tune them with an UPDATE, no deploy. A new company starts on `free`; Appson's
+  own org is `enterprise`.
+- **Usage is derived, not counted twice**: `org_quota(org)` (SECURITY DEFINER)
+  returns plan, limits and this month's usage straight from the tables:
+  sent outbound messages since the start of the UTC month (SENT / DELIVERED /
+  OPENED / REPLIED / BOUNCED; queued and failed ones do not count), campaigns
+  with status ACTIVE, and memberships plus open invitations (seats). One SQL
+  definition for the API, the senders and the platform admin.
+- **Enforcement**: the API refuses with HTTP 402 `PLAN_LIMIT` (details
+  `{kind, plan, limit, used}`) when a campaign would exceed the plan's active
+  campaigns or the month's messages are used up (both launch paths), and when an
+  invitation would exceed the seats (re-inviting an address that already holds
+  an open invitation takes no extra seat). The orchestrator's send gate DEFERS a
+  message when the month's allowance is used (not blocked: it goes out after an
+  upgrade or when the month rolls over). Opt-out confirmations are never held.
+- **Stripe (V29)**: prices and cards live in Stripe. We keep
+  `organizations.stripe_customer_id / stripe_subscription_id /
+  subscription_status / subscription_period_end`. Env: `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_STARTER|GROWTH|SCALE` (a plan with no
+  Price is not for sale; with no key at all the dashboard shows usage but no
+  buy buttons and a platform admin changes plans). Plain HTTPS, no SDK.
+  - `POST /api/billing/checkout {plan}` (owner) → Stripe Checkout URL, with the
+    company id in `client_reference_id` and the subscription metadata.
+  - `POST /api/billing/portal` (owner) → Stripe's hosted page to change plan,
+    update the card, get invoices or cancel.
+  - `POST /webhooks/stripe`: signature checked over the RAW body (mounted before
+    `express.json`; 5-minute tolerance, several `v1` values accepted for secret
+    rotation); each event id handled once (`stripe_events`). Checkout completed →
+    link the customer; subscription active/trialing → the plan its Price maps to;
+    `past_due` → plan kept while Stripe retries the card; canceled / unpaid /
+    expired → back to `free` limits (nothing is deleted). A company on
+    `enterprise` is never moved by Stripe. Every change is written to
+    `platform_audit` (actor `stripe`). A failed delivery returns 500 and the event
+    id is forgotten so Stripe's retry is processed.
+- **Dashboard**: Account › "Plan & usage" (`/settings/plan`): usage bars (amber
+  at 80%, red at the limit), the plan cards, "Choose <plan>" for the owner,
+  "Manage billing" once there is a Stripe customer, a notice when a payment
+  failed, and a toast when returning from Checkout.
+- **Tests**: API 255 (plans/usage/seats/campaign limits; Stripe checkout, portal,
+  webhook signature, replay, plan changes, enterprise guard, owner-only), and one
+  orchestrator live test for the send gate deferral.
+- **Needs the owner, not code**: a Stripe account; one recurring Price per plan
+  (names/prices are a business decision); the webhook endpoint
+  (`https://<api>/webhooks/stripe`, events `checkout.session.completed` and
+  `customer.subscription.created|updated|deleted`) and its signing secret; tuning
+  the plan limits. Not built: metering of AI discovery / enriched leads, annual
+  billing, taxes (Stripe Tax), per-seat pricing, an in-app invoice list (the
+  portal has it), usage alerts by email.
 
 ## Voice channel
 
