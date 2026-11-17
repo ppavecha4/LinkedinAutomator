@@ -274,11 +274,51 @@ export function VoiceForm({ value: v, onChange }: SectionProps<VoiceSection>): R
 // ── Rules ────────────────────────────────────────────────────────────────
 
 export function RulesForm({ value: v, onChange }: SectionProps<RulesSection>): React.ReactElement {
+  const hours = v.contact_hours;
+  const bad = !!hours && hours.start >= hours.end;
   return (
     <div className="space-y-6">
       <Field label="Countries never to contact" hint="Prospects and imported leads in these countries are skipped.">
         <CountriesPicker values={v.blocked_countries ?? []} onChange={(x) => onChange({ ...v, blocked_countries: x })} max={250} />
       </Field>
+      <div>
+        <label className="flex items-center gap-2.5 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[hsl(var(--primary))]"
+            checked={!!hours}
+            onChange={(e) =>
+              onChange({ ...v, contact_hours: e.target.checked ? { start: '09:00', end: '19:00', weekdays_only: true } : undefined })
+            }
+          />
+          Only message people during their working day
+        </label>
+        {hours && (
+          <div className="mt-3 space-y-3 pl-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                From
+                <input type="time" className="input w-auto py-1.5" value={hours.start} aria-label="Contact hours start"
+                  onChange={(e) => onChange({ ...v, contact_hours: { ...hours, start: e.target.value } })} />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                Until
+                <input type="time" className="input w-auto py-1.5" value={hours.end} aria-label="Contact hours end"
+                  onChange={(e) => onChange({ ...v, contact_hours: { ...hours, end: e.target.value } })} />
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" checked={hours.weekdays_only}
+                onChange={(e) => onChange({ ...v, contact_hours: { ...hours, weekdays_only: e.target.checked } })} />
+              Monday to Friday only
+            </label>
+            {bad && <p role="alert" className="text-xs text-destructive">The end time must be later than the start time.</p>}
+          </div>
+        )}
+        <p className="mt-2 pl-6 text-xs text-muted-foreground">
+          This is the prospect's local time, worked out from their country. Messages outside it wait in the queue and go out when the window opens.
+        </p>
+      </div>
     </div>
   );
 }

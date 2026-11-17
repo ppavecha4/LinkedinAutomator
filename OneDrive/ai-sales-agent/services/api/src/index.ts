@@ -25,6 +25,8 @@ import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import analyticsRouter from './routes/analytics';
 import authRouter from './routes/auth';
+import recoveryRouter from './routes/recovery';
+import teamRouter from './routes/team';
 import campaignsRouter from './routes/campaigns';
 import inboxRouter from './routes/inbox';
 import internalRouter from './routes/internal';
@@ -157,6 +159,7 @@ app.use(internalRouter);
 // Public auth routes — login/logout/me. Mounted BEFORE the global
 // `auth` middleware so an unauthenticated user can actually log in.
 app.use(authRouter);
+app.use(recoveryRouter);
 
 // Authenticated API routes.
 app.use('/api', auth);
@@ -172,6 +175,7 @@ app.use(organizationRouter);
 app.use(importsRouter);
 app.use(offeringsRouter);
 app.use(profileRouter);
+app.use(teamRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).
 app.use('/api', (_req, _res, next) => {

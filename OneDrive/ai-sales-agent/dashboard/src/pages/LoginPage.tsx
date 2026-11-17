@@ -8,7 +8,7 @@
 
 import { Check, Loader2, Lock, Sparkles } from 'lucide-react';
 import * as React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 
 import { errorMessage, useAuth } from '../lib/authContext';
 import { cn } from '../lib/cn';
@@ -22,7 +22,7 @@ const POINTS = [
 ];
 
 export default function LoginPage(): React.ReactElement {
-  const { user, loading, bypassMode, needsOnboarding, signupEnabled, login, signup } = useAuth();
+  const { user, loading, bypassMode, needsOnboarding, signupEnabled, emailEnabled, login, signup } = useAuth();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
   const [mode, setMode] = React.useState<Mode>(
@@ -109,7 +109,7 @@ export default function LoginPage(): React.ReactElement {
             <h1 className="mb-6 text-2xl font-semibold">Sign in</h1>
           )}
 
-          {showSignup ? <SignupForm onSignup={signup} /> : <SigninForm onLogin={login} />}
+          {showSignup ? <SignupForm onSignup={signup} /> : <SigninForm onLogin={login} emailEnabled={emailEnabled} />}
         </div>
       </main>
     </div>
@@ -125,7 +125,7 @@ function ErrorNote({ text }: { text: string | null }): React.ReactElement | null
   );
 }
 
-function SigninForm({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }): React.ReactElement {
+function SigninForm({ onLogin, emailEnabled }: { onLogin: (email: string, password: string) => Promise<void>; emailEnabled: boolean }): React.ReactElement {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -151,7 +151,10 @@ function SigninForm({ onLogin }: { onLogin: (email: string, password: string) =>
           value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
       </div>
       <div>
-        <label htmlFor="si-password" className="label">Password</label>
+        <div className="flex items-baseline justify-between">
+          <label htmlFor="si-password" className="label">Password</label>
+          {emailEnabled && <Link to="/forgot-password" className="mb-1.5 text-xs text-primary underline">Forgot password?</Link>}
+        </div>
         <input id="si-password" type="password" autoComplete="current-password" required className="input h-10"
           value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
       </div>
@@ -161,8 +164,8 @@ function SigninForm({ onLogin }: { onLogin: (email: string, password: string) =>
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
       <p className="text-xs text-muted-foreground">
-        Belong to several companies? Switch between them from the account menu after signing in. Forgot your
-        password? Ask your company's owner or the system admin.
+        Belong to several companies? Switch between them from the account menu after signing in.
+        {!emailEnabled && " Forgot your password? Ask your company's owner or an admin to send you a reset link."}
       </p>
     </form>
   );

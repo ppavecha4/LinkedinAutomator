@@ -7,10 +7,34 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { env } from '../src/env';
 import type { CampaignPlan } from '../src/lib/campaignPlanner';
-import { assertStepsWithin, channelsFromSteps } from '../src/lib/channels';
+import { assertFollowUps, assertStepsWithin, channelsFromSteps } from '../src/lib/channels';
 import { ApiError } from '../src/lib/errors';
 import { restrictPlanToChannels } from '../src/routes/campaigns';
 import { buildApp } from './app';
+
+describe('follow-up steps (slice 3.5)', () => {
+  const fu = (step_number: number, delay_days: number, channel: 'email' | 'whatsapp' = 'email') =>
+    ({ step_number, channel, action: 'follow_up', delay_days });
+
+  it('accepts email follow-ups that grow in delay, ignores other actions', () => {
+    expect(() => assertFollowUps([fu(2, 3), fu(3, 7)])).not.toThrow();
+    // Appson's older steps are named "Follow-up 1" etc. and are not checked.
+    expect(() => assertFollowUps([{ step_number: 1, channel: 'email', action: 'Follow-up 1', delay_days: 0 }])).not.toThrow();
+    expect(() => assertFollowUps([])).not.toThrow();
+  });
+
+  it.each([
+    [[fu(2, 3, 'whatsapp')], /email only/],
+    [[fu(1, 3)], /step 2 onwards/],
+    [[fu(2, 0)], /1–90 days/],
+    [[fu(2, 91)], /1–90 days/],
+    [[fu(2, 7), fu(3, 7)], /later than the one before/],
+    [[fu(2, 7), fu(3, 3)], /later than the one before/],
+    [[fu(2, 1), fu(3, 2), fu(4, 3), fu(5, 4), fu(6, 5), fu(7, 6)], /at most 5/],
+  ])('rejects %j', (steps, msg) => {
+    expect(() => assertFollowUps(steps)).toThrow(msg);
+  });
+});
 
 describe('channel helpers', () => {
   it('derives channels from steps, distinct, in step order', () => {

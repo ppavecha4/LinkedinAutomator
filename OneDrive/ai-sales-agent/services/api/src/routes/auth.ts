@@ -30,6 +30,9 @@ import { z } from 'zod';
 import { query } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { emailVerificationLink } from '../lib/accountTokens';
+import { mailerConfigured } from '../lib/mailer';
+import { sessionState } from '../lib/sessionState';
 import { ok } from '../lib/response';
 import { isOrgRole, isUuid, runWithTenant, type OrgRole } from '../lib/tenantContext';
 import { logger } from '../logger';
@@ -39,10 +42,10 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
-const BCRYPT_COST = 12;
+export const BCRYPT_COST = 12;
 // Compared against when the email is unknown, so a wrong email takes as
 // long as a wrong password (no account enumeration by timing).
-const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', BCRYPT_COST);
+export const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', BCRYPT_COST);
 
 interface SessionPayload {
   sub: string;       // the user's email
@@ -53,6 +56,7 @@ interface SessionPayload {
   org_id?: string;
   role?: string;
   uid?: string;
+  iat?: number;  // set by jsonwebtoken when signing; read back when verifying
 }
 
 function sessionMaxAgeMs(): number {
@@ -65,7 +69,7 @@ function isHttps(req: Request): boolean {
   return req.secure || req.header('x-forwarded-proto')?.toLowerCase() === 'https';
 }
 
-function issueSession(req: Request, res: Response, payload: SessionPayload): void {
+export function issueSession(req: Request, res: Response, payload: SessionPayload): void {
   if (!env.authJwtSecret) throw ApiError.internal('auth misconfigured');
   const token = jwt.sign(payload, env.authJwtSecret, {
     algorithm: 'HS256',
@@ -80,12 +84,12 @@ function issueSession(req: Request, res: Response, payload: SessionPayload): voi
   });
 }
 
-function requireLocalMode(): void {
+export function requireLocalMode(): void {
   if (env.authMode !== 'local') throw ApiError.notFound('local auth disabled');
   if (!env.authJwtSecret) throw ApiError.internal('auth misconfigured');
 }
 
-interface OrgRow {
+export interface OrgRow {
   org_id: string;
   name: string;
   slug: string;
@@ -93,7 +97,7 @@ interface OrgRow {
   onboarding_completed_at: string | null;
 }
 
-async function orgsFor(userId: string): Promise<OrgRow[]> {
+export async function orgsFor(userId: string): Promise<OrgRow[]> {
   return (await query<OrgRow>(`SELECT * FROM orgs_for_user($1)`, [userId])).rows;
 }
 
@@ -206,6 +210,10 @@ router.post(
       }
       issueSession(req, res, { sub: email, email, org_id: created.org_id, role: 'owner', uid: created.user_id });
       logger.info('signup', { org_id: created.org_id });
+      // Verification link (when the server can email). A failure here must
+      // not undo the sign-up: they can resend it from the banner.
+      emailVerificationLink(created.user_id, email, b.full_name).catch((e) =>
+        logger.warn('verification email failed', { error: (e as Error).message }));
       ok(res, {
         user: { email, full_name: b.full_name, org_id: created.org_id, role: 'owner' },
         org: { org_id: created.org_id, name: b.company, onboarding_completed_at: null },
@@ -220,7 +228,12 @@ router.post(
 
 // Public: what the sign-in page should offer (no secrets, no session).
 router.get('/api/auth/config', (_req, res) => {
-  ok(res, { mode: env.authMode, signup_enabled: env.authMode === 'local' && env.signupEnabled });
+  ok(res, {
+    mode: env.authMode,
+    signup_enabled: env.authMode === 'local' && env.signupEnabled,
+    // Can the server email people? (password reset, invitations, verification)
+    email_enabled: env.authMode === 'local' && mailerConfigured(),
+  });
 });
 
 router.post('/api/auth/logout', (_req, res) => {
@@ -250,8 +263,23 @@ router.get('/api/auth/me', async (req, res, next) => {
           ),
         )
       : null;
+    // Verified email: the env operator and anyone who signed up before
+    // verification existed count as verified.
+    const isEnvOperator = !!env.authUserEmail && decoded.email?.trim().toLowerCase() === env.authUserEmail.trim().toLowerCase();
+    const state = isUuid(orgId) && isUuid(decoded.uid) && !isEnvOperator ? await sessionState(userId, orgId) : null;
+    // Same rules as the API middleware: a removed member, a suspended org
+    // or a password changed since sign-in is signed out now.
+    if (isUuid(decoded.uid) && !isEnvOperator) {
+      if (!state || state.org_status !== 'ACTIVE') throw ApiError.unauthorized('invalid session');
+      if (state.password_changed_at && decoded.iat && decoded.iat < Math.floor(state.password_changed_at.getTime() / 1000)) {
+        throw ApiError.unauthorized('invalid session');
+      }
+    }
     return ok(res, {
-      user: { email: decoded.email, org_id: orgId, role, uid: userId },
+      user: {
+        email: decoded.email, org_id: orgId, role: state?.role ?? role, uid: userId,
+        email_verified: state ? !!state.email_verified_at : true,
+      },
       org: org?.rows[0] ?? null,
     });
   } catch (e) {

@@ -54,5 +54,10 @@ const email = (req: Request) => {
 /** 20 sign-in attempts per IP and 10 per email, per 15 minutes. */
 export const loginLimitByIp = authRateLimit({ name: 'login-ip', windowMs: 15 * 60_000, max: 20, key: ip });
 export const loginLimitByEmail = authRateLimit({ name: 'login-email', windowMs: 15 * 60_000, max: 10, key: email });
+/** Password-reset requests: 10 per IP and 3 per address per hour. */
+export const forgotLimitByIp = authRateLimit({ name: 'forgot-ip', windowMs: 60 * 60_000, max: 10, key: ip });
+export const forgotLimitByEmail = authRateLimit({ name: 'forgot-email', windowMs: 60 * 60_000, max: 3, key: email });
+/** Using reset / verify / invite links: guesses are pointless (256-bit tokens) but cheap to cap. */
+export const linkLimitByIp = authRateLimit({ name: 'link-ip', windowMs: 15 * 60_000, max: 30, key: ip });
 /** 5 sign-ups per IP per hour. */
 export const signupLimitByIp = authRateLimit({ name: 'signup-ip', windowMs: 60 * 60_000, max: 5, key: ip });

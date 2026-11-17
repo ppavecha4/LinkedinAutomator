@@ -81,6 +81,20 @@ export const env = {
   // Onboarding AI calls the platform pays for per org, before the customer
   // connects its own Anthropic key (decision 2026-11-14).
   onboardingAiCap: int('ONBOARDING_AI_CAP', 15),
+  // Teams, password reset, email verification (phase 3, slice 3.6).
+  // The dashboard's public address: invite / reset / verify links point here.
+  dashboardUrl: str('DASHBOARD_URL', 'http://localhost:5173'),
+  // The platform's own mailbox for those emails. Optional: without it
+  // links are handed to the owner/admin instead of emailed.
+  platformSmtpHost: str('PLATFORM_SMTP_HOST', ''),
+  platformSmtpPort: int('PLATFORM_SMTP_PORT', 587),
+  platformSmtpUser: str('PLATFORM_SMTP_USER', ''),
+  platformSmtpPass: str('PLATFORM_SMTP_PASS', ''),
+  platformMailFrom: str('PLATFORM_MAIL_FROM', ''),
+  // Launching a campaign needs a verified email — enforced only where
+  // platform email is configured (otherwise nobody could verify).
+  requireVerifiedEmail: str('REQUIRE_VERIFIED_EMAIL', 'true').toLowerCase() !== 'false',
+  inviteTtlDays: int('INVITE_TTL_DAYS', 7),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
   authCookieName: str('AUTH_COOKIE_NAME', 'sa_session'),

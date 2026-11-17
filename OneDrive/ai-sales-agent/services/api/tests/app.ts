@@ -22,6 +22,8 @@ import importsRouter from '../src/routes/imports';
 import offeringsRouter from '../src/routes/offerings';
 import profileRouter from '../src/routes/profile';
 import authRouter from '../src/routes/auth';
+import recoveryRouter from '../src/routes/recovery';
+import teamRouter from '../src/routes/team';
 import webhooksRouter from '../src/routes/webhooks';
 import { ApiError } from '../src/lib/errors';
 
@@ -58,6 +60,7 @@ export function buildApp(): express.Express {
   // Same order as src/index.ts: public auth routes before the global guard.
   app.use(cookieParser());
   app.use(authRouter);
+  app.use(recoveryRouter);
   app.use('/api', auth);
   app.use(campaignsRouter);
   app.use(prospectsRouter);
@@ -68,6 +71,7 @@ export function buildApp(): express.Express {
   app.use(importsRouter);
   app.use(offeringsRouter);
   app.use(profileRouter);
+  app.use(teamRouter);
 
   app.use('/api', (_req, _res, next) => {
     next(ApiError.notFound('route not found'));

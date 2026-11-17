@@ -25,6 +25,7 @@ import jwksClient from 'jwks-rsa';
 
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { sessionState } from '../lib/sessionState';
 import {
   isOrgRole,
   isUuid,
@@ -114,6 +115,26 @@ function getKey(
   });
 }
 
+/**
+ * Local sessions follow the database (V23 session_state): the role is the
+ * member's CURRENT role, and a removed member, a suspended org or a
+ * password changed after the cookie was issued ends the session now.
+ * The env operator and pre-phase-3 cookies (no user id) are exempt.
+ */
+async function currentSession(
+  uid: string,
+  orgId: string,
+  issuedAt: number | undefined,
+): Promise<{ role: OrgRole } | string> {
+  const state = await sessionState(uid, orgId);
+  if (!state) return 'you are no longer a member of this organization';
+  if (state.org_status !== 'ACTIVE') return 'this organization is not active';
+  if (state.password_changed_at && issuedAt && issuedAt < Math.floor(state.password_changed_at.getTime() / 1000)) {
+    return 'your password was changed; sign in again';
+  }
+  return { role: state.role };
+}
+
 export function auth(req: Request, _res: Response, next: NextFunction): void {
   if (env.authMode === 'bypass') {
     const devUserId = (req.header('x-dev-user') || env.devUserId).trim();
@@ -160,7 +181,7 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
       // audit rows). Use the configured operator UUID for `id` and keep
       // the email on `sub`/`email` for display. Without this every
       // campaign INSERT fails with "invalid input syntax for type uuid".
-      return proceedAs(req, next, {
+      const user: AuthenticatedUser = {
         // Self-serve users (phase 3) carry their own id; the env operator
         // and older sessions fall back to AUTH_USER_ID.
         id: isUuid(decoded.uid) ? decoded.uid : env.authUserId,
@@ -169,7 +190,18 @@ export function auth(req: Request, _res: Response, next: NextFunction): void {
         token_use: 'local',
         orgId: orgId as string,
         role: roleOr(decoded.role, 'owner'),
-      });
+      };
+      const isEnvOperator =
+        !!env.authUserEmail && subject.trim().toLowerCase() === env.authUserEmail.trim().toLowerCase();
+      if (!isUuid(decoded.uid) || isEnvOperator || !isUuid(orgId)) return proceedAs(req, next, user);
+      currentSession(decoded.uid, orgId as string, decoded.iat)
+        .then((r) =>
+          typeof r === 'string'
+            ? next(ApiError.unauthorized(r))
+            : proceedAs(req, next, { ...user, role: r.role }),
+        )
+        .catch(next);
+      return;
     } catch (e) {
       logger.warn('local session verify failed', {
         error: (e as Error).message,

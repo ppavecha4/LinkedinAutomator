@@ -24,6 +24,11 @@ if [ -z "$CAMPAIGN_IDS" ]; then
 fi
 
 for cid in $CAMPAIGN_IDS; do
+    # Follow-up emails that are due (steps with action 'follow_up'; only
+    # customer campaigns have them). Written and queued here, sent below.
+    log "campaign=$cid — scheduling email follow-ups"
+    docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/schedule_followups.py "$cid" 2>&1         | tail -3 >> "$LOG" || log "  follow-up scheduling errored (see above)"
+
     log "campaign=$cid — draining email"
     docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/send_pending_emails.py "$cid" 2>&1 \
         | tail -3 >> "$LOG" || log "  email send errored (see above)"

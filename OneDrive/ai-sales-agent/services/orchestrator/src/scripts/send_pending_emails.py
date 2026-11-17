@@ -51,6 +51,7 @@ import asyncio
 import datetime as dt
 import email.message
 import email.utils
+import json
 import os
 import sys
 import textwrap
@@ -450,6 +451,7 @@ async def main(args: argparse.Namespace) -> None:
                 SELECT m.id::text   AS message_id,
                        m.body,
                        m.subject,
+                       m.metadata,
                        m.pitch_type,
                        c.id::text   AS contact_id,
                        c.full_name,
@@ -490,6 +492,10 @@ async def main(args: argparse.Namespace) -> None:
             # every message. Only a fresh opt-out confirmation may pass.
             async with pool.acquire() as conn:
                 decision = await check_send(conn, r["message_id"])
+                if decision.defer:
+                    print(f"  waiting {r['full_name']:20s} — {decision.reason}")
+                    skipped += 1
+                    continue
                 if not decision.allowed:
                     print(f"  blocked {r['full_name']:20s} — {decision.reason}")
                     if not args.dry_run:
@@ -521,6 +527,16 @@ async def main(args: argparse.Namespace) -> None:
                 logo_mime=logo_mime,
                 meeting_url=meeting_url,
             )
+
+            # Follow-ups (slice 3.5) reply inside the original thread.
+            meta = r["metadata"]
+            if isinstance(meta, str):
+                meta = json.loads(meta or "{}")
+            if (meta or {}).get("kind") == "follow_up":
+                if meta.get("in_reply_to"):
+                    msg["In-Reply-To"] = meta["in_reply_to"]
+                if meta.get("references"):
+                    msg["References"] = " ".join(meta["references"])
 
             preview = textwrap.shorten(r["body"].replace("\n", " "), width=70)
             print(
@@ -558,10 +574,11 @@ async def main(args: argparse.Namespace) -> None:
                         UPDATE messages
                            SET status     = 'SENT',
                                sent_at    = now(),
-                               external_id = $1
+                               external_id = $1,
+                               subject    = COALESCE(subject, $3)
                          WHERE id = $2
                         """,
-                        msg["Message-ID"], r["message_id"],
+                        msg["Message-ID"], r["message_id"], subject,
                     )
                     # Timeline event: message_sent for the email channel.
                     # We look up campaign_id + prospect_id from the row we

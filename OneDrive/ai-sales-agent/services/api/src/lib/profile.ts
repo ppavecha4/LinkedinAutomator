@@ -81,7 +81,13 @@ export const voiceSchema = z
 
 export const rulesSchema = z
   .object({
-    contact_hours: z.object({ start: hhmm, end: hhmm, weekdays_only: z.boolean().default(true) }).strict().optional(),
+    // The prospect's local time. A window that ends before it starts
+    // (overnight) is not supported: start must be earlier than end.
+    contact_hours: z
+      .object({ start: hhmm, end: hhmm, weekdays_only: z.boolean().default(true) })
+      .strict()
+      .refine((h) => h.start < h.end, { message: 'contact hours must start before they end', path: ['end'] })
+      .optional(),
     blocked_countries: z.array(iso2).max(250).default([]),
   })
   .strict();

@@ -66,6 +66,38 @@ export function assertStepsWithin(
   }
 }
 
+/** The action name of an automated follow-up step (orchestrator schedule_followups.py). */
+export const FOLLOW_UP_ACTION = 'follow_up';
+export const MAX_FOLLOW_UPS = 5;
+export const MAX_FOLLOW_UP_DAYS = 90;
+
+/**
+ * Follow-up steps (action 'follow_up', slice 3.5) are email only for now:
+ * a WhatsApp follow-up would need a second Meta-approved template. They
+ * come after the first email (step_number >= 2) and their delay_days
+ * (days after the FIRST email) must grow from one step to the next.
+ * Steps with any other action are not checked (Appson's older campaigns).
+ */
+export function assertFollowUps(
+  steps: ReadonlyArray<{ step_number: number; channel: Channel; action?: string; delay_days?: number }>,
+): void {
+  const fu = steps.filter((s) => s.action === FOLLOW_UP_ACTION).sort((a, b) => a.step_number - b.step_number);
+  if (fu.length === 0) return;
+  const fail = (msg: string) => {
+    throw ApiError.badRequest(msg, { steps: fu.map((s) => ({ step_number: s.step_number, delay_days: s.delay_days })) });
+  };
+  if (fu.length > MAX_FOLLOW_UPS) fail(`at most ${MAX_FOLLOW_UPS} follow-ups`);
+  if (fu.some((s) => s.channel !== 'email')) fail('follow-ups are email only for now');
+  if (fu.some((s) => s.step_number < 2)) fail('follow-ups come after the first message (step 2 onwards)');
+  let previous = 0;
+  for (const s of fu) {
+    const d = s.delay_days ?? 0;
+    if (d < 1 || d > MAX_FOLLOW_UP_DAYS) fail(`a follow-up goes out 1–${MAX_FOLLOW_UP_DAYS} days after the first email`);
+    if (d <= previous) fail('each follow-up must go out later than the one before');
+    previous = d;
+  }
+}
+
 /** Distinct channels in step order, for campaigns created without `channels`. */
 export function channelsFromSteps(steps: ReadonlyArray<{ channel: Channel }>): Channel[] {
   return [...new Set(steps.map((s) => s.channel))];

@@ -24,6 +24,7 @@ import {
   HelpCircle,
   Inbox,
   LayoutDashboard,
+  Loader2,
   Briefcase,
   LogOut,
   Moon,
@@ -81,6 +82,8 @@ interface NavItem {
   section?: string;
   /** Only the operator (Appson) workspace has this feature. */
   operatorOnly?: boolean;
+  /** Owners and admins only (not shown to members and viewers). */
+  managerOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -93,6 +96,7 @@ const NAV: NavItem[] = [
   { to: '/analytics', label: 'Analytics', end: false, icon: BarChart3, section: 'Insights' },
   { to: '/settings/profile', label: 'Business profile', end: true, icon: Building2, section: 'Account' },
   { to: '/settings/connections', label: 'Connected accounts', end: true, icon: Plug, section: 'Account' },
+  { to: '/settings/team', label: 'Team', end: true, icon: Users, section: 'Account', managerOnly: true },
   { to: '/settings', label: 'Settings', end: true, icon: SettingsIcon, section: 'Account' },
 ];
 
@@ -126,7 +130,20 @@ export default function Layout(): React.ReactElement {
   const { resolvedTheme, toggle: toggleTheme } = useTheme();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { logout, user, org, bypassMode, needsOnboarding, switchOrg } = useAuth();
+  const { logout, user, org, bypassMode, needsOnboarding, switchOrg, emailEnabled } = useAuth();
+  const [resending, setResending] = React.useState(false);
+  const needsVerification = emailEnabled && !bypassMode && user?.email_verified === false;
+  async function resendVerification() {
+    setResending(true);
+    try {
+      await api.post('/api/auth/resend-verification');
+      toast.success('Verification email sent', { description: `Check ${user?.email}.` });
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not send the email.'));
+    } finally {
+      setResending(false);
+    }
+  }
   // Companies this person belongs to (local auth only), for the switcher.
   const { data: orgs } = useQuery({
     queryKey: ['auth', 'orgs', user?.uid],
@@ -146,17 +163,18 @@ export default function Layout(): React.ReactElement {
   // Operator-only entries stay hidden from customer workspaces.
   const { data: orgInfo } = useOrganization();
   const isOperator = orgInfo?.operator ?? bypassMode;
+  const isManager = !user?.role || user.role === 'owner' || user.role === 'admin';
 
   // Group NAV by section for the sidebar.
   const grouped = React.useMemo(() => {
     const map = new Map<string, NavItem[]>();
-    NAV.filter((n) => !n.operatorOnly || isOperator).forEach((n) => {
+    NAV.filter((n) => (!n.operatorOnly || isOperator) && (!n.managerOnly || isManager)).forEach((n) => {
       const key = n.section ?? 'Other';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(n);
     });
     return Array.from(map.entries());
-  }, [isOperator]);
+  }, [isOperator, isManager]);
 
   return (
     <>
@@ -492,6 +510,19 @@ export default function Layout(): React.ReactElement {
           {/* Page content */}
           <div className="flex-1 overflow-auto">
             <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 animate-fade-in">
+              {needsVerification && (
+                <div role="status" className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 sm:flex-row sm:items-center">
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">Verify your email address.</span>{' '}
+                    <span className="text-muted-foreground">
+                      We sent a link to {user?.email}. You can set everything up now, but launching a campaign needs it.
+                    </span>
+                  </div>
+                  <button type="button" className="btn-secondary shrink-0" onClick={resendVerification} disabled={resending}>
+                    {resending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Resend the link
+                  </button>
+                </div>
+              )}
               {needsOnboarding && (
                 <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:flex-row sm:items-center">
                   <div className="flex-1 text-sm">

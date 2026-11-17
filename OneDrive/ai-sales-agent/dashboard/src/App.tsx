@@ -21,6 +21,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './lib/authContext';
+import { AcceptInvitePage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/AccountLinks';
 import ActiveCampaigns from './pages/ActiveCampaigns';
 import Analytics from './pages/Analytics';
 import BusinessProfile from './pages/BusinessProfile';
@@ -37,6 +38,7 @@ import Onboarding from './pages/Onboarding';
 import Overview from './pages/Overview';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
+import Team from './pages/Team';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,6 +74,10 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/accept-invite" element={<AcceptInvitePage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route element={<RequireAuth />}>
              <Route path="/onboarding" element={<Onboarding />} />
              <Route element={<Layout />}>
@@ -89,6 +95,7 @@ export default function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/profile" element={<BusinessProfile />} />
               <Route path="/settings/connections" element={<Connections />} />
+              <Route path="/settings/team" element={<Team />} />
              </Route>
             </Route>
           </Routes>

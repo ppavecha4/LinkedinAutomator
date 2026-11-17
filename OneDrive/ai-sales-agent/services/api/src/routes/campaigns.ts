@@ -22,10 +22,12 @@ import { z } from 'zod';
 import { query, withTransaction } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { assertEmailVerified } from '../lib/sessionState';
 import { planCampaign, type CampaignPlan } from '../lib/campaignPlanner';
 import {
   assertChannelsAllowed,
   assertReadyToLaunch,
+  assertFollowUps,
   assertStepsWithin,
   CHANNELS,
   channelsFromSteps,
@@ -358,6 +360,7 @@ router.post(
       const channels: Channel[] =
         body.channels ?? (fromSteps.length > 0 ? fromSteps : ['email']);
       assertStepsWithin(body.sequence_steps, channels);
+      assertFollowUps(body.sequence_steps);
       await assertChannelsAllowed(channels);
 
       const created = await withTransaction(async (client) => {
@@ -701,12 +704,13 @@ router.patch(
           const finalSteps =
             body.sequence_steps ??
             (
-              await client.query<{ step_number: number; channel: Channel }>(
-                `SELECT step_number, channel FROM sequence_steps WHERE campaign_id = $1`,
+              await client.query<{ step_number: number; channel: Channel; action: string; delay_days: number }>(
+                `SELECT step_number, channel, action, delay_days FROM sequence_steps WHERE campaign_id = $1`,
                 [id],
               )
             ).rows;
           assertStepsWithin(finalSteps, finalChannels);
+          assertFollowUps(finalSteps);
           if (body.channels !== undefined) await assertChannelsAllowed(body.channels);
         }
 
@@ -812,6 +816,7 @@ router.patch(
         const previousStatus = before.rows[0].status;
         // Going live needs a connected account for every chosen channel.
         if (status === 'ACTIVE' && previousStatus !== 'ACTIVE') {
+          await assertEmailVerified(req.user);
           await assertReadyToLaunch(before.rows[0].channels);
         }
 
@@ -870,6 +875,7 @@ router.post(
           `campaign must be DRAFT or PAUSED to launch, got ${campaign.status}`,
         );
       }
+      await assertEmailVerified(req.user);
       await assertReadyToLaunch(campaign.channels);
       const previousStatus = campaign.status;
 

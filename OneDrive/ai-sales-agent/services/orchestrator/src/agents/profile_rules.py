@@ -28,7 +28,7 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 try:
     from agents.language import country_iso2, limit_to_handled
@@ -139,6 +139,9 @@ class ProfileRules:
     never_contact: NeverContact = field(default_factory=NeverContact)
     blocked_countries: frozenset[str] = frozenset()
     languages_handled: tuple[str, ...] = ()
+    # {"start": "09:00", "end": "19:00", "weekdays_only": true} in the
+    # PROSPECT's local time (agents/contact_hours.py), or None for no limit.
+    contact_hours: Optional[dict] = None
 
     @classmethod
     def from_profile(cls, profile: dict | None) -> "ProfileRules":
@@ -151,8 +154,10 @@ class ProfileRules:
         for tag in company.get("languages_handled") or []:
             if isinstance(tag, str) and tag.strip() and tag.strip() not in langs:
                 langs.append(tag.strip())
+        hours = rules.get("contact_hours")
         return cls(NeverContact.from_entries(customers.get("never_contact")),
-                   frozenset(blocked), tuple(langs))
+                   frozenset(blocked), tuple(langs),
+                   hours if isinstance(hours, dict) else None)
 
     def country_blocked(self, country: str | None) -> bool:
         iso = country_iso2(country)

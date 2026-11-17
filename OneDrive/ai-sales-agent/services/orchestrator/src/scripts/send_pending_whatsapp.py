@@ -266,6 +266,10 @@ async def main(args: argparse.Namespace) -> None:
             # every message. Only a fresh opt-out confirmation may pass.
             async with pool.acquire() as conn:
                 decision = await check_send(conn, r["message_id"])
+                if decision.defer:
+                    print(f"  waiting {r['full_name']:20s} — {decision.reason}")
+                    skipped += 1
+                    continue
                 if not decision.allowed:
                     print(f"  blocked {r['full_name']:24s} — {decision.reason}")
                     if not args.dry_run:

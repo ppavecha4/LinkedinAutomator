@@ -63,12 +63,24 @@ export default function NewCampaign(): React.ReactElement {
   const [langMode, setLangMode] = React.useState<'own' | 'fixed'>('own');
   const [fixedLang, setFixedLang] = React.useState('en');
   const [fallback, setFallback] = React.useState<'country' | 'org_default'>('country');
+  // Email follow-ups if there is no reply: how many, and days between them.
+  const [followups, setFollowups] = React.useState(2);
+  const [gapDays, setGapDays] = React.useState(3);
   // Details
   const [details, setDetails] = React.useState({ name: '', goal: 'Book a short call', sender_name: '', sender_company: '' });
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const allowed = (org.data?.channels ?? []).filter((c) => USABLE.includes(c));
+  // Follow-up steps: step 2.. , email, each `gapDays` after the one before (days after the first email).
+  const followUpSteps = channels.includes('email')
+    ? Array.from({ length: followups }, (_, i) => ({
+        step_number: i + 2,
+        channel: 'email' as const,
+        action: 'follow_up',
+        delay_days: gapDays * (i + 1),
+      }))
+    : [];
   const saved = offerings.data ?? [];
   const savedOffering = saved.find((o) => o.id === savedId);
   // Upload campaigns pitch a saved offering, else the profile's value proposition.
@@ -166,6 +178,7 @@ export default function NewCampaign(): React.ReactElement {
         channels,
         languages: langMode === 'fixed' ? [fixedLang] : null,
         language_fallback: fallback,
+        sequence_steps: followUpSteps,
       });
       campaignId = campaign.id;
 
@@ -196,6 +209,7 @@ export default function NewCampaign(): React.ReactElement {
 
   // Campaigns send only through verified accounts (slice 3.4).
   const missing = channels.filter((c) => !verifiedFor(creds.data, CHANNEL_PROVIDERS[c]));
+  const emailOn = channels.includes('email');
   const needsAiKey = !org.data?.operator && !verifiedFor(creds.data, ['anthropic']);
   const needsApollo = source === 'ai' && !org.data?.operator && !verifiedFor(creds.data, ['apollo']);
 
@@ -326,6 +340,30 @@ export default function NewCampaign(): React.ReactElement {
                 Contacts without a phone number skip WhatsApp; contacts without an email skip email.
               </p>
             </section>
+            {emailOn && (
+              <section className="space-y-3">
+                <h3 className="label">Follow-ups</h3>
+                <div role="radiogroup" aria-label="Number of follow-up emails" className="flex flex-wrap gap-2">
+                  {[0, 1, 2, 3].map((n) => (
+                    <button key={n} type="button" role="radio" aria-checked={followups === n} onClick={() => setFollowups(n)}
+                      className={cn('rounded-lg border px-3.5 py-2 text-sm transition-colors',
+                        followups === n ? 'border-primary/60 bg-primary/15 text-primary font-medium' : 'border-border/70 bg-card/50 text-muted-foreground hover:text-foreground')}>
+                      {n === 0 ? 'No follow-ups' : n === 1 ? '1 follow-up' : `${n} follow-ups`}
+                    </button>
+                  ))}
+                </div>
+                {followups > 0 && (
+                  <Field label="Wait between messages" htmlFor="nc-gap" hint="Counted from the first email. Each follow-up is written fresh, in the contact's language, and replies in the same email thread.">
+                    <select id="nc-gap" className="input w-auto" value={gapDays} onChange={(e) => setGapDays(Number(e.target.value))}>
+                      {[2, 3, 4, 5, 7, 10].map((d) => <option key={d} value={d}>{d} days</option>)}
+                    </select>
+                  </Field>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Anyone who replies, opts out or bounces is never followed up. WhatsApp has no automatic follow-ups yet (it needs a second approved template).
+                </p>
+              </section>
+            )}
             <section className="space-y-3">
               <h3 className="label">Language</h3>
               <div className="space-y-2">
@@ -391,6 +429,12 @@ export default function NewCampaign(): React.ReactElement {
                 <dt className="text-muted-foreground">Leads</dt>
                 <dd>{source === 'ai' ? `AI agent finds them${offeringForCampaign ? ` — ${offeringForCampaign.name}` : ''}` : `From ${file?.name}`}</dd>
                 <dt className="text-muted-foreground">Channels</dt><dd>{channels.map((c) => CHANNEL_LABEL[c]).join(', ')}</dd>
+                {emailOn && (
+                  <>
+                    <dt className="text-muted-foreground">Follow-ups</dt>
+                    <dd>{followups === 0 ? 'None' : `${followups} email follow-up${followups === 1 ? '' : 's'}, after ${followUpSteps.map((x) => x.delay_days).join(', ')} days, if there is no reply`}</dd>
+                  </>
+                )}
                 <dt className="text-muted-foreground">Language</dt>
                 <dd>{langMode === 'fixed' ? languageName(fixedLang) : `Each contact's own (unknown: ${fallback === 'country' ? 'from their country' : languageName(org.data?.default_language ?? 'en')})`}</dd>
                 <dt className="text-muted-foreground">Sender</dt><dd>{details.sender_name}, {details.sender_company}</dd>

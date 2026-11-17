@@ -25,6 +25,8 @@ export interface User {
   org_id?: string;
   role?: OrgRole;
   uid?: string;
+  /** False until they open the link we email them (only where email is set up). */
+  email_verified?: boolean;
 }
 
 export interface OrgSummary {
@@ -47,6 +49,13 @@ export interface SignupInput {
   country?: string;
 }
 
+export interface AcceptInviteInput {
+  token: string;
+  password: string;
+  full_name?: string;
+  accept_terms?: boolean;
+}
+
 interface AuthState {
   user: User | null;
   org: OrgSummary | null;
@@ -54,11 +63,15 @@ interface AuthState {
   /** True when the backend is in bypass mode — no real login required. */
   bypassMode: boolean;
   signupEnabled: boolean;
+  /** Can the server email people? (password reset, invitations, verification) */
+  emailEnabled: boolean;
 }
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
+  /** Join a company from an invitation link; signs the person in. */
+  acceptInvite: (input: AcceptInviteInput) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   switchOrg: (orgId: string) => Promise<void>;
@@ -75,28 +88,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     loading: true,
     bypassMode: false,
     signupEnabled: false,
+    emailEnabled: false,
   });
 
   const refresh = React.useCallback(async () => {
     let signupEnabled = false;
+    let emailEnabled = false;
     try {
-      const { data } = await api.get<{ signup_enabled: boolean }>('/api/auth/config');
+      const { data } = await api.get<{ signup_enabled: boolean; email_enabled?: boolean }>('/api/auth/config');
       signupEnabled = !!data.signup_enabled;
+      emailEnabled = !!data.email_enabled;
     } catch {
       // older API without /config: sign-up stays hidden
     }
     try {
       const { data } = await api.get<{ user: User; org: OrgSummary | null }>('/api/auth/me');
-      setState({ user: data.user, org: data.org, loading: false, bypassMode: false, signupEnabled });
+      setState({ user: data.user, org: data.org, loading: false, bypassMode: false, signupEnabled, emailEnabled });
     } catch (e) {
       // 404 on /api/auth/me means the backend isn't running local auth
       // (AUTH_MODE=bypass or cognito): treat as signed in and let the
       // backend's auth middleware enforce things its own way.
       if (e instanceof ApiClientError && e.status === 404) {
-        setState({ user: { email: 'bypass@local' }, org: null, loading: false, bypassMode: true, signupEnabled });
+        setState({ user: { email: 'bypass@local' }, org: null, loading: false, bypassMode: true, signupEnabled, emailEnabled });
         return;
       }
-      setState({ user: null, org: null, loading: false, bypassMode: false, signupEnabled });
+      setState({ user: null, org: null, loading: false, bypassMode: false, signupEnabled, emailEnabled });
     }
   }, []);
 
@@ -115,6 +131,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const signup = React.useCallback(
     async (input: SignupInput) => {
       await api.post('/api/auth/signup', input);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const acceptInvite = React.useCallback(
+    async (input: AcceptInviteInput) => {
+      await api.post('/api/auth/accept-invite', input);
       await refresh();
     },
     [refresh],
@@ -142,12 +166,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       ...state,
       login,
       signup,
+      acceptInvite,
       logout,
       refresh,
       switchOrg,
       needsOnboarding: !!state.user && !state.bypassMode && !!state.org && !state.org.onboarding_completed_at,
     }),
-    [state, login, signup, logout, refresh, switchOrg],
+    [state, login, signup, acceptInvite, logout, refresh, switchOrg],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

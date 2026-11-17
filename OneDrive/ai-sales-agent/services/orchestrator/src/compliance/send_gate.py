@@ -21,16 +21,24 @@ the contact's email / company domain / company name is on the profile's
 never-contact list, or the company is in a blocked country. (Opt-out
 confirmations are exempt: they go only to people who wrote to us.)
 
+Contact hours (profile rules.contact_hours, the prospect's local time) are
+checked here too, but a message outside the window is DEFERRED (`defer`),
+not blocked: it stays queued and goes out once the window opens.
+
 Runs inside the campaign's tenant: suppression is per org (RLS).
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 from dataclasses import dataclass
+from typing import Optional
 
 try:
+    from agents.contact_hours import within_contact_hours
     from agents.profile_rules import ProfileRules
 except ImportError:  # imported as src.compliance.send_gate
+    from src.agents.contact_hours import within_contact_hours  # type: ignore
     from src.agents.profile_rules import ProfileRules  # type: ignore
 
 CONFIRMATION_KIND = "opt_out_confirmation"
@@ -42,9 +50,12 @@ class SendDecision:
     allowed: bool
     reason: str
     is_confirmation: bool = False
+    # Not allowed RIGHT NOW but not blocked either (outside contact hours):
+    # the sender leaves the message queued and tries again next run.
+    defer: bool = False
 
 
-async def check_send(conn, message_id: str) -> SendDecision:
+async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -> SendDecision:
     row = await conn.fetchrow(
         """
         SELECT m.metadata->>'kind' AS kind,
@@ -62,7 +73,8 @@ async def check_send(conn, message_id: str) -> SendDecision:
                       AND o.metadata->>'kind' = $3
                       AND o.status IN ('SENT', 'DELIVERED', 'OPENED', 'REPLIED')
                ) AS already_confirmed,
-               c.email, p.company_domain, p.company_name, p.country,
+               c.email, c.country AS contact_country, p.company_domain, p.company_name, p.country,
+               (SELECT o.timezone FROM organizations o WHERE o.id = m.org_id) AS org_timezone,
                (SELECT jsonb_build_object('customers', op.customers, 'rules', op.rules)
                   FROM org_profiles op WHERE op.org_id = m.org_id) AS profile
           FROM messages m
@@ -82,12 +94,22 @@ async def check_send(conn, message_id: str) -> SendDecision:
         profile = row["profile"]
         if isinstance(profile, str):
             profile = json.loads(profile)
-        reason = ProfileRules.from_profile(profile).skip_reason(
+        rules = ProfileRules.from_profile(profile)
+        reason = rules.skip_reason(
             email=row["email"], domain=row["company_domain"],
             company_name=row["company_name"], country=row["country"],
         )
         if reason:
             return SendDecision(False, f"business profile: {reason}")
+        # Contact hours (the prospect's local time): wait, don't block.
+        in_hours, why = within_contact_hours(
+            rules.contact_hours,
+            countries=(row["contact_country"], row["country"]),
+            org_timezone=row["org_timezone"],
+            now=now,
+        )
+        if not in_hours:
+            return SendDecision(False, why, defer=True)
         return SendDecision(True, "ok")
     if is_conf and row["fresh"] and not row["already_confirmed"]:
         return SendDecision(True, "opt-out confirmation (principle 1 exception)", True)

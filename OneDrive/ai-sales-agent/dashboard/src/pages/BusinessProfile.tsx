@@ -283,6 +283,9 @@ function Summary({ section, profile }: { section: Section; profile: Profile }): 
         <Rows rows={[
           ['Never contact', never ? `${never} domain${never === 1 ? '' : 's'} or compan${never === 1 ? 'y' : 'ies'} (edit under Ideal customers)` : 'None (add them under Ideal customers)'],
           ['Blocked countries', list(r.blocked_countries?.map(countryName)) || 'None'],
+          ['Contact hours', r.contact_hours
+            ? `${r.contact_hours.start}–${r.contact_hours.end} their local time${r.contact_hours.weekdays_only ? ', Mon–Fri' : ''}`
+            : 'No limit'],
           ['Opted out', 'Kept automatically, in every language'],
         ]} />
       );

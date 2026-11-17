@@ -55,6 +55,14 @@ describe('profile', () => {
     expect(customersSchema.safeParse({ countries: ['Peru'] }).success).toBe(false);
   });
 
+  it('contact hours must start before they end', async () => {
+    const { rulesSchema } = await import('../src/lib/profile');
+    expect(rulesSchema.safeParse({ contact_hours: { start: '09:00', end: '19:00' } }).success).toBe(true);
+    expect(rulesSchema.parse({ contact_hours: { start: '09:00', end: '19:00' } }).contact_hours?.weekdays_only).toBe(true);
+    expect(rulesSchema.safeParse({ contact_hours: { start: '19:00', end: '09:00' } }).success).toBe(false);
+    expect(rulesSchema.safeParse({ contact_hours: { start: '9:00', end: '19:00' } }).success).toBe(false);
+  });
+
   it('the sample prompt uses only allowed proof and asks for native language', () => {
     const p = samplePrompt(FULL, {
       channel: 'whatsapp',
@@ -144,7 +152,7 @@ describe('auth: limits and switches without a database', () => {
     env.authJwtSecret = 'test-secret';
     const app = buildApp();
     const good = { full_name: 'Ana', company: 'Acme', email: 'ana@acme.test', password: 'a-long-password-1', accept_terms: true };
-    expect((await request(app).get('/api/auth/config')).body.data).toEqual({ mode: 'local', signup_enabled: false });
+    expect((await request(app).get('/api/auth/config')).body.data).toEqual({ mode: 'local', signup_enabled: false, email_enabled: false });
     expect((await request(app).post('/api/auth/signup').send(good)).status).toBe(404);
     env.signupEnabled = true;
     expect((await request(app).get('/api/auth/config')).body.data.signup_enabled).toBe(true);

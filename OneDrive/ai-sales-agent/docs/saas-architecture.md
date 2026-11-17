@@ -842,6 +842,82 @@ accounts — only accounts that passed a check with the provider.
   must still be set by the customer in Twilio (no automatic setup);
   open tracking and the unsubscribe link use the platform's domain.
 
+### Slice 3.5 as built (2026-11-16): contact hours and email follow-ups
+
+- **Contact hours** (profile `rules.contact_hours` {start, end,
+  weekdays_only}; `agents/contact_hours.py`): the window is the PROSPECT's
+  local time, from their country (the contact's own, else the company's;
+  unknown → the sending company's own time zone). `agents/
+  country_timezones.py` maps every ISO country to its main zone (generated
+  from the tz database; multi-zone countries use the zone most business
+  contacts are in — US New York, Brazil São Paulo, Russia Moscow…).
+  `tzdata` is in the orchestrator requirements. Outside the window the
+  send gate returns `defer` (not a block): the message stays QUEUED and the
+  next cron run sends it. Opt-out confirmations are exempt. A malformed rule
+  never silences an account. Editable in onboarding and Settings ›
+  Business profile; the API requires start before end (no overnight windows).
+- **Follow-ups** (`scripts/schedule_followups.py`, run by `auto_sends.sh`
+  before the email drain): sequence steps with channel `email`, action
+  EXACTLY `follow_up`, step_number ≥ 2 and `delay_days` = days after the
+  FIRST email (strictly increasing, max 5 steps, ≤ 90 days; API
+  `assertFollowUps`). For each contact whose first email was sent, whose
+  next step is due and who has not replied, opted out, bounced or
+  already has a queued message, it writes a short follow-up (sees the
+  earlier emails, profile voice/rules, their language) and queues it. If the
+  AI is down nothing is queued (retried next run). The sender threads it
+  (In-Reply-To / References, "Re: subject") and now stores the subject it
+  sent. Appson's older steps ("Follow-up 1"…) are not `follow_up` and stay
+  manual. The new-campaign wizard offers 0–3 follow-ups and the gap.
+- **Not yet**: WhatsApp follow-ups (outside the 24-hour window they need a
+  second Meta-approved template); per-campaign contact hours (it is
+  per company); editing the follow-up sequence of an existing campaign.
+
+### Slice 3.6 as built (2026-11-17): team, recovery, sessions that follow membership
+
+- **V23**: `org_invites` (tenant data, RLS; one open invite per address;
+  token stored hashed; 7-day expiry); `user_tokens` (reset 1 h, verify
+  3 days; hashed, single-use, no direct access); `users.email_verified_at`
+  (existing users grandfathered) and `password_changed_at`; SECURITY
+  DEFINER `invite_lookup`, `accept_invite`, `accept_invite_new_user`,
+  `issue_user_token`, `use_user_token`, `set_password`,
+  `mark_email_verified`, `session_state`.
+- **Platform email** (`lib/mailer.ts`): optional `PLATFORM_SMTP_HOST/_PORT/
+  _USER/_PASS` + `PLATFORM_MAIL_FROM`, `DASHBOARD_URL` for links. Without
+  it nothing is emailed: invitation and reset links are shown to the
+  owner/admin, and "forgot password" says to ask an admin
+  (`GET /api/auth/config` → `email_enabled`).
+- **Sessions follow the database** (`middleware/auth.ts`, `lib/
+  sessionState.ts`): each request checks the membership — the role is the
+  CURRENT role, and removal, a suspended org or a password changed after
+  the cookie was issued ends the session at once (15 s cache, dropped
+  immediately by changes made on the same instance; with several API
+  instances allow 15 s). The env operator and old cookies are exempt.
+- **Routes**: public `forgot-password` (always 200, no account
+  enumeration), `reset-password`, `verify-email`, `invite`, `accept-invite`
+  (new account: name + terms + 12-char password; existing account: its
+  password proves identity); signed-in `resend-verification`; team:
+  `GET /api/team`, invitations (create/replace/withdraw), role change,
+  remove, hand-over reset link. Owners manage admins, members and viewers;
+  admins manage members and viewers; nobody changes themselves; owners are
+  never changed here.
+- **Email verification** gates only launching a campaign, and only where
+  email is configured (`REQUIRE_VERIFIED_EMAIL`, default true).
+- **Dashboard**: /forgot-password, /reset-password, /accept-invite,
+  /verify-email; Settings › Team (invite + copyable link, pending list,
+  role selector, reset link, remove with confirmation; hidden from
+  members/viewers); "Forgot password?" on sign-in when email works; a
+  "Verify your email" banner with resend.
+- **Tests/browser**: API 206 (end-to-end: verification, invites to new and
+  existing accounts, role limits, role change and removal on the next
+  request, reset ending older sessions, suspended org). Browser (no email
+  configured): invite → link → join as member (no Team in the nav),
+  manager page refused for members, role change, reset link and mismatch
+  guard, reused link refused, remove. The emailed paths are covered by the
+  live tests (mail captured by a hook).
+- **Not yet**: ownership transfer; Google sign-in; Terms/Privacy pages; a
+  "sign out everywhere" button; platform-wide admin (suspending an
+  organization is a database change today).
+
 ## Voice channel
 
 **Decision:** we build our own voice stack (ElevenLabs-class) rather than
