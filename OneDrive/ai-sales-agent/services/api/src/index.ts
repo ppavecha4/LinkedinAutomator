@@ -19,6 +19,7 @@ import { closePool, query } from './db/client';
 import { env } from './env';
 import { logger } from './logger';
 import { ApiError } from './lib/errors';
+import { startAccountHealth } from './lib/accountHealth';
 import { closeRedis, pingRedis } from './lib/redis';
 import { auth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
@@ -26,6 +27,7 @@ import { requestLogger } from './middleware/requestLogger';
 import analyticsRouter from './routes/analytics';
 import authRouter from './routes/auth';
 import recoveryRouter from './routes/recovery';
+import platformRouter from './routes/platform';
 import teamRouter from './routes/team';
 import campaignsRouter from './routes/campaigns';
 import inboxRouter from './routes/inbox';
@@ -176,6 +178,7 @@ app.use(importsRouter);
 app.use(offeringsRouter);
 app.use(profileRouter);
 app.use(teamRouter);
+app.use(platformRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).
 app.use('/api', (_req, _res, next) => {
@@ -196,6 +199,8 @@ server.listen(port, () => {
     node_env: env.nodeEnv,
     auth_mode: env.authMode,
   });
+  // Hourly re-check of connected accounts (local-auth deployments only).
+  startAccountHealth();
 });
 
 // Graceful shutdown — drain HTTP, close WS, release Redis + DB.

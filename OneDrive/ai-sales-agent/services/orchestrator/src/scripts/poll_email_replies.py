@@ -63,9 +63,11 @@ try:
     from db.accounts import AccountError, email_account_from, resolve_public
     from db.provider_keys import is_operator_org
     from db.vault import VaultError, load_credential
+    from agents.bounces import parse_report, pause_if_bouncing, record_bounce
     from agents.optout import detect_opt_out
     from agents.reply_recorder import record_opt_out
 except ImportError:  # pragma: no cover
+    from src.agents.bounces import parse_report, pause_if_bouncing, record_bounce  # type: ignore
     from src.db.tenant import create_pool as create_tenant_pool, tenant  # type: ignore
     from src.db.accounts import AccountError, email_account_from, resolve_public  # type: ignore
     from src.db.provider_keys import is_operator_org  # type: ignore
@@ -384,6 +386,26 @@ async def handle_email_reply(conn, row, *, body: str, dry_run: bool) -> str:
     return "opt_out"
 
 
+async def handle_bounce(pool, bounce, *, only_org: Optional[str] = None, dry_run: bool = False) -> str:
+    """Record one delivery failure for the contact it belongs to (slice 3.7).
+    Returns 'recorded', 'paused' (it also paused the campaign) or 'ignored'."""
+    refs = [bounce.original_message_id] if bounce.original_message_id else []
+    if not refs and not bounce.recipient:
+        return "ignored"
+    async with pool.acquire() as conn:
+        row = await _match_contact(conn, bounce.recipient or "", refs)
+    if not row or (only_org and str(row["org_id"]) != only_org):
+        return "ignored"
+    if dry_run:
+        return "recorded"
+    with tenant(row["org_id"]):
+        async with pool.acquire() as conn:
+            if not await record_bounce(conn, contact_id=row["contact_id"], campaign_id=row["campaign_id"],
+                                       prospect_id=row["prospect_id"], bounce=bounce):
+                return "ignored"
+            return "paused" if await pause_if_bouncing(conn, row["campaign_id"]) else "recorded"
+
+
 async def poll_mailbox(
     pool, args: argparse.Namespace, *, email_addr: str, password: str,
     host: str = IMAP_HOST, port: int = IMAP_PORT, connect_ip: Optional[str] = None,
@@ -406,6 +428,14 @@ async def poll_mailbox(
     for uid, msg in messages:
         from_hdr = msg.get("From", "")
         sender = email.utils.parseaddr(from_hdr)[1].lower()
+        # Delivery-failure notices are not replies: record them (slice 3.7).
+        kind, bounce = parse_report(msg, mailbox=email_addr)
+        if kind != "none":
+            if bounce is not None:
+                outcome = await handle_bounce(pool, bounce, only_org=only_org, dry_run=args.dry_run)
+                print(f"  bounce for {bounce.recipient or '?'} ({bounce.status or 'no status'}): {outcome}")
+            skipped += 1
+            continue
         # Ignore our own sent copies / automated noise.
         if not sender or sender == email_addr.lower():
             skipped += 1

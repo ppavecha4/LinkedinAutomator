@@ -3,6 +3,9 @@
  * No database.
  */
 
+import http from 'http';
+import type { AddressInfo } from 'net';
+
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -13,6 +16,7 @@ import {
   draftProfileFromWebsite,
   htmlToText,
   isPrivateAddress,
+  pinnedFetch,
   safeFetch,
   WebsiteError,
 } from '../src/lib/websiteReader';
@@ -112,6 +116,48 @@ describe('website reader: SSRF guard', () => {
   });
 });
 
+describe('website reader: the connection is pinned to the address that was checked', () => {
+  it('connects to the pinned address, not to whatever the name resolves to later', async () => {
+    const server = http.createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(`<p>hello from ${req.headers.host}</p>`); });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const port = (server.address() as AddressInfo).port;
+      // "rebind.invalid" cannot resolve at all: the only way this succeeds is the pin.
+      const r = await pinnedFetch(new URL(`http://rebind.invalid:${port}/`), {}, '127.0.0.1');
+      expect(await r.text()).toBe(`<p>hello from rebind.invalid:${port}</p>`);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('hands the checked address to the fetcher, once per hop, and never looks the name up again', async () => {
+    const lookups: string[] = [];
+    // A hostile DNS server: public the first time, the cloud metadata address afterwards.
+    const resolve = async (host: string) => { lookups.push(host); return lookups.length === 1 ? ['93.184.216.34'] : ['169.254.169.254']; };
+    const seen: Array<[string, string]> = [];
+    const fetchImpl = (async (u: URL, _init: RequestInit, address: string) => {
+      seen.push([u.hostname, address]);
+      return new Response('<p>ok</p>', { status: 200, headers: { 'content-type': 'text/html' } });
+    });
+    await safeFetch('https://acme.test/', { fetchImpl, resolve });
+    expect(seen).toEqual([['acme.test', '93.184.216.34']]);   // the connection uses the address we checked
+    expect(lookups).toEqual(['acme.test']);                   // ...and DNS was asked exactly once
+  });
+
+  it('checks and pins every redirect hop afresh', async () => {
+    const answers: Record<string, string[]> = { 'a.test': ['93.184.216.34'], 'b.test': ['8.8.8.8'] };
+    const seen: Array<[string, string]> = [];
+    const fetchImpl = (async (u: URL, _init: RequestInit, address: string) => {
+      seen.push([u.hostname, address]);
+      return u.hostname === 'a.test'
+        ? new Response(null, { status: 302, headers: { location: 'https://b.test/x' } })
+        : new Response('<p>ok</p>', { status: 200, headers: { 'content-type': 'text/html' } });
+    });
+    await safeFetch('https://a.test/', { fetchImpl, resolve: async (h) => answers[h] });
+    expect(seen).toEqual([['a.test', '93.184.216.34'], ['b.test', '8.8.8.8']]);
+  });
+});
+
 describe('website reader: text + draft', () => {
   it('keeps visible text, drops scripts, finds the about page', () => {
     const html = `<html><head><title>Acme Exports</title><meta name="description" content="Export packaging">
@@ -139,10 +185,12 @@ describe('auth: limits and switches without a database', () => {
   const original = { ...env };
   afterEach(() => Object.assign(env, original));
 
-  it('rate limiter answers 429 after the limit', () => {
+  it('rate limiter answers 429 after the limit', async () => {
     const lim = authRateLimit({ name: 't', windowMs: 60_000, max: 2, key: () => 'k' });
     const results: unknown[] = [];
-    for (let i = 0; i < 3; i += 1) lim({} as never, {} as never, (e?: unknown) => results.push(e));
+    for (let i = 0; i < 3; i += 1) {
+      await new Promise<void>((done) => lim({} as never, {} as never, (e?: unknown) => { results.push(e); done(); }));
+    }
     expect(results.slice(0, 2)).toEqual([undefined, undefined]);
     expect((results[2] as { status: number }).status).toBe(429);
   });

@@ -221,8 +221,10 @@ router.put(
           [[...emails], [...phones]],
         ),
         query<{ email: string | null; phone: string | null }>(
+          // A bounced ADDRESS is not an opt-out: the person may still be reachable
+          // on WhatsApp (the send gate blocks only the email channel).
           `SELECT lower(email) AS email, whatsapp_number AS phone FROM suppression_list
-            WHERE expires_at IS NULL AND (lower(email) = ANY($1) OR whatsapp_number = ANY($2))`,
+            WHERE expires_at IS NULL AND reason <> 'BOUNCE' AND (lower(email) = ANY($1) OR whatsapp_number = ANY($2))`,
           [[...emails], [...phones]],
         ),
       ]);

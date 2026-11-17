@@ -25,6 +25,13 @@ export interface CheckResult {
   ok: boolean;
   /** Why it failed, in words the customer can act on. */
   error?: string;
+  /**
+   * The provider could not be reached or had a bad moment (timeout, 5xx,
+   * 429, DNS, connection refused): says nothing about the credential. The
+   * periodic re-check leaves a VERIFIED account alone on these instead of
+   * switching sending off for a provider hiccup.
+   */
+  transient?: boolean;
 }
 
 export interface SmtpTarget {
@@ -98,7 +105,7 @@ async function checkAnthropic(secret: Strings): Promise<CheckResult> {
   });
   if (r.ok) return { ok: true };
   if (r.status === 401 || r.status === 403) return { ok: false, error: 'Anthropic rejected this API key.' };
-  return { ok: false, error: `Anthropic answered ${r.status}; try again in a minute.` };
+  return { ok: false, error: `Anthropic answered ${r.status}; try again in a minute.`, transient: true };
 }
 
 async function checkApollo(secret: Strings): Promise<CheckResult> {
@@ -106,7 +113,7 @@ async function checkApollo(secret: Strings): Promise<CheckResult> {
     headers: { 'X-Api-Key': secret.api_key ?? '', 'Cache-Control': 'no-cache' },
   });
   if (r.status === 401 || r.status === 403) return { ok: false, error: 'Apollo rejected this API key.' };
-  if (!r.ok) return { ok: false, error: `Apollo answered ${r.status}; try again in a minute.` };
+  if (!r.ok) return { ok: false, error: `Apollo answered ${r.status}; try again in a minute.`, transient: true };
   const body = (await r.json().catch(() => ({}))) as { is_logged_in?: boolean };
   return body.is_logged_in ? { ok: true } : { ok: false, error: 'Apollo did not accept this API key.' };
 }
@@ -123,7 +130,7 @@ async function checkTwilio(secret: Strings, meta: Meta): Promise<CheckResult> {
   if (r.status === 401 || r.status === 403 || r.status === 404) {
     return { ok: false, error: 'Twilio rejected this Account SID and auth token.' };
   }
-  if (!r.ok) return { ok: false, error: `Twilio answered ${r.status}; try again in a minute.` };
+  if (!r.ok) return { ok: false, error: `Twilio answered ${r.status}; try again in a minute.`, transient: true };
   const body = (await r.json().catch(() => ({}))) as { status?: string };
   if (body.status && body.status !== 'active') return { ok: false, error: `This Twilio account is ${body.status}.` };
   return { ok: true };
@@ -139,7 +146,7 @@ export async function resolvePublicSmtp(meta: Meta): Promise<{ host: string; ip:
   try {
     ips = await hooks.resolve(host);
   } catch {
-    return { ok: false, error: `Could not find the mail server ${host}.` };
+    return { ok: false, error: `Could not find the mail server ${host}.`, transient: true };
   }
   if (!ips.length || ips.some(isPrivateAddress)) {
     return { ok: false, error: `${host} is not a public mail server.` };
@@ -172,7 +179,7 @@ async function checkSmtp(provider: string, secret: Strings, meta: Meta): Promise
       };
     }
     if (err.code === 'ETIMEDOUT' || err.code === 'ECONNECTION' || err.code === 'ESOCKET') {
-      return { ok: false, error: 'Could not reach the mail server on that port.' };
+      return { ok: false, error: 'Could not reach the mail server on that port.', transient: true };
     }
     return { ok: false, error: clean(`The mail server said: ${err.message ?? 'unknown error'}`, secret) };
   }
@@ -191,7 +198,7 @@ export async function checkCredential(provider: string, secret: Strings, meta: M
     }
   } catch (e) {
     const name = (e as Error)?.name;
-    if (name === 'TimeoutError' || name === 'AbortError') return { ok: false, error: 'The provider did not answer in time; try again.' };
-    return { ok: false, error: clean(`Could not check this account: ${(e as Error)?.message ?? 'unknown error'}`, secret) };
+    if (name === 'TimeoutError' || name === 'AbortError') return { ok: false, error: 'The provider did not answer in time; try again.', transient: true };
+    return { ok: false, error: clean(`Could not check this account: ${(e as Error)?.message ?? 'unknown error'}`, secret), transient: true };
   }
 }

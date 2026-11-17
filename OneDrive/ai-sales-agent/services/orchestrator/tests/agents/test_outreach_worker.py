@@ -177,3 +177,55 @@ def test_humanisation_delay_ranges_match_spec():
     assert HUMANISATION_DELAYS["email"] == (30.0, 180.0)
     assert HUMANISATION_DELAYS["linkedin"] == (60.0, 300.0)
     assert HUMANISATION_DELAYS["whatsapp"] == (45.0, 120.0)
+
+
+# ── SaaS slice 3.9: the worker serves the operator organization only ────
+
+OPERATOR = "00000000-0000-0000-0000-0000000000a1"
+CUSTOMER = "abababab-abab-4bab-8bab-abababababab"
+
+
+class _OrgAwareRepo(FakeMessageQueueRepo):
+    """The real repo answers org_id_of() from the database (org_of_message)."""
+
+    def __init__(self, org: str) -> None:
+        super().__init__()
+        self.org = org
+        self.reasons: List[str] = []
+
+    async def org_id_of(self, message_id: str):
+        return self.org
+
+    async def mark_failed(self, message_id: str, reason=None) -> None:
+        self.failed.append(message_id)
+        if reason:
+            self.reasons.append(reason)
+
+
+async def test_customer_messages_are_refused_never_sent_with_the_operators_keys(monkeypatch):
+    monkeypatch.delenv("AUTH_ORG_ID", raising=False)
+    email = FakeEmailChannel()
+    repo = _OrgAwareRepo(CUSTOMER)
+    worker, sqs, _ = _worker(inbox=[make_email_job()], email_channel=email, repo=repo)
+    await worker.run_once()
+    assert email.sent == [] and repo.sent == []
+    assert repo.failed == ["msg_1"] and "operator organization only" in repo.reasons[0]
+    assert any(s["QueueUrl"].endswith("-dlq") for s in sqs.sent)   # kept for inspection
+    assert sqs.deleted == ["rh-msg_1"]
+
+
+async def test_operator_messages_still_send(monkeypatch):
+    monkeypatch.delenv("AUTH_ORG_ID", raising=False)
+    email = FakeEmailChannel()
+    repo = _OrgAwareRepo(OPERATOR)
+    worker, _, _ = _worker(inbox=[make_email_job()], email_channel=email, repo=repo)
+    await worker.run_once()
+    assert repo.sent == ["msg_1"] and repo.failed == []
+
+
+async def test_the_configured_operator_org_is_honoured(monkeypatch):
+    monkeypatch.setenv("AUTH_ORG_ID", CUSTOMER.upper())   # case does not matter
+    repo = _OrgAwareRepo(CUSTOMER)
+    worker, _, _ = _worker(inbox=[make_email_job()], repo=repo)
+    await worker.run_once()
+    assert repo.sent == ["msg_1"]

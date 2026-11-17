@@ -18,6 +18,7 @@
 
 import { lookup } from 'dns/promises';
 import { isIP } from 'net';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 import { z } from 'zod';
 
@@ -60,7 +61,13 @@ export function isPrivateAddress(ip: string): boolean {
 type Resolver = (host: string) => Promise<string[]>;
 const defaultResolver: Resolver = async (host) => (await lookup(host, { all: true })).map((a) => a.address);
 
-export async function assertPublicUrl(raw: string, resolve: Resolver = defaultResolver): Promise<URL> {
+/**
+ * Validate a URL AND return the address we checked. The connection is then
+ * pinned to that address (pinnedFetch), so a DNS answer that changes between
+ * our check and the connection ("DNS rebinding": public when checked, the
+ * metadata service when connected) cannot redirect the request.
+ */
+export async function resolveChecked(raw: string, resolve: Resolver = defaultResolver): Promise<{ url: URL; address: string }> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -78,15 +85,38 @@ export async function assertPublicUrl(raw: string, resolve: Resolver = defaultRe
     throw new WebsiteError('could not find that website');
   });
   if (addrs.length === 0 || addrs.some(isPrivateAddress)) throw new WebsiteError('that address is not a public website');
-  return url;
+  return { url, address: addrs[0] };
 }
 
-type Fetcher = typeof fetch;
+export async function assertPublicUrl(raw: string, resolve: Resolver = defaultResolver): Promise<URL> {
+  return (await resolveChecked(raw, resolve)).url;
+}
+
+/** Fetch a URL over a connection pinned to `address` (TLS is still verified against the URL's host name). */
+export async function pinnedFetch(url: URL, init: RequestInit, address: string): Promise<Response> {
+  const family = isIP(address) === 6 ? 6 : 4;
+  const agent = new Agent({
+    keepAliveTimeout: 1,
+    connect: {
+      lookup: (_host, options, cb) => {
+        // Node passes {all: true} on some paths and expects a list back.
+        if ((options as { all?: boolean } | undefined)?.all) (cb as (e: null, a: Array<{ address: string; family: number }>) => void)(null, [{ address, family }]);
+        else (cb as (e: null, a: string, f: number) => void)(null, address, family);
+      },
+    },
+  });
+  // The body is read after this returns; close the agent later, not now.
+  setTimeout(() => void agent.close().catch(() => undefined), 60_000).unref();
+  return (await undiciFetch(url.toString(), { ...(init as object), dispatcher: agent } as never)) as unknown as Response;
+}
+
+/** What safeFetch calls: `address` is the checked address to connect to. */
+type Fetcher = (url: URL, init: RequestInit, address: string) => Promise<Response>;
 
 /** Fetch one page safely; returns its HTML/text and final URL. */
 export async function safeFetch(raw: string, opts: { fetchImpl?: Fetcher; resolve?: Resolver } = {}): Promise<{ url: URL; body: string }> {
-  const fetchImpl = opts.fetchImpl ?? fetch;
-  let url = await assertPublicUrl(raw, opts.resolve);
+  const fetchImpl = opts.fetchImpl ?? pinnedFetch;
+  let { url, address } = await resolveChecked(raw, opts.resolve);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -95,11 +125,12 @@ export async function safeFetch(raw: string, opts: { fetchImpl?: Fetcher; resolv
         redirect: 'manual',
         signal: ctrl.signal,
         headers: { 'user-agent': 'Mozilla/5.0 (compatible; ProfileReader/1.0)', accept: 'text/html,text/plain' },
-      });
+      }, address);
       if (r.status >= 300 && r.status < 400) {
         const loc = r.headers.get('location');
         if (!loc) throw new WebsiteError('the website redirected nowhere');
-        url = await assertPublicUrl(new URL(loc, url).toString(), opts.resolve);
+        // Every redirect hop is checked and pinned afresh.
+        ({ url, address } = await resolveChecked(new URL(loc, url).toString(), opts.resolve));
         continue;
       }
       if (!r.ok) throw new WebsiteError(`the website answered ${r.status}`);

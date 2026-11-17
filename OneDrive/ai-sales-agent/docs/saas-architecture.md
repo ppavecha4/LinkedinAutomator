@@ -918,6 +918,73 @@ accounts — only accounts that passed a check with the provider.
   "sign out everywhere" button; platform-wide admin (suspending an
   organization is a database change today).
 
+### Slices 3.7–3.9 as built (2026-11-17): account health, platform admin, hardening
+
+**3.7 — bounces and account health**
+- **Email bounces** (`agents/bounces.py`, wired into `poll_email_replies.py`
+  for the operator's AND every customer mailbox): a delivery-failure
+  notice (RFC 3464 DSN, plus a plain-text fallback) is recognised instead
+  of being skipped as an "auto-reply". The sent message becomes BOUNCED,
+  that contact's other queued EMAILS are cancelled, and a permanent (5.x.x)
+  failure suppresses the address with reason `BOUNCE` — for EMAIL ONLY: the
+  send gate applies BOUNCE rows to the email channel, and lead imports no
+  longer call a bounced address an opt-out, so their WhatsApp still works.
+  Delay notices are ignored. A bounce is never a reply (no conversation,
+  prospect not REPLIED). A campaign whose last 14 days show ≥ 10 % bounces
+  over ≥ 20 sends is paused automatically, with the reason in its audit log.
+- **Periodic re-check** (V24 `claim_credentials_for_recheck`,
+  `lib/accountHealth.ts`): hourly (ACCOUNT_RECHECK_INTERVAL_MINUTES) the API
+  re-checks VERIFIED accounts not checked for ACCOUNT_RECHECK_AGE_HOURS
+  (24). Still fine → stays VERIFIED; definitively rejected → FAILED with the
+  reason (the senders use only VERIFIED accounts, so sending stops) and the
+  owners/admins are emailed once when the platform can email; provider
+  unreachable (timeout, 5xx, 429, DNS) → left alone (`transient`). Claims use
+  SKIP LOCKED so several API instances never check the same account. The
+  dashboard shows a banner to managers while an account is FAILED. The
+  operator org (on .env keys) is not re-checked.
+- Tested: DSN parsing (incl. an IP address inside a notice being misread as a
+  status code — fixed), end-to-end through the mailbox poller, auto-pause
+  thresholds, re-check outcomes and the double-claim race.
+
+**3.8 — platform admin** (V25, `routes/platform.ts`, `lib/platformAdmin.ts`,
+Companies page)
+- Platform admin = the env operator, or an address in PLATFORM_ADMIN_EMAILS
+  **once its email is verified** (otherwise anyone could sign up first with
+  an admin's address). Cross-company reads/writes only through SECURITY
+  DEFINER functions (`platform_orgs`, `platform_org_members`,
+  `platform_update_org`, `platform_audit_recent`); every change is recorded in
+  `platform_audit`.
+- Per company: plan, entitled channels (refused while a live campaign uses a
+  channel being removed — V19's trigger fires only on campaign changes, so
+  the function checks), extra free onboarding AI uses, suspend / cancel /
+  reactivate. **Suspending** signs everyone out at once, pauses ACTIVE
+  campaigns (audit-logged), makes `pending_campaigns` / import polling skip the
+  company and makes the send gate DEFER everything it has queued;
+  reactivating restores access and sending but leaves campaigns paused for the
+  owner to resume. The operator org cannot be suspended.
+- Found while testing: an audit row written by a platform function took the
+  CALLER's company (the `org_id` default) — functions that write for another
+  company must set `org_id` explicitly; and a reactivated company stayed
+  locked out until the 15 s session cache expired — now cleared.
+
+**3.9 — hardening**
+- **DNS rebinding closed** (`lib/websiteReader.ts`, `undici`): the website
+  reader resolves a name once, checks every address is public, then forces
+  the connection to that address (TLS still verified against the name);
+  every redirect hop is checked and pinned afresh.
+- **Rate limits in Redis** (`middleware/authRateLimit.ts`): shared by all API
+  instances through an atomic Lua counter that always carries an expiry; if
+  Redis is down each instance counts on its own (never locks anyone out or
+  breaks sign-in). Without REDIS_URL it behaves as before.
+- **Queue worker** (`outreach-worker`): it sends with the server's .env keys,
+  so it now serves the operator org only; a customer's message is failed with
+  a reason, copied to the dead-letter queue and never sent. Its status
+  updates also set the operator tenant, so they work under row-level
+  security. (The reply-processor only talks to the API, so it needed no
+  change.)
+- **Not yet**: customer sending through the queue path (customers send
+  through the orchestrator's cron senders); a "sign out everywhere" button.
+
 ## Voice channel
 
 **Decision:** we build our own voice stack (ElevenLabs-class) rather than

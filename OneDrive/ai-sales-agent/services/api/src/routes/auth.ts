@@ -32,6 +32,7 @@ import { env } from '../env';
 import { ApiError } from '../lib/errors';
 import { emailVerificationLink } from '../lib/accountTokens';
 import { mailerConfigured } from '../lib/mailer';
+import { isPlatformAdmin } from '../lib/platformAdmin';
 import { sessionState } from '../lib/sessionState';
 import { ok } from '../lib/response';
 import { isOrgRole, isUuid, runWithTenant, type OrgRole } from '../lib/tenantContext';
@@ -279,6 +280,7 @@ router.get('/api/auth/me', async (req, res, next) => {
       user: {
         email: decoded.email, org_id: orgId, role: state?.role ?? role, uid: userId,
         email_verified: state ? !!state.email_verified_at : true,
+        platform_admin: await isPlatformAdmin({ id: userId, orgId, email: decoded.email }),
       },
       org: org?.rows[0] ?? null,
     });

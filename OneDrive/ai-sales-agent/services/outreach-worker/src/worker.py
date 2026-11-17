@@ -58,8 +58,23 @@ except Exception:  # pragma: no cover
         """Fallback — real one lives in services/orchestrator/src/compliance/suppression.py."""
 
 
+LEGACY_ORG_ID = "00000000-0000-0000-0000-0000000000a1"
+
+
+def operator_org_id() -> str:
+    """The organization whose .env keys this worker sends with (AUTH_ORG_ID)."""
+    return (os.environ.get("AUTH_ORG_ID") or LEGACY_ORG_ID).strip().lower()
+
+
 class OutreachWorker:
-    """SQS consumer that dispatches queued messages to channel classes."""
+    """SQS consumer that dispatches queued messages to channel classes.
+
+    SaaS (slice 3.9): the channel classes send with the server's own .env
+    keys, so this worker serves the OPERATOR organization only. A message
+    that belongs to a customer company is never sent from here (customers
+    send from their own connected accounts through the orchestrator's
+    senders); it is failed with a reason and sent to the dead-letter queue.
+    """
 
     def __init__(
         self,
@@ -134,6 +149,26 @@ class OutreachWorker:
         campaign_id = job.get("campaign_id", "")
         channel = (job.get("channel") or "").lower()
         content = job.get("content") or {}
+
+        # Customers' messages are not ours to send: refuse, never fall back to
+        # the operator's keys. Unknown org (in-memory repo, local dev) proceeds.
+        org_of = getattr(self.repo, "org_id_of", None)
+        if org_of is not None and message_id:
+            try:
+                org = (await org_of(message_id) or "").lower()
+            except Exception:
+                logger.exception("could not determine the organization of %s; deferring", message_id)
+                return  # leave on the queue for redelivery
+            if org and org != operator_org_id():
+                logger.error("refusing %s: it belongs to a customer organization", message_id)
+                await self.repo.mark_failed(message_id, "not sent: this worker serves the operator organization only")
+                if self.dlq_url:
+                    try:
+                        self.sqs.send_message(QueueUrl=self.dlq_url, MessageBody=body_str)
+                    except Exception:
+                        logger.exception("DLQ publish failed")
+                self._delete(receipt)
+                return
 
         channel_impl = self.channels.get(channel)
         if channel_impl is None:
@@ -476,22 +511,38 @@ class _AsyncpgMessageQueueRepo:
             self._pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=4)
         return self._pool
 
-    async def _set_status(self, message_id: str, status: str) -> None:
+    async def org_id_of(self, message_id: str) -> Optional[str]:
+        """The organization a message belongs to, through V17's SECURITY
+        DEFINER lookup (works without a tenant, under the non-superuser role)."""
+        if not message_id:
+            return None
+        pool = await self._ensure()
+        async with pool.acquire() as conn:
+            org = await conn.fetchval("SELECT org_of_message($1::uuid)", message_id)
+        return str(org) if org else None
+
+    async def _set_status(self, message_id: str, status: str, reason: Optional[str] = None) -> None:
         if not message_id:
             return
         pool = await self._ensure()
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE messages
-                   SET status = $1,
-                       sent_at = CASE WHEN $1 = 'SENT' THEN now() ELSE sent_at END,
-                       failed_at = CASE WHEN $1 = 'FAILED' THEN now() ELSE failed_at END
-                 WHERE id = $2::uuid
-                """,
-                status,
-                message_id,
-            )
+            # Row-level security: act as the operator organization (the only
+            # one this worker serves), or the UPDATE matches no rows.
+            async with conn.transaction():
+                await conn.execute("SELECT set_config('app.current_org', $1, true)", operator_org_id())
+                await conn.execute(
+                    """
+                    UPDATE messages
+                       SET status = $1,
+                           sent_at = CASE WHEN $1 = 'SENT' THEN now() ELSE sent_at END,
+                           failed_at = CASE WHEN $1 = 'FAILED' THEN now() ELSE failed_at END,
+                           failure_reason = COALESCE($3, failure_reason)
+                     WHERE id = $2::uuid
+                    """,
+                    status,
+                    message_id,
+                    reason,
+                )
 
     async def mark_sent(self, message_id: str) -> None:
         await self._set_status(message_id, "SENT")
@@ -499,8 +550,8 @@ class _AsyncpgMessageQueueRepo:
     async def mark_suppressed(self, message_id: str) -> None:
         await self._set_status(message_id, "SUPPRESSED")
 
-    async def mark_failed(self, message_id: str) -> None:
-        await self._set_status(message_id, "FAILED")
+    async def mark_failed(self, message_id: str, reason: Optional[str] = None) -> None:
+        await self._set_status(message_id, "FAILED", reason)
 
 
 class _InMemoryMessageQueueRepo:
@@ -516,7 +567,7 @@ class _InMemoryMessageQueueRepo:
     async def mark_suppressed(self, message_id: str) -> None:
         self.suppressed.append(message_id)
 
-    async def mark_failed(self, message_id: str) -> None:
+    async def mark_failed(self, message_id: str, reason: Optional[str] = None) -> None:
         self.failed.append(message_id)
 
 

@@ -24,6 +24,7 @@
     "libphonenumber-js": "^1.13.16",
     "nodemailer": "10.2.1",
     "pg": "^8.12.0",
+    "undici": "6.29.1",
     "winston": "^3.14.2",
     "ws": "^8.18.0",
     "zod": "^3.23.8"

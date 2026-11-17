@@ -23,6 +23,7 @@ import offeringsRouter from '../src/routes/offerings';
 import profileRouter from '../src/routes/profile';
 import authRouter from '../src/routes/auth';
 import recoveryRouter from '../src/routes/recovery';
+import platformRouter from '../src/routes/platform';
 import teamRouter from '../src/routes/team';
 import webhooksRouter from '../src/routes/webhooks';
 import { ApiError } from '../src/lib/errors';
@@ -72,6 +73,7 @@ export function buildApp(): express.Express {
   app.use(offeringsRouter);
   app.use(profileRouter);
   app.use(teamRouter);
+  app.use(platformRouter);
 
   app.use('/api', (_req, _res, next) => {
     next(ApiError.notFound('route not found'));

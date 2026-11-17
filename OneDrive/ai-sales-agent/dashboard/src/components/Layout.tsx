@@ -46,7 +46,8 @@ import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { useOrganization } from '../hooks/useWorkspace';
+import { useCredentials, useOrganization } from '../hooks/useWorkspace';
+import { ACCOUNT_KINDS } from '../lib/workspace';
 import { api } from '../lib/api';
 import { errorMessage, type Membership, useAuth } from '../lib/authContext';
 import { cn } from '../lib/cn';
@@ -84,6 +85,8 @@ interface NavItem {
   operatorOnly?: boolean;
   /** Owners and admins only (not shown to members and viewers). */
   managerOnly?: boolean;
+  /** Platform administrators only (the people running the product). */
+  platformOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -97,6 +100,7 @@ const NAV: NavItem[] = [
   { to: '/settings/profile', label: 'Business profile', end: true, icon: Building2, section: 'Account' },
   { to: '/settings/connections', label: 'Connected accounts', end: true, icon: Plug, section: 'Account' },
   { to: '/settings/team', label: 'Team', end: true, icon: Users, section: 'Account', managerOnly: true },
+  { to: '/platform', label: 'Companies', end: true, icon: Building2, section: 'Platform', platformOnly: true },
   { to: '/settings', label: 'Settings', end: true, icon: SettingsIcon, section: 'Account' },
 ];
 
@@ -164,17 +168,20 @@ export default function Layout(): React.ReactElement {
   const { data: orgInfo } = useOrganization();
   const isOperator = orgInfo?.operator ?? bypassMode;
   const isManager = !user?.role || user.role === 'owner' || user.role === 'admin';
+  // Accounts that passed a check once and stopped working since (slice 3.7).
+  const { data: credentials } = useCredentials(isManager && !bypassMode && !isOperator);
+  const brokenAccounts = (credentials ?? []).filter((c) => c.status === 'FAILED' && c.has_secret);
 
   // Group NAV by section for the sidebar.
   const grouped = React.useMemo(() => {
     const map = new Map<string, NavItem[]>();
-    NAV.filter((n) => (!n.operatorOnly || isOperator) && (!n.managerOnly || isManager)).forEach((n) => {
+    NAV.filter((n) => (!n.operatorOnly || isOperator) && (!n.managerOnly || isManager) && (!n.platformOnly || user?.platform_admin === true)).forEach((n) => {
       const key = n.section ?? 'Other';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(n);
     });
     return Array.from(map.entries());
-  }, [isOperator, isManager]);
+  }, [isOperator, isManager, user?.platform_admin]);
 
   return (
     <>
@@ -510,6 +517,20 @@ export default function Layout(): React.ReactElement {
           {/* Page content */}
           <div className="flex-1 overflow-auto">
             <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 animate-fade-in">
+              {brokenAccounts.length > 0 && (
+                <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 sm:flex-row sm:items-center">
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">
+                      {brokenAccounts.length === 1 ? 'A connected account stopped working' : `${brokenAccounts.length} connected accounts stopped working`}.
+                    </span>{' '}
+                    <span className="text-muted-foreground">
+                      {brokenAccounts.map((c) => ACCOUNT_KINDS.find((k) => k.providers.some((p) => p.id === c.provider))?.title ?? c.provider).join(', ')}
+                      {brokenAccounts[0].last_error ? `: ${brokenAccounts[0].last_error}` : ''} Sending that needs it is on hold; nothing is lost.
+                    </span>
+                  </div>
+                  <button type="button" className="btn-secondary shrink-0" onClick={() => navigate('/settings/connections')}>Fix it</button>
+                </div>
+              )}
               {needsVerification && (
                 <div role="status" className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 sm:flex-row sm:items-center">
                   <div className="flex-1 text-sm">

@@ -27,6 +27,8 @@ export interface User {
   uid?: string;
   /** False until they open the link we email them (only where email is set up). */
   email_verified?: boolean;
+  /** Runs the platform itself: sees every company (Platform page). */
+  platform_admin?: boolean;
 }
 
 export interface OrgSummary {

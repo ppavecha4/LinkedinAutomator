@@ -25,9 +25,11 @@ export function useUpdateOrganization() {
   });
 }
 
-export function useCredentials() {
+export function useCredentials(enabled = true) {
   return useQuery({
     queryKey: ['credentials'],
+    enabled,
+    refetchInterval: 5 * 60_000,
     queryFn: async () => (await api.get<Credential[]>('/api/credentials')).data,
   });
 }

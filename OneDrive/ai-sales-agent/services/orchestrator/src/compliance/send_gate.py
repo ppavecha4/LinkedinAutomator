@@ -63,6 +63,8 @@ async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -
                EXISTS (
                    SELECT 1 FROM suppression_list s
                     WHERE s.expires_at IS NULL
+                      -- A BOUNCE means the email ADDRESS is dead: it blocks email, not WhatsApp.
+                      AND (s.reason <> 'BOUNCE' OR m.channel = 'email')
                       AND (   (c.email IS NOT NULL AND lower(s.email) = lower(c.email))
                            OR (c.whatsapp_number IS NOT NULL AND s.whatsapp_number = c.whatsapp_number)
                            OR (c.linkedin_urn IS NOT NULL AND s.linkedin_urn = c.linkedin_urn))
@@ -75,6 +77,7 @@ async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -
                ) AS already_confirmed,
                c.email, c.country AS contact_country, p.company_domain, p.company_name, p.country,
                (SELECT o.timezone FROM organizations o WHERE o.id = m.org_id) AS org_timezone,
+               (SELECT o.status FROM organizations o WHERE o.id = m.org_id) AS org_status,
                (SELECT jsonb_build_object('customers', op.customers, 'rules', op.rules)
                   FROM org_profiles op WHERE op.org_id = m.org_id) AS profile
           FROM messages m
@@ -86,6 +89,10 @@ async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -
     )
     if row is None:
         return SendDecision(False, "message not found")
+    # A suspended or cancelled company sends nothing (platform admin, V25).
+    # Deferred, not blocked: reactivating the company lets queued mail go.
+    if row["org_status"] != "ACTIVE":
+        return SendDecision(False, "organization is not active", defer=True)
     is_conf = row["kind"] == CONFIRMATION_KIND
     if not row["suppressed"]:
         if is_conf:

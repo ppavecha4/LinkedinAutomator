@@ -36,6 +36,7 @@ import LoginPage from './pages/LoginPage';
 import NewCampaign from './pages/NewCampaign';
 import Onboarding from './pages/Onboarding';
 import Overview from './pages/Overview';
+import Platform from './pages/Platform';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
 import Team from './pages/Team';
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/settings/profile" element={<BusinessProfile />} />
               <Route path="/settings/connections" element={<Connections />} />
               <Route path="/settings/team" element={<Team />} />
+              <Route path="/platform" element={<Platform />} />
              </Route>
             </Route>
           </Routes>

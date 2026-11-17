@@ -95,6 +95,13 @@ export const env = {
   // platform email is configured (otherwise nobody could verify).
   requireVerifiedEmail: str('REQUIRE_VERIFIED_EMAIL', 'true').toLowerCase() !== 'false',
   inviteTtlDays: int('INVITE_TTL_DAYS', 7),
+  // People who run the platform itself (comma-separated emails; must be
+  // verified). The env operator (AUTH_USER_EMAIL) always is one.
+  platformAdminEmails: list('PLATFORM_ADMIN_EMAILS', []),
+  // Re-check connected accounts that passed "Verify" (slice 3.7).
+  accountRecheckEnabled: str('ACCOUNT_RECHECK_ENABLED', 'true').toLowerCase() !== 'false',
+  accountRecheckIntervalMinutes: int('ACCOUNT_RECHECK_INTERVAL_MINUTES', 60),
+  accountRecheckAgeHours: int('ACCOUNT_RECHECK_AGE_HOURS', 24),
   authJwtSecret: str('AUTH_JWT_SECRET', ''),
   authSessionHours: int('AUTH_SESSION_HOURS', 168), // 7 days default
   authCookieName: str('AUTH_COOKIE_NAME', 'sa_session'),
