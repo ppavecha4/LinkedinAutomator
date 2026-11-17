@@ -32,6 +32,7 @@ import Connections from './pages/Connections';
 import ImportLeads from './pages/ImportLeads';
 import Inbox from './pages/Inbox';
 import LinkedInDrafts from './pages/LinkedInDrafts';
+import Legal from './pages/Legal';
 import LoginPage from './pages/LoginPage';
 import NewCampaign from './pages/NewCampaign';
 import Onboarding from './pages/Onboarding';
@@ -75,6 +76,8 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/terms" element={<Legal doc="terms" />} />
+            <Route path="/privacy" element={<Legal doc="privacy" />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />

@@ -16,21 +16,24 @@ describe('follow-up steps (slice 3.5)', () => {
   const fu = (step_number: number, delay_days: number, channel: 'email' | 'whatsapp' = 'email') =>
     ({ step_number, channel, action: 'follow_up', delay_days });
 
-  it('accepts email follow-ups that grow in delay, ignores other actions', () => {
+  it('accepts email and WhatsApp follow-ups that grow in delay per channel, ignores other actions', () => {
     expect(() => assertFollowUps([fu(2, 3), fu(3, 7)])).not.toThrow();
+    // Each channel has its own clock: WhatsApp can start again at day 3.
+    expect(() => assertFollowUps([fu(2, 3), fu(3, 7), fu(12, 3, 'whatsapp'), fu(13, 7, 'whatsapp')])).not.toThrow();
     // Appson's older steps are named "Follow-up 1" etc. and are not checked.
     expect(() => assertFollowUps([{ step_number: 1, channel: 'email', action: 'Follow-up 1', delay_days: 0 }])).not.toThrow();
     expect(() => assertFollowUps([])).not.toThrow();
   });
 
   it.each([
-    [[fu(2, 3, 'whatsapp')], /email only/],
+    [[{ step_number: 2, channel: 'linkedin' as never, action: 'follow_up', delay_days: 3 }], /email and WhatsApp/],
+    [[fu(12, 7, 'whatsapp'), fu(13, 3, 'whatsapp')], /later than the one before/],
     [[fu(1, 3)], /step 2 onwards/],
     [[fu(2, 0)], /1–90 days/],
     [[fu(2, 91)], /1–90 days/],
     [[fu(2, 7), fu(3, 7)], /later than the one before/],
     [[fu(2, 7), fu(3, 3)], /later than the one before/],
-    [[fu(2, 1), fu(3, 2), fu(4, 3), fu(5, 4), fu(6, 5), fu(7, 6)], /at most 5/],
+    [[fu(2, 1), fu(3, 2), fu(4, 3), fu(5, 4), fu(6, 5), fu(7, 6)], /at most 5 follow-ups per channel/],
   ])('rejects %j', (steps, msg) => {
     expect(() => assertFollowUps(steps)).toThrow(msg);
   });

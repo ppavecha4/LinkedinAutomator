@@ -56,6 +56,7 @@ import { useTheme } from '../lib/theme';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Breadcrumb } from './ui/breadcrumb';
 import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   CommandPalette,
   useCommandPalette,
@@ -136,6 +137,20 @@ export default function Layout(): React.ReactElement {
   const navigate = useNavigate();
   const { logout, user, org, bypassMode, needsOnboarding, switchOrg, emailEnabled } = useAuth();
   const [resending, setResending] = React.useState(false);
+  const [confirmSignOutAll, setConfirmSignOutAll] = React.useState(false);
+  const [signingOutAll, setSigningOutAll] = React.useState(false);
+  async function signOutEverywhere() {
+    setSigningOutAll(true);
+    try {
+      await api.post('/api/auth/sign-out-everywhere');
+      setConfirmSignOutAll(false);
+      await logout();
+      navigate('/login', { replace: true });
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not sign you out everywhere.'));
+      setSigningOutAll(false);
+    }
+  }
   const needsVerification = emailEnabled && !bypassMode && user?.email_verified === false;
   async function resendVerification() {
     setResending(true);
@@ -193,6 +208,23 @@ export default function Layout(): React.ReactElement {
 
       {/* Global ⌘K palette */}
       <CommandPalette open={palette.open} onOpenChange={palette.setOpen} />
+
+      <Dialog open={confirmSignOutAll} onOpenChange={setConfirmSignOutAll}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sign out everywhere?</DialogTitle>
+            <DialogDescription>
+              Every session you have, on every device and browser, ends now, including this one. You'll sign in again here. Use this if you lost a device or think someone else has your session.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button type="button" className="btn-ghost" onClick={() => setConfirmSignOutAll(false)}>Cancel</button>
+            <button type="button" className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={signingOutAll} onClick={signOutEverywhere}>
+              {signingOutAll && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Sign out everywhere
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="min-h-screen flex text-foreground">
         {/* ═══ Sidebar ════════════════════════════════════════════════ */}
@@ -510,6 +542,12 @@ export default function Layout(): React.ReactElement {
                   <LogOut className="h-4 w-4" />
                   Sign out
                 </DropdownMenuItem>
+                {!bypassMode && (
+                  <DropdownMenuItem onSelect={() => setConfirmSignOutAll(true)}>
+                    <LogOut className="h-4 w-4" />
+                    Sign out everywhere
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </header>

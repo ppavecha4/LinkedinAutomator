@@ -31,9 +31,10 @@ import { query } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
 import { emailVerificationLink } from '../lib/accountTokens';
+import { googleConfigured } from '../lib/googleOidc';
 import { mailerConfigured } from '../lib/mailer';
 import { isPlatformAdmin } from '../lib/platformAdmin';
-import { sessionState } from '../lib/sessionState';
+import { endedSession, forgetSession, sessionState } from '../lib/sessionState';
 import { ok } from '../lib/response';
 import { isOrgRole, isUuid, runWithTenant, type OrgRole } from '../lib/tenantContext';
 import { logger } from '../logger';
@@ -234,7 +235,24 @@ router.get('/api/auth/config', (_req, res) => {
     signup_enabled: env.authMode === 'local' && env.signupEnabled,
     // Can the server email people? (password reset, invitations, verification)
     email_enabled: env.authMode === 'local' && mailerConfigured(),
+    // Is "Continue with Google" set up?
+    google_enabled: env.authMode === 'local' && googleConfigured(),
   });
+});
+
+// End every session this person has, on every device, including this one.
+router.post('/api/auth/sign-out-everywhere', auth, async (req: Request, res: Response, next) => {
+  try {
+    requireLocalMode();
+    const isEnvOperator = !!env.authUserEmail && (req.user!.email ?? '').trim().toLowerCase() === env.authUserEmail.trim().toLowerCase();
+    if (isEnvOperator) throw ApiError.badRequest('the operator login is configured on the server; change AUTH_JWT_SECRET to end its sessions');
+    await query(`SELECT revoke_user_sessions($1)`, [req.user!.id]);
+    forgetSession(req.user!.id);
+    res.clearCookie(env.authCookieName, { path: '/' });
+    return ok(res, { ok: true });
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/api/auth/logout', (_req, res) => {
@@ -270,11 +288,8 @@ router.get('/api/auth/me', async (req, res, next) => {
     const state = isUuid(orgId) && isUuid(decoded.uid) && !isEnvOperator ? await sessionState(userId, orgId) : null;
     // Same rules as the API middleware: a removed member, a suspended org
     // or a password changed since sign-in is signed out now.
-    if (isUuid(decoded.uid) && !isEnvOperator) {
-      if (!state || state.org_status !== 'ACTIVE') throw ApiError.unauthorized('invalid session');
-      if (state.password_changed_at && decoded.iat && decoded.iat < Math.floor(state.password_changed_at.getTime() / 1000)) {
-        throw ApiError.unauthorized('invalid session');
-      }
+    if (isUuid(decoded.uid) && !isEnvOperator && endedSession(state, decoded.iat)) {
+      throw ApiError.unauthorized('invalid session');
     }
     return ok(res, {
       user: {

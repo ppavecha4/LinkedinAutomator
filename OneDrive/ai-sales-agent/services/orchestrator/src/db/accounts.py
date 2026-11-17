@@ -92,10 +92,16 @@ class WhatsAppAccount:
     auth_token: str = field(repr=False)
     from_number: str = ""
     templates: dict = field(default_factory=dict)   # "" = default, else language → Content SID
+    # The SECOND approved template, for follow-ups (slice 3.10); same shape.
+    followup_templates: dict = field(default_factory=dict)
 
     def template_for(self, language: Optional[str]) -> Optional[str]:
         lang = (language or "").split("-", 1)[0].lower()
         return self.templates.get(lang) or self.templates.get("") or None
+
+    def followup_template_for(self, language: Optional[str]) -> Optional[str]:
+        lang = (language or "").split("-", 1)[0].lower()
+        return self.followup_templates.get(lang) or self.followup_templates.get("") or None
 
 
 async def _verified_label(conn: Any, providers: tuple[str, ...]) -> Optional[tuple[str, str]]:
@@ -156,6 +162,7 @@ def whatsapp_account_from(label: str, secret: dict, meta: dict) -> WhatsAppAccou
     if not re.fullmatch(r"AC[0-9a-fA-F]{32}", sid) or not token or not re.fullmatch(r"\+[1-9]\d{6,14}", from_number):
         raise AccountError("Twilio account is incomplete (Account SID, auth token, WhatsApp number)")
     templates: dict[str, str] = {}
+    followups: dict[str, str] = {}
     for k, v in meta.items():
         if not isinstance(v, str) or not v.strip():
             continue
@@ -163,7 +170,11 @@ def whatsapp_account_from(label: str, secret: dict, meta: dict) -> WhatsAppAccou
             templates[""] = v.strip()
         elif k.startswith("template_sid_"):
             templates[k[len("template_sid_"):].lower()] = v.strip()
-    return WhatsAppAccount(label, sid, token, from_number, templates)
+        elif k == "followup_template_sid":
+            followups[""] = v.strip()
+        elif k.startswith("followup_template_sid_"):
+            followups[k[len("followup_template_sid_"):].lower()] = v.strip()
+    return WhatsAppAccount(label, sid, token, from_number, templates, followups)
 
 
 async def whatsapp_account(conn: Any) -> Optional[WhatsAppAccount]:

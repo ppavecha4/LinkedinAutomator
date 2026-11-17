@@ -25,7 +25,7 @@ import jwksClient from 'jwks-rsa';
 
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
-import { sessionState } from '../lib/sessionState';
+import { endedSession, sessionState } from '../lib/sessionState';
 import {
   isOrgRole,
   isUuid,
@@ -127,12 +127,8 @@ async function currentSession(
   issuedAt: number | undefined,
 ): Promise<{ role: OrgRole } | string> {
   const state = await sessionState(uid, orgId);
-  if (!state) return 'you are no longer a member of this organization';
-  if (state.org_status !== 'ACTIVE') return 'this organization is not active';
-  if (state.password_changed_at && issuedAt && issuedAt < Math.floor(state.password_changed_at.getTime() / 1000)) {
-    return 'your password was changed; sign in again';
-  }
-  return { role: state.role };
+  const ended = endedSession(state, issuedAt);
+  return ended ?? { role: state!.role };
 }
 
 export function auth(req: Request, _res: Response, next: NextFunction): void {

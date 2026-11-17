@@ -204,6 +204,52 @@ describeIfDb('team, invitations, recovery (live DB)', () => {
     expect((await ana.post(`/api/team/members/${anaUid}/reset-link`)).status).toBe(400); // not for yourself
   });
 
+  it('sign out everywhere ends every session this person has, on every device', async () => {
+    const phone = agent();
+    expect((await phone.post('/api/auth/login').send({ email: email('ana'), password: NEW_PASSWORD })).status).toBe(200);
+    expect((await phone.get('/api/profile')).status).toBe(200);
+    expect((await ana.get('/api/profile')).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 1100)); // the sessions must predate the cutoff by a full second
+    expect((await phone.post('/api/auth/sign-out-everywhere')).status).toBe(200);
+    expect((await phone.get('/api/profile')).status).toBe(401);
+    expect((await ana.get('/api/profile')).status).toBe(401);   // her other device, too
+    const again = agent();
+    expect((await again.post('/api/auth/login').send({ email: email('ana'), password: NEW_PASSWORD })).status).toBe(200);
+    expect((await again.get('/api/profile')).status).toBe(200);
+    ana = again;
+    // The server's own operator login has no per-user sessions to end.
+    const op = agent();
+    await op.post('/api/auth/login').send({ email: 'operator@appson.test', password: 'operator-password-1' });
+    expect((await op.post('/api/auth/sign-out-everywhere')).status).toBe(400);
+  });
+
+  it('the owner can hand the company to someone else — and only the owner can', async () => {
+    const devAgent = agent();
+    expect((await devAgent.post('/api/auth/login').send({ email: email('dev'), password: NEW_PASSWORD })).status).toBe(200);
+
+    // A member cannot take it; the owner must type their password; it must be a real, different team member.
+    expect((await devAgent.post('/api/team/transfer-ownership').send({ user_id: anaUid, password: NEW_PASSWORD })).status).toBe(403);
+    expect((await ana.post('/api/team/transfer-ownership').send({ user_id: devUid, password: 'not-her-password-1' })).status).toBe(401);
+    expect((await ana.post('/api/team/transfer-ownership').send({ user_id: anaUid, password: NEW_PASSWORD })).status).toBe(400);
+    expect((await ana.post('/api/team/transfer-ownership').send({ user_id: '00000000-0000-4000-8000-00000000dead', password: NEW_PASSWORD })).status).toBe(404);
+
+    const done = await ana.post('/api/team/transfer-ownership').send({ user_id: devUid, password: NEW_PASSWORD });
+    expect(done.status).toBe(200);
+    expect(done.body.data).toMatchObject({ your_role: 'admin', new_owner: { email: email('dev') } });
+
+    // Takes effect on the next request, without anyone signing in again.
+    expect((await ana.get('/api/auth/me')).body.data.user.role).toBe('admin');
+    expect((await devAgent.get('/api/auth/me')).body.data.user.role).toBe('owner');
+    const team = (await devAgent.get('/api/team')).body.data.members as Array<{ email: string; role: string }>;
+    expect(Object.fromEntries(team.map((m) => [m.email, m.role]))).toEqual({ [email('dev')]: 'owner', [email('ana')]: 'admin' });
+    expect(mails.some((m) => m.to === email('dev') && /Ownership/.test(m.subject))).toBe(true);
+
+    // The former owner is an ordinary admin now: she cannot transfer, and cannot touch the new owner.
+    expect((await ana.post('/api/team/transfer-ownership').send({ user_id: devUid, password: NEW_PASSWORD })).status).toBe(403);
+    expect((await ana.patch(`/api/team/members/${devUid}`).send({ role: 'viewer' })).status).toBe(403);
+    expect((await ana.delete(`/api/team/members/${devUid}`)).status).toBe(403);
+  });
+
   it('someone with an account joins a second company by proving their password', async () => {
     const bob = agent();
     const bobSignup = await signup(bob, 'Bob', 'Bob Co');

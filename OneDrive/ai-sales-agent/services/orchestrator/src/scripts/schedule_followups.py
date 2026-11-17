@@ -1,4 +1,4 @@
-"""schedule_followups.py — write the email follow-ups that are due.
+"""schedule_followups.py — queue the follow-ups that are due (email + WhatsApp).
 
 SaaS phase 3, slice 3.5. A campaign can have follow-up steps (rows in
 sequence_steps with channel 'email' and action EXACTLY 'follow_up';
@@ -9,6 +9,13 @@ who has not replied, opted out or bounced, this writes a short follow-up
 queues it. Sending is the normal path: send_pending_emails.py, with its
 suppression and contact-hours checks, threads it under the original mail
 (In-Reply-To / References, "Re: subject").
+
+WhatsApp (slice 3.10): the same steps with channel 'whatsapp'. A business may
+only start a WhatsApp conversation with a Meta-approved TEMPLATE, so a
+follow-up is not written by the AI: it is queued as a template message
+(the sender fills in the first name and company) and goes out using the
+customer's FOLLOW-UP template for that language (db/accounts.py,
+meta.followup_template_sid[_<lang>]). No such template → it waits.
 
 Only action 'follow_up' is acted on: Appson's older campaigns have steps
 named "Follow-up 1" etc. that were never automated, and stay that way.
@@ -131,16 +138,18 @@ async def schedule_followups(
             return {"ok": False, "queued": 0, "skipped_reason": "campaign not found"}
         if (await conn.fetchval("SELECT status FROM campaigns WHERE id = $1", campaign_id)) != "ACTIVE":
             return {"ok": True, "queued": 0, "skipped_reason": "campaign is not ACTIVE"}
-        steps = [(r["step_number"], r["delay_days"]) for r in await conn.fetch(
+        all_steps = await conn.fetch(
             """
-            SELECT step_number, delay_days FROM sequence_steps
-             WHERE campaign_id = $1 AND channel = 'email' AND action = 'follow_up' AND step_number >= 2
+            SELECT channel::text AS channel, step_number, delay_days FROM sequence_steps
+             WHERE campaign_id = $1 AND channel IN ('email', 'whatsapp') AND action = 'follow_up' AND step_number >= 2
              ORDER BY step_number
-            """, campaign_id)]
-    if not steps:
+            """, campaign_id)
+    steps = [(r["step_number"], r["delay_days"]) for r in all_steps if r["channel"] == "email"]
+    wa_steps = [(r["step_number"], r["delay_days"]) for r in all_steps if r["channel"] == "whatsapp"]
+    if not steps and not wa_steps:
         return {"ok": True, "queued": 0, "skipped_reason": "no follow-up steps"}
 
-    if generate is None:
+    if generate is None and steps:
         key = await provider_secret(pool, "anthropic") or ""
         if not key:
             return {"ok": False, "queued": 0,
@@ -149,8 +158,9 @@ async def schedule_followups(
         async def generate(prompt: str, _key: str = key) -> str:  # type: ignore[misc]
             return await anthropic_generate(_key, prompt)
 
+    candidates: list = []
     async with pool.acquire() as conn:
-        candidates = await conn.fetch(
+        candidates = [] if not steps else await conn.fetch(
             """
             SELECT f.contact_id, c.prospect_id, f.id AS first_id, f.sent_at, f.language, f.pitch_type,
                    c.full_name, c.title, c.email, c.country AS contact_country,
@@ -167,7 +177,7 @@ async def schedule_followups(
                AND c.email IS NOT NULL
                AND p.status <> ALL($2::text[])
                AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.contact_id = f.contact_id AND r.status = 'REPLIED')
-               AND NOT EXISTS (SELECT 1 FROM conversations v WHERE v.contact_id = f.contact_id AND v.channel = 'email')
+               AND NOT EXISTS (SELECT 1 FROM conversations v WHERE v.contact_id = f.contact_id)   -- a reply on ANY channel stops them all
                AND NOT EXISTS (SELECT 1 FROM suppression_list s
                                 WHERE s.expires_at IS NULL AND lower(s.email) = lower(c.email))
                AND NOT EXISTS (SELECT 1 FROM messages q WHERE q.contact_id = f.contact_id
@@ -250,7 +260,73 @@ async def schedule_followups(
                 )
         queued += 1
         log(f"  follow-up {number - 1} queued for {row['full_name']}")
+    if wa_steps:
+        queued += await _whatsapp_followups(pool, campaign_id, wa_steps, now, max(0, limit - queued), log)
     return {"ok": True, "queued": queued}
+
+
+async def _whatsapp_followups(pool: Any, campaign_id: str, steps: list, now: dt.datetime, limit: int,
+                              log: Callable[[str], None]) -> int:
+    """Queue due WhatsApp follow-ups (template messages: no AI text needed)."""
+    if limit <= 0:
+        return 0
+    async with pool.acquire() as conn:
+        candidates = await conn.fetch(
+            """
+            SELECT f.contact_id, c.prospect_id, f.sent_at, f.language, f.pitch_type, c.full_name,
+                   (SELECT coalesce(max(x.sequence_step), 1) FROM messages x
+                     WHERE x.contact_id = f.contact_id AND x.channel = 'whatsapp'
+                       AND x.direction = 'outbound') AS last_step
+              FROM messages f
+              JOIN contacts  c ON c.id = f.contact_id
+              JOIN prospects p ON p.id = c.prospect_id
+             WHERE f.campaign_id = $1 AND f.channel = 'whatsapp' AND f.direction = 'outbound'
+               AND f.sequence_step = 1 AND f.sent_at IS NOT NULL
+               AND f.status IN ('SENT', 'DELIVERED', 'OPENED')
+               AND c.whatsapp_number IS NOT NULL
+               AND p.status <> ALL($2::text[])
+               AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.contact_id = f.contact_id AND r.status = 'REPLIED')
+               AND NOT EXISTS (SELECT 1 FROM conversations v WHERE v.contact_id = f.contact_id)
+               AND NOT EXISTS (SELECT 1 FROM suppression_list s
+                                WHERE s.expires_at IS NULL
+                                  AND (s.whatsapp_number = c.whatsapp_number
+                                       OR (c.email IS NOT NULL AND lower(s.email) = lower(c.email) AND s.reason <> 'BOUNCE')))
+               AND NOT EXISTS (SELECT 1 FROM messages q WHERE q.contact_id = f.contact_id
+                                AND q.channel = 'whatsapp' AND q.status = 'QUEUED')
+             ORDER BY f.sent_at
+            """, campaign_id, list(STOP_PROSPECT_STATUSES))
+    queued = 0
+    for row in candidates:
+        if queued >= limit:
+            break
+        due = next_due_step(steps, row["last_step"], row["sent_at"], now)
+        if due is None:
+            continue
+        number, _delay = due
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                message_id = await conn.fetchval(
+                    """
+                    INSERT INTO messages (contact_id, campaign_id, channel, direction, body, status,
+                                          pitch_type, sequence_step, language, metadata)
+                    VALUES ($1, $2, 'whatsapp', 'outbound', $3, 'QUEUED', $4, $5, $6, $7::jsonb)
+                    RETURNING id
+                    """,
+                    row["contact_id"], campaign_id, "Follow-up (approved WhatsApp template)",
+                    row["pitch_type"], number, row["language"], json.dumps({"kind": "follow_up"}),
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO prospect_events (campaign_id, prospect_id, contact_id, message_id,
+                                                 channel, event_type, source, payload)
+                    VALUES ($1, $2, $3, $4, 'whatsapp', 'message_queued', 'system',
+                            jsonb_build_object('follow_up_step', $5::int))
+                    """,
+                    campaign_id, row["prospect_id"], row["contact_id"], message_id, number,
+                )
+        queued += 1
+        log(f"  WhatsApp follow-up {number - 1} queued for {row['full_name']}")
+    return queued
 
 
 async def main(campaign_id: str, limit: int) -> None:

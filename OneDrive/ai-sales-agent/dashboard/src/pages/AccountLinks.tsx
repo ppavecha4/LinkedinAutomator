@@ -235,7 +235,7 @@ export function AcceptInvitePage(): React.ReactElement {
           <label className="flex items-start gap-2.5 text-sm">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" checked={terms}
               onChange={(e) => setTerms(e.target.checked)} disabled={busy} />
-            <span>I agree to the Terms of Service and Privacy Policy.</span>
+            <span>I agree to the <Link to="/terms" target="_blank" className="underline">Terms of Service</Link> and <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.</span>
           </label>
         )}
         <FormError text={error} />

@@ -10,10 +10,21 @@ import { Check, Loader2, Lock, Sparkles } from 'lucide-react';
 import * as React from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 
+import { API_BASE } from '../lib/api';
 import { errorMessage, useAuth } from '../lib/authContext';
 import { cn } from '../lib/cn';
 
 type Mode = 'signin' | 'signup';
+
+const GOOGLE_ERRORS: Record<string, string> = {
+  denied: 'Google sign-in was cancelled.',
+  expired: 'That sign-in took too long. Try again.',
+  failed: 'Google sign-in did not work. Try again.',
+  unverified: 'Google has not verified that email address, so we cannot use it.',
+  closed: 'No account exists for that Google address, and sign-up is closed.',
+  operator: 'This address signs in with its password.',
+  no_org: 'This account has no active organization.',
+};
 
 const POINTS = [
   'Outreach goes from your own email and WhatsApp accounts',
@@ -22,7 +33,7 @@ const POINTS = [
 ];
 
 export default function LoginPage(): React.ReactElement {
-  const { user, loading, bypassMode, needsOnboarding, signupEnabled, emailEnabled, login, signup } = useAuth();
+  const { user, loading, bypassMode, needsOnboarding, signupEnabled, emailEnabled, googleEnabled, login, signup } = useAuth();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
   const [mode, setMode] = React.useState<Mode>(
@@ -40,6 +51,7 @@ export default function LoginPage(): React.ReactElement {
     return <Navigate to={needsOnboarding ? '/onboarding' : (from ?? '/')} replace />;
   }
   const showSignup = signupEnabled && mode === 'signup';
+  const googleError = GOOGLE_ERRORS[new URLSearchParams(location.search).get('google_error') ?? ''] ?? null;
 
   return (
     <div className="min-h-screen grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] bg-background">
@@ -109,9 +121,33 @@ export default function LoginPage(): React.ReactElement {
             <h1 className="mb-6 text-2xl font-semibold">Sign in</h1>
           )}
 
+          <ErrorNote text={googleError} />
           {showSignup ? <SignupForm onSignup={signup} /> : <SigninForm onLogin={login} emailEnabled={emailEnabled} />}
+          {googleEnabled && <GoogleButton creating={showSignup} />}
         </div>
       </main>
+    </div>
+  );
+}
+
+function GoogleButton({ creating }: { creating: boolean }): React.ReactElement {
+  return (
+    <div className="mt-5">
+      <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
+        <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+      </div>
+      <a href={`${API_BASE}/api/auth/google/start`} className="btn-secondary w-full justify-center">
+        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+          <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.8-5.5 3.8-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.3 14.6 2.3 12 2.3 6.9 2.3 2.8 6.4 2.8 11.8S6.9 21.3 12 21.3c5.3 0 8.8-3.7 8.8-9 0-.6-.1-1.1-.2-1.6H12z" />
+        </svg>
+        Continue with Google
+      </a>
+      {creating && (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          By continuing you accept the <Link to="/terms" target="_blank" className="underline">Terms</Link> and{' '}
+          <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.
+        </p>
+      )}
     </div>
   );
 }
@@ -221,7 +257,7 @@ function SignupForm({
       </div>
       <label className="flex items-start gap-2.5 text-sm">
         <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" checked={f.accept_terms} onChange={set('accept_terms')} disabled={busy} />
-        <span>I agree to the Terms of Service and Privacy Policy.</span>
+        <span>I agree to the <Link to="/terms" target="_blank" className="underline">Terms of Service</Link> and <Link to="/privacy" target="_blank" className="underline">Privacy Policy</Link>.</span>
       </label>
       <ErrorNote text={error} />
       <button type="submit" className="btn-primary h-10 w-full"

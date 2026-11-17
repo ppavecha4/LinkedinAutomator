@@ -30,6 +30,7 @@ import {
   useResetLink,
   useRevokeInvite,
   useTeam,
+  useTransferOwnership,
 } from '../hooks/useTeam';
 import { errorMessage, useAuth } from '../lib/authContext';
 
@@ -65,6 +66,7 @@ export default function Team(): React.ReactElement {
           <InviteCard roles={data.can_invite_roles} emailEnabled={data.email_enabled} />
           <Members members={data.members} manageable={data.can_invite_roles} emailEnabled={data.email_enabled} />
           <PendingInvites />
+          {user?.role === 'owner' && <TransferOwnership members={data.members} />}
         </div>
       )}
     </div>
@@ -241,6 +243,72 @@ function Members({ members, manageable, emailEnabled }: { members: TeamMember[];
           </DialogHeader>
           {link && <CopyLink result={link.result} what="reset" />}
           <DialogFooter><button type="button" className="btn-secondary" onClick={() => setLink(null)}>Done</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+function TransferOwnership({ members }: { members: TeamMember[] }): React.ReactElement | null {
+  const { refresh } = useAuth();
+  const transfer = useTransferOwnership();
+  const candidates = members.filter((m) => !m.is_you && m.role !== 'owner');
+  const [userId, setUserId] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [confirming, setConfirming] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const chosen = candidates.find((m) => m.user_id === userId);
+  if (!candidates.length) return null;
+
+  async function onConfirm() {
+    setError(null);
+    try {
+      const r = await transfer.mutateAsync({ userId, password });
+      toast.success(`${r.new_owner.email} is now the owner`, { description: 'You are an admin now.' });
+      setConfirming(false);
+      setPassword('');
+      setUserId('');
+      await refresh();
+    } catch (e) {
+      setError(errorMessage(e, 'Could not transfer ownership.'));
+    }
+  }
+
+  return (
+    <section className="glass rounded-2xl p-5" aria-labelledby="team-transfer">
+      <h2 id="team-transfer" className="mb-1 text-base font-semibold">Transfer ownership</h2>
+      <p className="mb-4 text-xs text-muted-foreground">
+        Hand this company to someone in your team. They become the owner and you become an admin. Only the owner can do this, and you confirm with your password.
+      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <label htmlFor="to-person" className="label">New owner</label>
+          <select id="to-person" className="input" value={userId} onChange={(e) => { setUserId(e.target.value); setError(null); }}>
+            <option value="">Choose someone</option>
+            {candidates.map((m) => <option key={m.user_id} value={m.user_id}>{m.full_name ?? m.email} ({m.role})</option>)}
+          </select>
+        </div>
+        <button type="button" className="btn-secondary" disabled={!userId} onClick={() => setConfirming(true)}>Transfer…</button>
+      </div>
+      <Dialog open={confirming} onOpenChange={(o) => { setConfirming(o); if (!o) setError(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Make {chosen?.full_name ?? chosen?.email} the owner?</DialogTitle>
+            <DialogDescription>
+              They get full control of {'this company'}, including connected accounts and the team. You'll be an admin and can't undo this yourself. Type your password to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label htmlFor="to-password" className="label">Your password</label>
+            <input id="to-password" type="password" autoComplete="current-password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <button type="button" className="btn-ghost" onClick={() => setConfirming(false)}>Cancel</button>
+            <button type="button" className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!password || transfer.isPending} onClick={onConfirm}>
+              {transfer.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Transfer ownership
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </section>

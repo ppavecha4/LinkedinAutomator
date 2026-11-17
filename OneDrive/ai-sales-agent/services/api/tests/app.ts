@@ -22,6 +22,7 @@ import importsRouter from '../src/routes/imports';
 import offeringsRouter from '../src/routes/offerings';
 import profileRouter from '../src/routes/profile';
 import authRouter from '../src/routes/auth';
+import googleAuthRouter from '../src/routes/googleAuth';
 import recoveryRouter from '../src/routes/recovery';
 import platformRouter from '../src/routes/platform';
 import teamRouter from '../src/routes/team';
@@ -61,6 +62,7 @@ export function buildApp(): express.Express {
   // Same order as src/index.ts: public auth routes before the global guard.
   app.use(cookieParser());
   app.use(authRouter);
+  app.use(googleAuthRouter);
   app.use(recoveryRouter);
   app.use('/api', auth);
   app.use(campaignsRouter);

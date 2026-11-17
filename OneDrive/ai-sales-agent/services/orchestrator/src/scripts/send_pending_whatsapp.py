@@ -225,6 +225,8 @@ async def main(args: argparse.Namespace) -> None:
                 SELECT m.id::text       AS message_id,
                        m.body,
                        m.language,
+                       m.sequence_step,
+                       m.metadata,
                        c.full_name,
                        c.whatsapp_number,
                        p.company_name,
@@ -295,10 +297,20 @@ async def main(args: argparse.Namespace) -> None:
                 continue
 
             if account is not None:
-                # Customer: their approved template for this language.
-                template_sid = account.template_for(r["language"])
-                source = (f"no approved WhatsApp template for language "
-                          f"{r['language'] or 'unknown'} (add one in Connected accounts)")
+                # Customer: their approved template for this language: the
+                # first-message one, or the follow-up one for a follow-up.
+                meta = r["metadata"]
+                if isinstance(meta, str):
+                    meta = json.loads(meta or "{}")
+                is_followup = (meta or {}).get("kind") == "follow_up" or (r["sequence_step"] or 1) > 1
+                if is_followup:
+                    template_sid = account.followup_template_for(r["language"])
+                    source = (f"no approved WhatsApp FOLLOW-UP template for language "
+                              f"{r['language'] or 'unknown'} (add one in Connected accounts)")
+                else:
+                    template_sid = account.template_for(r["language"])
+                    source = (f"no approved WhatsApp template for language "
+                              f"{r['language'] or 'unknown'} (add one in Connected accounts)")
             else:
                 template_sid, source = resolve_template_sid(r["pitch_type"])
             if not template_sid:

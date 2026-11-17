@@ -346,3 +346,121 @@ async def test_live_email_sender_waits_outside_hours_and_threads_follow_ups(monk
     finally:
         await _cleanup(pool)
         await pool.close()
+
+
+# ── slice 3.10: WhatsApp follow-ups ─────────────────────────────────────
+
+def test_followup_templates_are_a_separate_set_with_the_same_language_rules():
+    from db.accounts import whatsapp_account_from
+
+    a = whatsapp_account_from("default", {"auth_token": "tok"}, {
+        "account_id": "AC" + "a" * 32, "whatsapp_from": "+51987654321",
+        "template_sid": "HXfirst", "followup_template_sid": "HXdefaultfu", "followup_template_sid_es": "HXspanishfu",
+    })
+    assert a.template_for("es") == "HXfirst"               # the first-message template is untouched
+    assert a.followup_template_for("es-PE") == "HXspanishfu"
+    assert a.followup_template_for("ar") == "HXdefaultfu"
+    only_first = whatsapp_account_from("default", {"auth_token": "tok"}, {
+        "account_id": "AC" + "a" * 32, "whatsapp_from": "+51987654321", "template_sid": "HXfirst"})
+    assert only_first.followup_template_for("es") is None   # no second template: follow-ups wait
+
+
+async def _wa_contact(pool, cid, name, phone, *, sent_at=FIRST_SENT, status="SENT", language="es", email=None):
+    with t.tenant(ORG):
+        async with pool.acquire() as conn:
+            pid = await conn.fetchval(
+                "INSERT INTO prospects (campaign_id, company_name, country) VALUES ($1, $2, 'Peru') RETURNING id", cid, f"{name} SA")
+            contact = await conn.fetchval(
+                "INSERT INTO contacts (prospect_id, campaign_id, full_name, email, whatsapp_number)"
+                " VALUES ($1, $2, $3, $4, $5) RETURNING id", pid, cid, name, email, phone)
+            await conn.fetchval(
+                "INSERT INTO messages (contact_id, campaign_id, channel, direction, body, status, sequence_step, sent_at, language)"
+                " VALUES ($1, $2, 'whatsapp', 'outbound', 'hola', $3, 1, $4, $5) RETURNING id",
+                contact, cid, status, sent_at, language)
+    return {"contact": contact, "prospect": pid}
+
+
+@live
+async def test_live_whatsapp_followups_are_template_messages_for_people_who_have_not_replied():
+    sched = pytest.importorskip("scripts.schedule_followups")
+    pool = await t.create_pool(os.environ["DATABASE_URL"], min_size=1, max_size=2)
+    try:
+        cid = await _setup(pool, steps=(), channels=("whatsapp",))
+        with t.tenant(ORG):
+            async with pool.acquire() as conn:
+                for number, delay in ((12, 3), (13, 7)):
+                    await conn.execute(
+                        "INSERT INTO sequence_steps (campaign_id, step_number, channel, action, delay_days)"
+                        " VALUES ($1, $2, 'whatsapp', 'follow_up', $3)", cid, number, delay)
+        due = await _wa_contact(pool, cid, "Carla", "+51900000001")
+        recent = await _wa_contact(pool, cid, "Mario", "+51900000002", sent_at=FIRST_SENT + dt.timedelta(days=2))
+        replied_by_email = await _wa_contact(pool, cid, "Rosa", "+51900000003", email="rosa@frutas.test")
+        opted_out = await _wa_contact(pool, cid, "Luis", "+51900000004")
+        no_phone_ok = await _wa_contact(pool, cid, "Ines", "+51900000005", status="FAILED")
+        with t.tenant(ORG):
+            async with pool.acquire() as conn:
+                # Rosa answered on EMAIL: that stops her WhatsApp follow-ups too.
+                await conn.execute("INSERT INTO conversations (contact_id, campaign_id, channel, status) VALUES ($1, $2, 'email', 'ACTIVE')",
+                                   replied_by_email["contact"], cid)
+                await conn.execute("INSERT INTO suppression_list (whatsapp_number, reason) VALUES ('+51900000004', 'OPT_OUT')")
+
+        now = FIRST_SENT + dt.timedelta(days=4)
+        with t.tenant(ORG):
+            # No Anthropic key and no `generate`: WhatsApp follow-ups are templates, the AI is not involved.
+            result = await sched.schedule_followups(pool, cid, now=now, log=lambda _m: None)
+            assert result == {"ok": True, "queued": 1}
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT c.full_name, m.channel, m.sequence_step, m.status, m.language, m.metadata FROM messages m"
+                    " JOIN contacts c ON c.id = m.contact_id WHERE m.sequence_step > 1")
+                assert [(r["full_name"], r["channel"], r["sequence_step"], r["status"], r["language"]) for r in rows] == [
+                    ("Carla", "whatsapp", 12, "QUEUED", "es")]
+                assert json.loads(rows[0]["metadata"]) == {"kind": "follow_up"}
+            # Idempotent while it is queued; the next step follows its own clock (day 7).
+            assert (await sched.schedule_followups(pool, cid, now=now, log=lambda _m: None))["queued"] == 0
+            async with pool.acquire() as conn:
+                await conn.execute("UPDATE messages SET status = 'SENT', sent_at = $1 WHERE sequence_step = 12", FIRST_SENT + dt.timedelta(days=4))
+            later = await sched.schedule_followups(pool, cid, now=FIRST_SENT + dt.timedelta(days=8), log=lambda _m: None)
+            assert later["queued"] == 2   # Carla's step 13, and Mario's step 12 (his day 3 has now passed)
+    finally:
+        await _cleanup(pool)
+        await pool.close()
+
+
+@live
+async def test_live_whatsapp_followup_uses_the_followup_template_and_waits_without_one(monkeypatch):
+    import scripts.send_pending_whatsapp as sender
+    from tests.test_customer_accounts import _args, _credential, _FakeTwilio
+
+    _FakeTwilio.created = []
+    monkeypatch.setattr(sender, "TwilioClient", _FakeTwilio)
+    monkeypatch.setenv("CREDENTIALS_KEY", base64.b64encode(KEY).decode())
+    pool = await t.create_pool(os.environ["DATABASE_URL"], min_size=1, max_size=2)
+    try:
+        cid = await _setup(pool, steps=(), channels=("whatsapp",))
+        c = await _wa_contact(pool, cid, "Carla", "+51900000001")
+        with t.tenant(ORG):
+            async with pool.acquire() as conn:
+                mid = await conn.fetchval(
+                    "INSERT INTO messages (contact_id, campaign_id, channel, direction, body, status, sequence_step, language, metadata)"
+                    " VALUES ($1, $2, 'whatsapp', 'outbound', 'Follow-up (approved WhatsApp template)', 'QUEUED', 12, 'es', $3::jsonb) RETURNING id",
+                    c["contact"], cid, json.dumps({"kind": "follow_up"}))
+        sid = "AC" + "f" * 32
+        # Only the first-message template: the follow-up must NOT go out with it.
+        await _credential(pool, ORG, "twilio", {"auth_token": "tok"},
+                          {"account_id": sid, "whatsapp_from": "+51900000000", "template_sid_es": "HX" + "1" * 32})
+        await sender.main(_args(cid))
+        assert _FakeTwilio.created == []
+        with t.tenant(ORG):
+            async with pool.acquire() as conn:
+                assert await conn.fetchval("SELECT status FROM messages WHERE id = $1", mid) == "QUEUED"
+
+        await _credential(pool, ORG, "twilio", {"auth_token": "tok"},
+                          {"account_id": sid, "whatsapp_from": "+51900000000", "template_sid_es": "HX" + "1" * 32,
+                           "followup_template_sid_es": "HX" + "2" * 32})
+        await sender.main(_args(cid))
+        assert [x["content_sid"] for x in _FakeTwilio.created] == ["HX" + "2" * 32]
+        assert '"1": "Carla"' in _FakeTwilio.created[0]["content_variables"]
+    finally:
+        await _cleanup(pool)
+        await pool.close()

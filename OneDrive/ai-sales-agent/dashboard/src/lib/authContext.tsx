@@ -67,6 +67,8 @@ interface AuthState {
   signupEnabled: boolean;
   /** Can the server email people? (password reset, invitations, verification) */
   emailEnabled: boolean;
+  /** Is "Continue with Google" set up on the server? */
+  googleEnabled: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -91,30 +93,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     bypassMode: false,
     signupEnabled: false,
     emailEnabled: false,
+    googleEnabled: false,
   });
 
   const refresh = React.useCallback(async () => {
     let signupEnabled = false;
     let emailEnabled = false;
+    let googleEnabled = false;
     try {
-      const { data } = await api.get<{ signup_enabled: boolean; email_enabled?: boolean }>('/api/auth/config');
+      const { data } = await api.get<{ signup_enabled: boolean; email_enabled?: boolean; google_enabled?: boolean }>('/api/auth/config');
       signupEnabled = !!data.signup_enabled;
       emailEnabled = !!data.email_enabled;
+      googleEnabled = !!data.google_enabled;
     } catch {
       // older API without /config: sign-up stays hidden
     }
     try {
       const { data } = await api.get<{ user: User; org: OrgSummary | null }>('/api/auth/me');
-      setState({ user: data.user, org: data.org, loading: false, bypassMode: false, signupEnabled, emailEnabled });
+      setState({ user: data.user, org: data.org, loading: false, bypassMode: false, signupEnabled, emailEnabled, googleEnabled });
     } catch (e) {
       // 404 on /api/auth/me means the backend isn't running local auth
       // (AUTH_MODE=bypass or cognito): treat as signed in and let the
       // backend's auth middleware enforce things its own way.
       if (e instanceof ApiClientError && e.status === 404) {
-        setState({ user: { email: 'bypass@local' }, org: null, loading: false, bypassMode: true, signupEnabled, emailEnabled });
+        setState({ user: { email: 'bypass@local' }, org: null, loading: false, bypassMode: true, signupEnabled, emailEnabled, googleEnabled });
         return;
       }
-      setState({ user: null, org: null, loading: false, bypassMode: false, signupEnabled, emailEnabled });
+      setState({ user: null, org: null, loading: false, bypassMode: false, signupEnabled, emailEnabled, googleEnabled });
     }
   }, []);
 

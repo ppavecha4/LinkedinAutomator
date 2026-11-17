@@ -26,6 +26,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import analyticsRouter from './routes/analytics';
 import authRouter from './routes/auth';
+import googleAuthRouter from './routes/googleAuth';
 import recoveryRouter from './routes/recovery';
 import platformRouter from './routes/platform';
 import teamRouter from './routes/team';
@@ -161,6 +162,7 @@ app.use(internalRouter);
 // Public auth routes — login/logout/me. Mounted BEFORE the global
 // `auth` middleware so an unauthenticated user can actually log in.
 app.use(authRouter);
+app.use(googleAuthRouter);
 app.use(recoveryRouter);
 
 // Authenticated API routes.

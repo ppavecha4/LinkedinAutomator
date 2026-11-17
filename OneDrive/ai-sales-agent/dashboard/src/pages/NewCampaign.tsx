@@ -72,15 +72,17 @@ export default function NewCampaign(): React.ReactElement {
   const [busy, setBusy] = React.useState(false);
 
   const allowed = (org.data?.channels ?? []).filter((c) => USABLE.includes(c));
-  // Follow-up steps: step 2.. , email, each `gapDays` after the one before (days after the first email).
-  const followUpSteps = channels.includes('email')
-    ? Array.from({ length: followups }, (_, i) => ({
-        step_number: i + 2,
-        channel: 'email' as const,
-        action: 'follow_up',
-        delay_days: gapDays * (i + 1),
-      }))
-    : [];
+  // Follow-up steps for each chosen follow-up channel, each `gapDays` after the one
+  // before (days after the first message). Email is steps 2.., WhatsApp 12.. so the
+  // step numbers never collide; each channel keeps its own clock.
+  const followUpChannels = (['email', 'whatsapp'] as const).filter((c) => channels.includes(c));
+  const followUpSteps = followUpChannels.flatMap((channel) =>
+    Array.from({ length: followups }, (_, i) => ({
+      step_number: (channel === 'email' ? 2 : 12) + i,
+      channel,
+      action: 'follow_up',
+      delay_days: gapDays * (i + 1),
+    })));
   const saved = offerings.data ?? [];
   const savedOffering = saved.find((o) => o.id === savedId);
   // Upload campaigns pitch a saved offering, else the profile's value proposition.
@@ -210,6 +212,7 @@ export default function NewCampaign(): React.ReactElement {
   // Campaigns send only through verified accounts (slice 3.4).
   const missing = channels.filter((c) => !verifiedFor(creds.data, CHANNEL_PROVIDERS[c]));
   const emailOn = channels.includes('email');
+  const followUpsOn = followUpChannels.length > 0;
   const needsAiKey = !org.data?.operator && !verifiedFor(creds.data, ['anthropic']);
   const needsApollo = source === 'ai' && !org.data?.operator && !verifiedFor(creds.data, ['apollo']);
 
@@ -340,10 +343,10 @@ export default function NewCampaign(): React.ReactElement {
                 Contacts without a phone number skip WhatsApp; contacts without an email skip email.
               </p>
             </section>
-            {emailOn && (
+            {followUpsOn && (
               <section className="space-y-3">
                 <h3 className="label">Follow-ups</h3>
-                <div role="radiogroup" aria-label="Number of follow-up emails" className="flex flex-wrap gap-2">
+                <div role="radiogroup" aria-label="Number of follow-ups" className="flex flex-wrap gap-2">
                   {[0, 1, 2, 3].map((n) => (
                     <button key={n} type="button" role="radio" aria-checked={followups === n} onClick={() => setFollowups(n)}
                       className={cn('rounded-lg border px-3.5 py-2 text-sm transition-colors',
@@ -353,14 +356,14 @@ export default function NewCampaign(): React.ReactElement {
                   ))}
                 </div>
                 {followups > 0 && (
-                  <Field label="Wait between messages" htmlFor="nc-gap" hint="Counted from the first email. Each follow-up is written fresh, in the contact's language, and replies in the same email thread.">
+                  <Field label="Wait between messages" htmlFor="nc-gap" hint="Counted from the first message. Email follow-ups are written fresh in the contact's language and reply in the same thread. WhatsApp follow-ups use your approved follow-up template.">
                     <select id="nc-gap" className="input w-auto" value={gapDays} onChange={(e) => setGapDays(Number(e.target.value))}>
                       {[2, 3, 4, 5, 7, 10].map((d) => <option key={d} value={d}>{d} days</option>)}
                     </select>
                   </Field>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Anyone who replies, opts out or bounces is never followed up. WhatsApp has no automatic follow-ups yet (it needs a second approved template).
+                  Anyone who replies on any channel, opts out or bounces is never followed up.{channels.includes('whatsapp') && ' WhatsApp follow-ups wait until you add a follow-up template in Connected accounts.'}
                 </p>
               </section>
             )}
@@ -429,10 +432,10 @@ export default function NewCampaign(): React.ReactElement {
                 <dt className="text-muted-foreground">Leads</dt>
                 <dd>{source === 'ai' ? `AI agent finds them${offeringForCampaign ? ` — ${offeringForCampaign.name}` : ''}` : `From ${file?.name}`}</dd>
                 <dt className="text-muted-foreground">Channels</dt><dd>{channels.map((c) => CHANNEL_LABEL[c]).join(', ')}</dd>
-                {emailOn && (
+                {followUpsOn && (
                   <>
                     <dt className="text-muted-foreground">Follow-ups</dt>
-                    <dd>{followups === 0 ? 'None' : `${followups} email follow-up${followups === 1 ? '' : 's'}, after ${followUpSteps.map((x) => x.delay_days).join(', ')} days, if there is no reply`}</dd>
+                    <dd>{followups === 0 ? 'None' : `${followups} follow-up${followups === 1 ? '' : 's'} on ${followUpChannels.map((c) => CHANNEL_LABEL[c]).join(' and ')}, after ${Array.from({ length: followups }, (_, i) => gapDays * (i + 1)).join(', ')} days, if there is no reply`}</dd>
                   </>
                 )}
                 <dt className="text-muted-foreground">Language</dt>

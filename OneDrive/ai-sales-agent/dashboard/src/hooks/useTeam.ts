@@ -69,6 +69,11 @@ export const useChangeRole = () =>
 export const useRemoveMember = () =>
   useTeamMutation(async (userId: string) => (await api.delete(`/api/team/members/${userId}`)).data);
 
+export const useTransferOwnership = () =>
+  useTeamMutation(async (b: { userId: string; password: string }) =>
+    (await api.post<{ new_owner: { user_id: string; email: string }; your_role: string }>(
+      '/api/team/transfer-ownership', { user_id: b.userId, password: b.password })).data);
+
 export const useResetLink = () =>
   useTeamMutation(async (userId: string) =>
     (await api.post<LinkResult & { expires_in_minutes: number }>(`/api/team/members/${userId}/reset-link`)).data);

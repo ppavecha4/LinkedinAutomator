@@ -868,9 +868,8 @@ accounts — only accounts that passed a check with the provider.
   (In-Reply-To / References, "Re: subject") and now stores the subject it
   sent. Appson's older steps ("Follow-up 1"…) are not `follow_up` and stay
   manual. The new-campaign wizard offers 0–3 follow-ups and the gap.
-- **Not yet**: WhatsApp follow-ups (outside the 24-hour window they need a
-  second Meta-approved template); per-campaign contact hours (it is
-  per company); editing the follow-up sequence of an existing campaign.
+- **Not yet**: per-campaign contact hours (it is per company); editing the
+  follow-up sequence of an existing campaign. (WhatsApp follow-ups: slice 3.10.)
 
 ### Slice 3.6 as built (2026-11-17): team, recovery, sessions that follow membership
 
@@ -914,9 +913,9 @@ accounts — only accounts that passed a check with the provider.
   manager page refused for members, role change, reset link and mismatch
   guard, reused link refused, remove. The emailed paths are covered by the
   live tests (mail captured by a hook).
-- **Not yet**: ownership transfer; Google sign-in; Terms/Privacy pages; a
-  "sign out everywhere" button; platform-wide admin (suspending an
-  organization is a database change today).
+- **Not yet**: nothing from this list remains (ownership transfer, Google
+  sign-in, Terms/Privacy and "sign out everywhere" are slice 3.10; platform
+  admin is slice 3.8).
 
 ### Slices 3.7–3.9 as built (2026-11-17): account health, platform admin, hardening
 
@@ -983,7 +982,57 @@ Companies page)
   security. (The reply-processor only talks to the API, so it needed no
   change.)
 - **Not yet**: customer sending through the queue path (customers send
-  through the orchestrator's cron senders); a "sign out everywhere" button.
+  through the orchestrator's cron senders).
+
+### Slice 3.10 as built (2026-11-17): the remaining product gaps
+
+- **Sign out everywhere** (V26): `users.sessions_revoked_at`; `session_state()`
+  now returns `sessions_valid_after = GREATEST(password_changed_at,
+  sessions_revoked_at)`, and every request (and `/api/auth/me`) ends a session
+  issued before it (`endedSession`). `POST /api/auth/sign-out-everywhere`
+  (signed in) revokes via `revoke_user_sessions()`, drops the 15 s cache and
+  clears the cookie; the env operator is refused (its sessions end by changing
+  `AUTH_JWT_SECRET`). Dashboard: account menu › "Sign out everywhere".
+- **Ownership transfer**: `POST /api/team/transfer-ownership` `{user_id,
+  password}` — owner only, the owner's password is asked again, the target must
+  be a member (and email-verified where platform email is configured). In one
+  transaction the caller becomes admin and the target owner; both sessions are
+  re-read at once and both people are emailed. Dashboard: Team › "Hand over the
+  company" (owner only).
+- **Terms and Privacy**: `/terms` and `/privacy` (public, `Legal.tsx`), linked
+  from the sign-up checkbox and the invitation page. They are DRAFTS with
+  `[LEGAL NAME] [CONTACT EMAIL] [GOVERNING LAW] [RETENTION PERIOD]` to fill in
+  and a banner saying they need a lawyer's review before launch.
+- **WhatsApp follow-ups**: sequence steps with channel `whatsapp`, action
+  `follow_up` (step numbers 12.. so they never collide with email's 2..; the
+  API checks each channel's delays separately, max 5 per channel). WhatsApp only
+  lets a business open a conversation with an approved TEMPLATE, so a follow-up
+  is not AI-written: `schedule_followups.py` queues a template message
+  (`metadata.kind = follow_up`) and the sender uses the customer's FOLLOW-UP
+  template (`followup_template_sid`, `followup_template_sid_<lang>` in their
+  Twilio account) — without one it waits, with a note. A reply on ANY channel
+  stops all follow-ups; opt-outs and the WhatsApp suppression list apply. The
+  wizard offers follow-ups when email or WhatsApp is chosen.
+- **Sign in with Google** (V27, optional): `GET /api/auth/google/start` →
+  Google (authorization code + PKCE, one-time `state`/`nonce` in a 10-minute
+  signed cookie) → `GET /api/auth/google/callback`: the code is exchanged
+  server-side, the id_token's RS256 signature, audience, issuer, nonce and
+  `email_verified` are checked against Google's keys (`lib/googleOidc.ts`).
+  A matching email signs that user in; an unknown email creates a company if
+  `SIGNUP_ENABLED`. Pre-hijacking protection: if the matching account is a
+  password account whose email was NEVER verified (someone may have registered
+  the address first), `google_adopt_account()` removes its password and ends its
+  sessions — the real owner is in, the squatter is out. The env operator never
+  signs in this way. Failures redirect to `/login?google_error=<code>`.
+  Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and, unless the API is served
+  on the dashboard's address, `GOOGLE_REDIRECT_URI` (the API's public
+  `/api/auth/google/callback`; register the same URL in Google Cloud).
+- **Tests**: API 241 (new: Google flow, sign-out-everywhere, ownership
+  transfer, channels); orchestrator +3 (WhatsApp follow-ups: template parsing,
+  who gets one, follow-up template used / waits without one).
+- **Needs the owner, not code**: a real end-to-end send with real accounts, the
+  Google OAuth client, the deploy (V17 runbook, then V22–V27; rebuild the API
+  image), the legal text, and pushing.
 
 ## Voice channel
 

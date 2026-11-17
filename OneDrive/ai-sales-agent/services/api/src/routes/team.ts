@@ -7,6 +7,7 @@
  *   PATCH  /api/team/members/:userId         {role}
  *   DELETE /api/team/members/:userId         remove from this organization
  *   POST   /api/team/members/:userId/reset-link   password-reset link to hand over
+ *   POST   /api/team/transfer-ownership      {user_id, password} owner only
  *
  * Who may do what: an owner manages everyone but other owners; an admin
  * manages members and viewers only (and can invite members and viewers).
@@ -18,6 +19,7 @@
  * emailed; either way the API returns it so the inviter can pass it on.
  */
 
+import bcrypt from 'bcryptjs';
 import { type NextFunction, type Request, type Response, Router } from 'express';
 import { z } from 'zod';
 
@@ -184,6 +186,52 @@ router.delete('/api/team/members/:userId', manage, validate({ params: userParams
     next(e);
   }
 });
+
+const transferBody = z.object({ user_id: z.string().uuid(), password: z.string().min(1).max(200) }).strict();
+
+/**
+ * Hand the company to someone else. Only the owner, who proves it is them by
+ * typing their password again; the new owner must already be in the team with
+ * a verified email. The old owner becomes an admin (they can ask the new one
+ * to change that). Both are told by email when the server can email.
+ */
+router.post('/api/team/transfer-ownership', requireRole('owner'), validate({ body: transferBody }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { user_id, password } = req.validated!.body as z.infer<typeof transferBody>;
+      if (user_id === req.user!.id) throw ApiError.badRequest('you already own this company');
+      const me = await query<{ user_id: string; password_hash: string | null }>(`SELECT * FROM login_lookup($1)`, [req.user!.email ?? '']);
+      if (!me.rows[0] || me.rows[0].user_id !== req.user!.id || !me.rows[0].password_hash) {
+        throw ApiError.badRequest('ownership can only be transferred from a normal account');
+      }
+      if (!(await bcrypt.compare(password, me.rows[0].password_hash))) throw ApiError.unauthorized('that password is not right');
+
+      const target = await member(user_id);
+      if (!target.email_verified && mailerConfigured()) throw ApiError.conflict('they need to verify their email address first');
+
+      await withTransaction(async (client) => {
+        await client.query(`UPDATE memberships SET role = 'admin' WHERE user_id = $1 AND role = 'owner'`, [req.user!.id]);
+        await client.query(`UPDATE memberships SET role = 'owner' WHERE user_id = $1`, [user_id]);
+      });
+      forgetSession(req.user!.id);
+      forgetSession(user_id);
+      logger.info('ownership transferred', { org_id: req.user!.orgId, from: req.user!.id, to: user_id });
+
+      if (mailerConfigured()) {
+        const org = await query<{ name: string }>(`SELECT name FROM organizations`);
+        const name = org.rows[0]?.name ?? 'your company';
+        for (const [to, text] of [
+          [target.email, `${req.user!.email} made you the owner of ${name}.\n`],
+          [req.user!.email ?? '', `You are no longer the owner of ${name}: ${target.email} is. You are now an admin.\n`],
+        ] as const) {
+          if (to) await sendMail({ to, subject: `Ownership of ${name} changed`, text }).catch((e) => logger.warn('ownership email failed', { error: (e as Error).message }));
+        }
+      }
+      return ok(res, { new_owner: { user_id, email: target.email }, your_role: 'admin' });
+    } catch (e) {
+      next(e);
+    }
+  });
 
 router.post('/api/team/members/:userId/reset-link', manage, validate({ params: userParams }), async (req: Request, res: Response, next: NextFunction) => {
   try {

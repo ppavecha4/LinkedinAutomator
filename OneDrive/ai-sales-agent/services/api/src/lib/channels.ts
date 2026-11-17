@@ -72,29 +72,37 @@ export const MAX_FOLLOW_UPS = 5;
 export const MAX_FOLLOW_UP_DAYS = 90;
 
 /**
- * Follow-up steps (action 'follow_up', slice 3.5) are email only for now:
- * a WhatsApp follow-up would need a second Meta-approved template. They
- * come after the first email (step_number >= 2) and their delay_days
- * (days after the FIRST email) must grow from one step to the next.
- * Steps with any other action are not checked (Appson's older campaigns).
+ * Follow-up steps (action 'follow_up', slices 3.5 and 3.10) are automated
+ * for email and WhatsApp. They come after the first message (step_number
+ * >= 2); delay_days is days after the FIRST message on that channel and
+ * must grow from one follow-up to the next on the same channel (at most
+ * MAX_FOLLOW_UPS per channel, up to MAX_FOLLOW_UP_DAYS). A WhatsApp
+ * follow-up needs the customer's second approved template (it waits until
+ * they add one). Steps with any other action are not checked (Appson's
+ * older campaigns).
  */
+const FOLLOW_UP_CHANNELS: readonly Channel[] = ['email', 'whatsapp'];
+
 export function assertFollowUps(
   steps: ReadonlyArray<{ step_number: number; channel: Channel; action?: string; delay_days?: number }>,
 ): void {
   const fu = steps.filter((s) => s.action === FOLLOW_UP_ACTION).sort((a, b) => a.step_number - b.step_number);
   if (fu.length === 0) return;
   const fail = (msg: string) => {
-    throw ApiError.badRequest(msg, { steps: fu.map((s) => ({ step_number: s.step_number, delay_days: s.delay_days })) });
+    throw ApiError.badRequest(msg, { steps: fu.map((s) => ({ step_number: s.step_number, channel: s.channel, delay_days: s.delay_days })) });
   };
-  if (fu.length > MAX_FOLLOW_UPS) fail(`at most ${MAX_FOLLOW_UPS} follow-ups`);
-  if (fu.some((s) => s.channel !== 'email')) fail('follow-ups are email only for now');
+  if (fu.some((s) => !FOLLOW_UP_CHANNELS.includes(s.channel))) fail('follow-ups are for email and WhatsApp');
   if (fu.some((s) => s.step_number < 2)) fail('follow-ups come after the first message (step 2 onwards)');
-  let previous = 0;
-  for (const s of fu) {
-    const d = s.delay_days ?? 0;
-    if (d < 1 || d > MAX_FOLLOW_UP_DAYS) fail(`a follow-up goes out 1–${MAX_FOLLOW_UP_DAYS} days after the first email`);
-    if (d <= previous) fail('each follow-up must go out later than the one before');
-    previous = d;
+  for (const channel of FOLLOW_UP_CHANNELS) {
+    const mine = fu.filter((s) => s.channel === channel);
+    if (mine.length > MAX_FOLLOW_UPS) fail(`at most ${MAX_FOLLOW_UPS} follow-ups per channel`);
+    let previous = 0;
+    for (const s of mine) {
+      const d = s.delay_days ?? 0;
+      if (d < 1 || d > MAX_FOLLOW_UP_DAYS) fail(`a follow-up goes out 1–${MAX_FOLLOW_UP_DAYS} days after the first message`);
+      if (d <= previous) fail('each follow-up must go out later than the one before');
+      previous = d;
+    }
   }
 }
 

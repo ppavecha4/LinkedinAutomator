@@ -98,6 +98,12 @@ export const env = {
   // People who run the platform itself (comma-separated emails; must be
   // verified). The env operator (AUTH_USER_EMAIL) always is one.
   platformAdminEmails: list('PLATFORM_ADMIN_EMAILS', []),
+  // Sign in with Google (optional). Create an OAuth client (type "Web
+  // application") in Google Cloud; its redirect URI must be
+  // GOOGLE_REDIRECT_URI (default: <DASHBOARD_URL>/api/auth/google/callback).
+  googleClientId: str('GOOGLE_CLIENT_ID', ''),
+  googleClientSecret: str('GOOGLE_CLIENT_SECRET', ''),
+  googleRedirectUri: str('GOOGLE_REDIRECT_URI', ''),
   // Re-check connected accounts that passed "Verify" (slice 3.7).
   accountRecheckEnabled: str('ACCOUNT_RECHECK_ENABLED', 'true').toLowerCase() !== 'false',
   accountRecheckIntervalMinutes: int('ACCOUNT_RECHECK_INTERVAL_MINUTES', 60),

@@ -19,7 +19,8 @@ import { isOrgRole, type OrgRole } from './tenantContext';
 export interface SessionState {
   role: OrgRole;
   org_status: string;
-  password_changed_at: Date | null;
+  /** Sessions issued before this are refused (password change, sign out everywhere, ownership transfer). */
+  sessions_valid_after: Date | null;
   email_verified_at: Date | null;
 }
 
@@ -35,6 +36,16 @@ export async function sessionState(userId: string, orgId: string): Promise<Sessi
   const state = row && isOrgRole(row.role) ? { ...row, role: row.role } : null;
   cache.set(key, { at: Date.now(), state });
   return state;
+}
+
+/** Why a session issued at `issuedAt` (epoch seconds) is no longer good, or null if it still is. */
+export function endedSession(state: SessionState | null, issuedAt: number | undefined): string | null {
+  if (!state) return 'you are no longer a member of this organization';
+  if (state.org_status !== 'ACTIVE') return 'this organization is not active';
+  if (state.sessions_valid_after && issuedAt && issuedAt < Math.floor(state.sessions_valid_after.getTime() / 1000)) {
+    return 'this session was ended; sign in again';
+  }
+  return null;
 }
 
 /** Drop cached answers for a user (all orgs), e.g. after a role change or removal. */
