@@ -101,6 +101,10 @@ async def _setup(pool, *, steps=((2, 3), (3, 7)), channels=("email",)):
             await conn.execute(
                 "INSERT INTO organizations (id, name, slug) VALUES ($1, 'Follow Co', $2) ON CONFLICT (id) DO NOTHING",
                 ORG, f"follow-co-{uuid.uuid4().hex[:6]}")
+            await conn.execute(
+                "INSERT INTO org_profiles (org_id, company) VALUES ($1, $2::jsonb)"
+                " ON CONFLICT (org_id) DO UPDATE SET company = EXCLUDED.company", ORG,
+                json.dumps({"name": "Follow Co", "address": "Av. Larco 123, Lima"}))
             cid = await conn.fetchval(
                 "INSERT INTO campaigns (name, status, goal, sender_company, sender_name, value_proposition,"
                 " created_by, channels) VALUES ('followup test', 'ACTIVE', 'g', 'PackCo', 'Ana Torres',"

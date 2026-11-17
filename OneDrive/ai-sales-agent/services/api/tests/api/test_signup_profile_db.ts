@@ -119,7 +119,7 @@ describeIfDb('signup, profile and onboarding (live DB)', () => {
   it('saving sections raises completeness; bad section input is refused', async () => {
     const app = buildApp();
     const put = (section: string, body: object) => request(app).put(`/api/profile/${section}`).set('Cookie', cookieA).send(body);
-    expect((await put('company', { name: 'Acme Exports', industry: 'Food packaging', description: 'Export-grade food packaging.', languages_handled: ['es', 'en'] })).status).toBe(200);
+    expect((await put('company', { name: 'Acme Exports', address: 'Calle 1, Lima', industry: 'Food packaging', description: 'Export-grade food packaging.', languages_handled: ['es', 'en'] })).status).toBe(200);
     expect((await put('offer', { offers: [{ name: 'Fruit boxes' }], value_proposition: 'Clears customs first time.', proof: [{ text: 'ISO 22000 certified', may_mention: true }] })).status).toBe(200);
     expect((await put('customers', { roles: ['Head of Procurement'], industries: ['Fruit exporters'], countries: ['PE'], problems: 'Held shipments.' })).status).toBe(200);
     const last = await put('voice', { sender_name: 'Ana Torres', meeting_link: 'https://cal.com/ana', tone: 'consultative' });

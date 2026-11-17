@@ -30,6 +30,7 @@ import googleAuthRouter from './routes/googleAuth';
 import recoveryRouter from './routes/recovery';
 import platformRouter from './routes/platform';
 import billingRouter from './routes/billing';
+import privacyRouter from './routes/privacy';
 import stripeWebhookRouter from './routes/stripeWebhook';
 import teamRouter from './routes/team';
 import campaignsRouter from './routes/campaigns';
@@ -186,6 +187,7 @@ app.use(offeringsRouter);
 app.use(profileRouter);
 app.use(teamRouter);
 app.use(billingRouter);
+app.use(privacyRouter);
 app.use(platformRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).

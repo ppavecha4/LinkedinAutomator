@@ -26,7 +26,7 @@ import { buildApp } from './app';
 
 const EMPTY: Profile = { company: {}, offer: {}, customers: {}, voice: {}, rules: {} };
 const FULL: Profile = {
-  company: { name: 'Acme', industry: 'Packaging', description: 'We make export packaging.', languages_handled: ['es', 'en'] },
+  company: { name: 'Acme', address: 'Av. Larco 123, Lima', industry: 'Packaging', description: 'We make export packaging.', languages_handled: ['es', 'en'] },
   offer: {
     offers: [{ name: 'Fruit boxes' }],
     value_proposition: 'Clears customs first time.',

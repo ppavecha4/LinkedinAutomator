@@ -221,6 +221,7 @@ def build_message(
     logo_bytes: Optional[bytes] = None,
     logo_mime: Optional[str] = None,
     meeting_url: Optional[str] = "env",
+    footer: Optional[dict] = None,
 ) -> email.message.EmailMessage:
     """Construct the multipart/alternative (or multipart/related when a
     logo is attached) message with all the deliverability-sensitive
@@ -246,6 +247,7 @@ def build_message(
 
     # Signed unsubscribe URL (HMAC-SHA256). The /unsubscribe API route
     # validates the signature server-side.
+    unsub_url = ""
     if unsubscribe_base:
         ts = str(int(dt.datetime.now(dt.timezone.utc).timestamp()))
         payload = f"v1.{contact_id}.{ts}"
@@ -298,6 +300,34 @@ def build_message(
         full_text = full_text.rstrip() + "\n\n" + signature_text.lstrip()
     if signature_html:
         full_html = full_html + signature_html
+
+    # Customer emails (slice 5.1): who is sending, where they are, and a
+    # working way out, in the footer of EVERY email whatever the writer
+    # produced. The unsubscribe sentence is added only when the body does
+    # not already carry the link.
+    if footer:
+        import html as html_mod
+
+        from agents.language import unsubscribe_line
+
+        who = " — ".join(x for x in (footer.get("legal_name") or footer.get("company"),) if x)
+        lines = [x for x in (who, footer.get("address")) if x]
+        unsub_needed = bool(unsub_url) and unsub_url not in full_text
+        sentence = unsubscribe_line(footer.get("language"), footer.get("company") or who) if unsub_needed else ""
+        text_block = "\n".join(lines)
+        if unsub_needed:
+            text_block += ("\n" if text_block else "") + f"{sentence} {unsub_url}"
+        if text_block:
+            full_text = full_text.rstrip() + "\n\n--\n" + text_block + "\n"
+            html_lines = "<br>".join(html_mod.escape(x) for x in lines)
+            if unsub_needed:
+                html_lines += ("<br>" if html_lines else "") + (
+                    f'{html_mod.escape(sentence)} <a href="{html_mod.escape(unsub_url)}" '
+                    f'style="color:#6b7280;text-decoration:underline;">{html_mod.escape(unsub_url)}</a>')
+            full_html = full_html + (
+                '<p style="margin:24px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;'
+                'font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#6b7280;">'
+                f"{html_lines}</p>")
 
     # Opt-in open tracking. Same env contract as the production
     # GoogleWorkspaceEmailChannel: EMAIL_TRACK_OPENS=true +
@@ -445,6 +475,19 @@ async def main(args: argparse.Namespace) -> None:
             logo_bytes = logo_mime = None
             meeting_url = None
             print(f"[account] {account.provider} {from_email}")
+            # Who is sending, for the legal footer. Without a postal address
+            # nothing goes out (checked per message below; the API also refuses
+            # to launch an email campaign without one).
+            async with pool.acquire() as conn:
+                company = await conn.fetchval("SELECT company FROM org_profiles")
+            if isinstance(company, str):
+                company = json.loads(company or "{}")
+            company = company or {}
+            identity = {
+                "company": (company.get("name") or "").strip(),
+                "legal_name": (company.get("legal_name") or "").strip(),
+                "address": (company.get("address") or "").strip(),
+            }
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -454,6 +497,7 @@ async def main(args: argparse.Namespace) -> None:
                        m.metadata,
                        m.pitch_type,
                        c.id::text   AS contact_id,
+                       m.language,
                        c.full_name,
                        c.email,
                        p.company_name
@@ -503,6 +547,14 @@ async def main(args: argparse.Namespace) -> None:
                     skipped += 1
                     continue
 
+            # A customer's email must say who sends it and where they are.
+            # (An opt-out confirmation is exempt: it carries no marketing.)
+            if account is not None and not decision.is_confirmation and not identity["address"]:
+                print(f"  waiting {r['full_name']:20s} — add your company's postal address "
+                      f"(Business profile › Company): it goes in every email's footer")
+                skipped += 1
+                continue
+
             subject = r["subject"] or _synth_subject(
                 r["body"], r["company_name"], from_name or from_email
             )
@@ -526,6 +578,8 @@ async def main(args: argparse.Namespace) -> None:
                 logo_bytes=logo_bytes,
                 logo_mime=logo_mime,
                 meeting_url=meeting_url,
+                footer=(None if account is None or decision.is_confirmation
+                        else {**identity, "language": r["language"]}),
             )
 
             # Follow-ups (slice 3.5) reply inside the original thread.

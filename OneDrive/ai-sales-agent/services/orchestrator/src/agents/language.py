@@ -168,6 +168,25 @@ CONFIRMATIONS = {
 }
 
 
+# The unsubscribe sentence in the footer of every CUSTOMER email (slice 5.1),
+# per language; English where we have no fixed text. {company} = the sender.
+UNSUBSCRIBE_LINES = {
+    "en": "If you no longer want emails from {company}, unsubscribe here:",
+    "es": "Si ya no quieres recibir correos de {company}, date de baja aquí:",
+    "pt": "Se você não quer mais receber e-mails de {company}, cancele a inscrição aqui:",
+    "fr": "Si vous ne souhaitez plus recevoir d'e-mails de {company}, désinscrivez-vous ici :",
+    "de": "Wenn Sie keine E-Mails von {company} mehr erhalten möchten, melden Sie sich hier ab:",
+    "it": "Se non vuoi più ricevere email da {company}, annulla l'iscrizione qui:",
+    "ar": "إذا لم تعد ترغب في تلقي رسائل من {company}، يمكنك إلغاء الاشتراك هنا:",
+    "hi": "यदि आप {company} से ईमेल नहीं पाना चाहते, तो यहाँ सदस्यता रद्द करें:",
+}
+
+
+def unsubscribe_line(tag: str | None, company: str) -> str:
+    """The footer's unsubscribe sentence (without the link) in `tag`."""
+    return (UNSUBSCRIBE_LINES.get(primary(tag or "en")) or UNSUBSCRIBE_LINES["en"]).format(company=company or "us")
+
+
 def confirmation_message(tag: str, company: str) -> tuple[str, str]:
     """(subject, body) of the opt-out confirmation in `tag`, English if we
     have no fixed text for that language."""

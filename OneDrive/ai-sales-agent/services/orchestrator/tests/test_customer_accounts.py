@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import base64
 import email.message
+import json
 import os
 import socket
 import uuid
@@ -149,7 +150,7 @@ async def _cleanup(pool, org: str):
             for sql in ("DELETE FROM compliance_log", "DELETE FROM suppression_list", "DELETE FROM prospect_events",
                         "DELETE FROM conversation_messages", "DELETE FROM conversations", "DELETE FROM messages",
                         "DELETE FROM contacts", "DELETE FROM prospects", "DELETE FROM campaign_audit_log",
-                        "DELETE FROM campaigns", "DELETE FROM org_credentials"):
+                        "DELETE FROM campaigns", "DELETE FROM org_credentials", "DELETE FROM org_profiles"):
                 await conn.execute(sql)
             await conn.execute("DELETE FROM organizations WHERE id = $1", org)
     async with pool.acquire() as conn:
@@ -176,6 +177,7 @@ async def test_live_customer_email_goes_from_their_verified_mailbox(monkeypatch)
     monkeypatch.setenv("CALENDLY_MEETING_URL", "https://calendly.com/operator/15min")
     monkeypatch.setenv("GOOGLE_WORKSPACE_EMAIL", "ops@operator.test")  # must NOT be used
     monkeypatch.setenv("GOOGLE_WORKSPACE_APP_PASSWORD", "operator-pw")
+    monkeypatch.setenv("UNSUBSCRIBE_BASE_URL", "https://api.acme-test.example")
     pool = await t.create_pool(os.environ["DATABASE_URL"], min_size=1, max_size=2)
     await _seed_org(pool, ORG, "Acme Accounts")
     row = await _campaign_with_message(pool, ORG, channel="email")
@@ -188,9 +190,26 @@ async def test_live_customer_email_goes_from_their_verified_mailbox(monkeypatch)
 
         await _credential(pool, ORG, "google_workspace", {"app_password": "cust-pw"},
                           {"email": "ana@acme.test", "from_name": "Ana Torres"})
+        # Verified, but the company has not said where it is: the law wants that in
+        # every email, so nothing goes out (and the message stays queued).
+        await sender.main(_args(row["campaign_id"]))
+        assert sent == []
+        with t.tenant(ORG):
+            async with pool.acquire() as conn:
+                assert await conn.fetchval("SELECT status FROM messages WHERE id = $1", row["message_id"]) == "QUEUED"
+                await conn.execute(
+                    "INSERT INTO org_profiles (org_id, company) VALUES ($1, $2::jsonb)"
+                    " ON CONFLICT (org_id) DO UPDATE SET company = EXCLUDED.company", ORG,
+                    json.dumps({"name": "Acme", "legal_name": "Acme Packaging S.A.C.", "address": "Av. Larco 123, Lima 15074, Peru"}))
         await sender.main(_args(row["campaign_id"]))
         assert len(sent) == 1
         msg, account = sent[0]
+        text = msg.get_body(preferencelist=("plain",)).get_content()
+        assert "Acme Packaging S.A.C." in text and "Av. Larco 123, Lima 15074, Peru" in text
+        # The writer's body had no unsubscribe link, so the footer carries one, in the contact's language.
+        assert "Si ya no quieres recibir correos de Acme" in text
+        assert "https://api.acme-test.example/unsubscribe?token=" in text
+        assert msg["List-Unsubscribe"].startswith("<https://api.acme-test.example/unsubscribe?token=")
         assert msg["From"] == "Ana Torres <ana@acme.test>"
         assert msg["Reply-To"] == "ana@acme.test"
         assert "operator" not in msg.as_string()
@@ -303,3 +322,51 @@ async def test_live_customer_mailbox_replies_stay_with_that_customer(monkeypatch
         await _cleanup(pool, ORG)
         await _cleanup(pool, OTHER)
         await pool.close()
+
+
+# ── slice 5.1: the legal footer, as built (no database) ─────────────────
+
+def _footer_message(body: str, *, language="es", address="Av. Larco 123, Lima", legal="Acme S.A.C."):
+    import scripts.send_pending_emails as sender
+
+    return sender.build_message(
+        from_email="ana@acme.test", from_name="Ana", reply_to="ana@acme.test", to_email="c@x.test",
+        subject="Hola", text_body=body, html_body=None, contact_id="c-1",
+        unsubscribe_base="https://api.example.test", meeting_url=None,
+        footer={"company": "Acme", "legal_name": legal, "address": address, "language": language},
+    )
+
+
+def test_footer_adds_sender_identity_and_an_unsubscribe_link_when_the_body_has_none():
+    msg = _footer_message("Hola Carla, fabricamos cajas.")
+    text = msg.get_body(preferencelist=("plain",)).get_content()
+    html = msg.get_body(preferencelist=("html",)).get_content()
+    assert "Acme S.A.C." in text and "Av. Larco 123, Lima" in text
+    assert "Si ya no quieres recibir correos de Acme" in text and "https://api.example.test/unsubscribe?token=" in text
+    assert 'href="https://api.example.test/unsubscribe?token=' in html and "Av. Larco 123, Lima" in html
+    # An unsupported language falls back to English.
+    assert "If you no longer want emails from Acme" in _footer_message("Hi", language="xx").get_body(preferencelist=("plain",)).get_content()
+
+
+def test_footer_does_not_repeat_a_link_the_writer_already_placed():
+    msg = _footer_message("Hola.\n\nBaja: {{unsubscribe_link}}")
+    text = msg.get_body(preferencelist=("plain",)).get_content()
+    assert text.count("/unsubscribe?token=") == 1          # the writer's link only
+    assert "Av. Larco 123, Lima" in text                   # but who/where is still there
+    assert "Si ya no quieres" not in text
+
+
+def test_footer_text_is_html_escaped():
+    msg = _footer_message("Hi", legal="Tom & Jerry <Ltd>")
+    html = msg.get_body(preferencelist=("html",)).get_content()
+    assert "Tom &amp; Jerry &lt;Ltd&gt;" in html and "<Ltd>" not in html
+
+
+def test_no_footer_for_the_operator_path():
+    import scripts.send_pending_emails as sender
+
+    msg = sender.build_message(
+        from_email="ops@operator.test", from_name="Ops", reply_to="ops@operator.test", to_email="c@x.test",
+        subject="Hi", text_body="Hello {{unsubscribe_link}}", html_body=None, contact_id="c-1",
+        unsubscribe_base="https://api.example.test", meeting_url=None)
+    assert "--\n" not in msg.get_body(preferencelist=("plain",)).get_content()

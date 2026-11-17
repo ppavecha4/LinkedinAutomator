@@ -78,7 +78,7 @@ runbook](#v17-deploy-runbook).
 | 3 | Onboarding + connectors | Signup + sign-in, invite flow, onboarding wizard that builds the **business profile** (see "Business profile and onboarding"), then connect email → WhatsApp → phone number (voice), each with a "verify credential" step |
 | 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas (built, slices 4.1 / 4.2) | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
-| 6 | Per-tenant compliance | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
+| 6 | Per-tenant compliance (built in part, slices 5.1 / 5.2) | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
 | 7 | Hardening | Production dashboard build (not the Vite dev server), offsite backups, monitoring/alerting |
 
 ---
@@ -1091,6 +1091,60 @@ platform meters is the VOLUME it orchestrates: three limits per plan.
   the plan limits. Not built: metering of AI discovery / enriched leads, annual
   billing, taxes (Stripe Tax), per-seat pricing, an in-app invoice list (the
   portal has it), usage alerts by email.
+
+### Slices 5.1 and 5.2 as built (2026-11-17): sender identity and privacy requests (phase 6)
+
+What phase 6 already had from earlier slices: per-company suppression, opt-out
+in every language, contact hours by the recipient's local time, the consent
+attestation on uploaded lists, WhatsApp template-only first contact. What was
+missing, and is now built:
+
+- **Sender identity in every customer email (5.1)**: anti-spam law (CAN-SPAM,
+  CASL, GDPR transparency) wants every commercial email to say who sends it,
+  where they are, and a working way out. Customer emails used to rely on the
+  AI writer remembering an unsubscribe placeholder (and follow-ups had none).
+  Now `build_message(footer=...)` appends, whatever the writer produced:
+  the company's legal name (`company.legal_name`, else its name), its postal
+  address (`company.address`), and, only if the body does not already carry
+  the signed unsubscribe link, one sentence plus the link in the contact's
+  language (en, es, pt, fr, de, it, ar, hi; English otherwise). Text and HTML,
+  HTML-escaped. The operator's own emails keep their signature and are
+  unchanged; an opt-out confirmation carries no footer.
+- **The address is required**: the API refuses to launch an email campaign
+  (both launch paths) with 409 `{missing_identity: ['address']}` until the
+  business profile has it (Business profile › Company, new "Postal address" and
+  "Legal company name" fields); the profile strength meter asks for it; and the
+  sender leaves a customer's queued emails waiting (with a note) if it is still
+  missing at send time.
+- **Privacy requests (5.2, V30)**: a person asks a company what it holds about
+  them, or to delete it (GDPR / UK GDPR / CCPA / India DPDP). The company is the
+  controller and handles it in Settings › Privacy requests (owner / admin):
+  - `POST /api/privacy/export {email?, whatsapp?}` returns everything held
+    (contacts, messages, conversations, meetings, do-not-contact entries) as
+    JSON, which the page saves as a file. POST, so the person's address never
+    sits in a URL or a log.
+  - `POST /api/privacy/erase {email?, whatsapp?, confirm: true}` deletes their
+    messages, conversations, meetings and timeline events, blanks the contact
+    row, clears raw copies in uploaded import rows and received webhook
+    payloads, and returns counts.
+  - Both run as SECURITY INVOKER functions (`export_person`, `erase_person`)
+    inside the company's tenant: one company can never see or erase another's
+    copy of the same person (tested).
+  - Erasure KEEPS, deliberately: a suppression entry with reason `ERASURE` (their
+    address / number, so no import or send can contact them again) and a
+    `compliance_log` line with counts only. Company (prospect) records are not
+    personal data and stay.
+- **Tests**: API 259 (new: address rule, export by email in any case / by
+  number, role and input checks, erase with cross-company isolation, idempotent
+  erase); orchestrator 207 (footer built correctly, not duplicated, escaped,
+  operator unchanged; customer send waits without an address, then sends with
+  the footer in the contact's language).
+- **Needs the owner, not code**: a lawyer's review of the Terms and Privacy
+  drafts (a data-processing agreement with customers, the retention period),
+  and per-country rules we did NOT build: India DLT/TRAI and DND (they apply to
+  SMS and calls, so they come with the voice channel), call-recording consent
+  (voice), automatic retention deletion, whole-company export / deletion when
+  a customer leaves, and a viewer for the compliance log.
 
 ## Voice channel
 

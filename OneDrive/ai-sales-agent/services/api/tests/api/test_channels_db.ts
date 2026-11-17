@@ -48,6 +48,7 @@ describeIfDb('channels + entitlement + launch gate (live DB)', () => {
         await query(`DELETE FROM sequence_steps WHERE campaign_id IN (SELECT id FROM campaigns WHERE name = 'channels test')`);
         await query(`DELETE FROM campaigns WHERE name = 'channels test'`);
         await query(`DELETE FROM org_credentials WHERE label = 'channels-test'`);
+        await query(`DELETE FROM org_profiles`);
       });
     }
     await asOrg(CUSTOMER, () => query(`DELETE FROM organizations WHERE id = $1`, [CUSTOMER]));
@@ -132,6 +133,13 @@ describeIfDb('channels + entitlement + launch gate (live DB)', () => {
     });
     await asCustomer(request(app()).post(`/api/credentials/${tw.body.data.id}/verify`));
     setCredentialCheckHooks({});
+    // Accounts are connected, but an email campaign also needs the sender's postal address (slice 5.1).
+    const noAddress = await asCustomer(request(app()).post(`/api/campaigns/${id}/launch`));
+    expect(noAddress.status).toBe(409);
+    expect(noAddress.body.error.details).toEqual({ missing_identity: ['address'] });
+    await asOrg(CUSTOMER, () => query(
+      `INSERT INTO org_profiles (org_id, company) VALUES ($1, '{"name":"Acme","address":"Av. Larco 123, Lima"}'::jsonb)
+       ON CONFLICT (org_id) DO UPDATE SET company = EXCLUDED.company`, [CUSTOMER]));
     const launched = await asCustomer(request(app()).post(`/api/campaigns/${id}/launch`));
     expect(launched.status).toBe(200);
   });

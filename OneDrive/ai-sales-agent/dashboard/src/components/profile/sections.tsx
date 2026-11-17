@@ -84,6 +84,12 @@ export function CompanyForm({ value: v, onChange, fromWebsite }: SectionProps<Co
       <Field label="Company name" fromWebsite={fw('name')} htmlFor="p-name">
         <input id="p-name" className="input" value={v.name ?? ''} onChange={(e) => set('name', e.target.value)} maxLength={255} required />
       </Field>
+      <Field label="Legal company name" htmlFor="p-legal" hint="If different from the name above. Shown in the footer of every email.">
+        <input id="p-legal" className="input" value={v.legal_name ?? ''} onChange={(e) => set('legal_name', e.target.value)} maxLength={255} placeholder="e.g. Acme Packaging S.A.C." />
+      </Field>
+      <Field label="Postal address" htmlFor="p-address" hint="Required to send email: the law asks every commercial email to say who sends it and where. Shown in the footer." className="md:col-span-2">
+        <input id="p-address" className="input" value={v.address ?? ''} onChange={(e) => set('address', e.target.value)} maxLength={300} placeholder="Street, number, city, postal code, country" />
+      </Field>
       <Field label="Industry" fromWebsite={fw('industry')} htmlFor="p-industry">
         <input id="p-industry" className="input" value={v.industry ?? ''} onChange={(e) => set('industry', e.target.value)} maxLength={150} placeholder="e.g. Food packaging manufacturing" />
       </Field>

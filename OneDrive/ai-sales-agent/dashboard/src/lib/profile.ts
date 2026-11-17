@@ -43,6 +43,8 @@ export interface ProofItem {
 
 export interface CompanySection {
   name?: string;
+  legal_name?: string;
+  address?: string;
   website?: string | null;
   industry?: string;
   size?: CompanySize;

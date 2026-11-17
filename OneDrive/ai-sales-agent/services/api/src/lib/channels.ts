@@ -139,4 +139,21 @@ export async function assertReadyToLaunch(channels: readonly Channel[]): Promise
       { missing },
     );
   }
+  await assertSenderIdentity(channels);
+}
+
+/**
+ * Every customer email carries the sender's name and postal address in its
+ * footer (slice 5.1), so an email campaign needs the address on the business
+ * profile. The operator (Appson) has its own signature and is exempt.
+ */
+export async function assertSenderIdentity(channels: readonly Channel[]): Promise<void> {
+  if (!channels.includes('email') || currentTenant()?.orgId === env.authOrgId) return;
+  const r = await query<{ address: string | null }>(`SELECT company->>'address' AS address FROM org_profiles`);
+  if (!(r.rows[0]?.address ?? '').trim()) {
+    throw ApiError.conflict(
+      "add your company's postal address (Business profile › Company) before launching an email campaign: the law requires it in every email",
+      { missing_identity: ['address'] },
+    );
+  }
 }

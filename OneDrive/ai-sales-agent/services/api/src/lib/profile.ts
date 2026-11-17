@@ -22,6 +22,11 @@ export const SIGNALS = ['new_markets', 'trade_fairs', 'hiring', 'funding', 'new_
 export const companySchema = z
   .object({
     name: text(255).min(1),
+    // Who is legally sending, and where: both go in the footer of every email
+    // (anti-spam laws: CAN-SPAM, CASL, GDPR transparency). The address is
+    // required before an email campaign can launch.
+    legal_name: text(255).optional(),
+    address: text(300).optional(),
     website: z.string().trim().url().max(500).nullable().optional(),
     industry: text(150).optional(),
     size: z.enum(COMPANY_SIZES).optional(),
@@ -123,6 +128,7 @@ const has = (v: unknown) => (Array.isArray(v) ? v.length > 0 : typeof v === 'str
 // What makes the engine work well, weighted by how much it matters.
 const CHECKS: Check[] = [
   { section: 'company', item: 'description', weight: 10, hint: 'Describe what you do in one or two sentences.', ok: (p) => has(p.company.description) },
+  { section: 'company', item: 'address', weight: 6, hint: "Add your company's postal address: it goes in every email's footer, and email campaigns cannot launch without it.", ok: (p) => has(p.company.address) },
   { section: 'company', item: 'industry', weight: 4, hint: 'Add your industry.', ok: (p) => has(p.company.industry) },
   { section: 'company', item: 'languages_handled', weight: 6, hint: 'Say which languages your team can answer replies in.', ok: (p) => has(p.company.languages_handled) },
   { section: 'offer', item: 'offers', weight: 12, hint: 'Add at least one product or service.', ok: (p) => has(p.offer.offers) },
