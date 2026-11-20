@@ -280,3 +280,33 @@ async def test_live_imported_spanish_contact_gets_spanish_and_language_is_stored
                 await conn.execute("DELETE FROM org_credentials")
         await _cleanup(pool)
         await pool.close()
+
+
+# ── voice channel: how people say it on a phone call ────────────────────
+
+import pytest as _pytest  # noqa: E402
+
+
+@_pytest.mark.parametrize("text, lang", [
+    ("Please stop calling me", "en"),
+    ("Don't call me again", "en"),
+    ("take me off your list", "en"),
+    ("Por favor, no me llamen más", "es"),
+    ("dejen de llamar a este numero", "es"),
+    ("Não me ligue mais", "pt"),
+    ("Ne m'appelez plus s'il vous plaît", "fr"),
+    ("Rufen Sie mich nicht mehr an", "de"),
+    ("Non chiamarmi più", "it"),
+])
+def test_phone_style_requests_to_stop_are_opt_outs(text, lang):
+    r = detect_opt_out(text)
+    assert r.is_opt_out and r.language == lang
+
+
+@_pytest.mark.parametrize("text", [
+    "Call me back tomorrow at three",
+    "I can't talk now, call me later",
+    "We stopped calling suppliers like that years ago",
+])
+def test_asking_for_a_callback_is_not_an_opt_out(text):
+    assert not detect_opt_out(text).is_opt_out

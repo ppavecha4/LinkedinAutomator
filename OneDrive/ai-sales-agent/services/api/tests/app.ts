@@ -26,6 +26,7 @@ import googleAuthRouter from '../src/routes/googleAuth';
 import recoveryRouter from '../src/routes/recovery';
 import platformRouter from '../src/routes/platform';
 import billingRouter from '../src/routes/billing';
+import callsRouter from '../src/routes/calls';
 import privacyRouter from '../src/routes/privacy';
 import stripeWebhookRouter from '../src/routes/stripeWebhook';
 import teamRouter from '../src/routes/team';
@@ -81,6 +82,7 @@ export function buildApp(): express.Express {
   app.use(profileRouter);
   app.use(teamRouter);
   app.use(billingRouter);
+  app.use(callsRouter);
   app.use(privacyRouter);
   app.use(platformRouter);
 

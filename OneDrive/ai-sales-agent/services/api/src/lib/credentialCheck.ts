@@ -77,7 +77,7 @@ export function setCredentialCheckHooks(h: Partial<Hooks>): void {
 }
 
 /** Providers this module can check. */
-export const CHECKABLE = new Set(['anthropic', 'apollo', 'twilio', 'google_workspace', 'smtp']);
+export const CHECKABLE = new Set(['anthropic', 'apollo', 'twilio', 'google_workspace', 'smtp', 'elevenlabs']);
 
 export const SMTP_PORTS = new Set([25, 465, 587, 2525]);
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
@@ -122,7 +122,11 @@ async function checkTwilio(secret: Strings, meta: Meta): Promise<CheckResult> {
   const sid = str(meta.account_id);
   if (!/^AC[0-9a-fA-F]{32}$/.test(sid)) return { ok: false, error: 'The Account SID must start with AC and have 34 characters.' };
   const from = str(meta.whatsapp_from).replace(/^whatsapp:/i, '').replace(/[\s()-]/g, '');
-  if (!/^\+[1-9]\d{6,14}$/.test(from)) return { ok: false, error: 'Give the WhatsApp number in international format, e.g. +51987654321.' };
+  const voiceFrom = str(meta.voice_from).replace(/[\s()-]/g, '');
+  const e164 = /^\+[1-9]\d{6,14}$/;
+  if (!from && !voiceFrom) return { ok: false, error: 'Give a WhatsApp number, a phone number for calls, or both.' };
+  if (from && !e164.test(from)) return { ok: false, error: 'Give the WhatsApp number in international format, e.g. +51987654321.' };
+  if (voiceFrom && !e164.test(voiceFrom)) return { ok: false, error: 'Give the phone number for calls in international format, e.g. +51987654321.' };
   const auth = Buffer.from(`${sid}:${secret.auth_token ?? ''}`).toString('base64');
   const r = await http(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
     headers: { Authorization: `Basic ${auth}` },
@@ -133,6 +137,35 @@ async function checkTwilio(secret: Strings, meta: Meta): Promise<CheckResult> {
   if (!r.ok) return { ok: false, error: `Twilio answered ${r.status}; try again in a minute.`, transient: true };
   const body = (await r.json().catch(() => ({}))) as { status?: string };
   if (body.status && body.status !== 'active') return { ok: false, error: `This Twilio account is ${body.status}.` };
+  if (voiceFrom) {
+    // The number must be one this account can call FROM: bought in it, or verified as a caller ID.
+    const q = `PhoneNumber=${encodeURIComponent(voiceFrom)}`;
+    for (const list of ['IncomingPhoneNumbers', 'OutgoingCallerIds']) {
+      const lr = await http(`https://api.twilio.com/2010-04-01/Accounts/${sid}/${list}.json?${q}`, { headers: { Authorization: `Basic ${auth}` } });
+      if (!lr.ok) return { ok: false, error: `Twilio answered ${lr.status}; try again in a minute.`, transient: true };
+      const found = (await lr.json().catch(() => ({}))) as Record<string, unknown[]>;
+      const items = found.incoming_phone_numbers ?? found.outgoing_caller_ids ?? [];
+      if (items.length > 0) return { ok: true };
+    }
+    return { ok: false, error: `${voiceFrom} is not a number in this Twilio account. Buy it in Twilio, or verify it there as a caller ID.` };
+  }
+  return { ok: true };
+}
+
+/** ElevenLabs: the key works, and every voice named in the settings is in the account. */
+async function checkElevenLabs(secret: Strings, meta: Meta): Promise<CheckResult> {
+  const key = secret.api_key ?? '';
+  const voices = [...new Set(Object.entries(meta)
+    .filter(([k]) => k === 'voice_id' || k.startsWith('voice_id_'))
+    .map(([, v]) => str(v)).filter(Boolean))].slice(0, 8);
+  const urls = voices.length ? voices.map((v) => `https://api.elevenlabs.io/v1/voices/${encodeURIComponent(v)}`) : ['https://api.elevenlabs.io/v1/user'];
+  for (const url of urls) {
+    const r = await http(url, { headers: { 'xi-api-key': key } });
+    if (r.status === 401) return { ok: false, error: 'ElevenLabs rejected this API key.' };
+    if (r.status === 404 || r.status === 422) return { ok: false, error: 'A voice ID you entered was not found in your ElevenLabs account. Add the voice to your account first.' };
+    if (r.status === 403) return { ok: false, error: 'This ElevenLabs key is not allowed to use voices. Give it access to Text to Speech, Speech to Text and Voices.' };
+    if (!r.ok) return { ok: false, error: `ElevenLabs answered ${r.status}; try again in a minute.`, transient: true };
+  }
   return { ok: true };
 }
 
@@ -192,6 +225,7 @@ export async function checkCredential(provider: string, secret: Strings, meta: M
       case 'anthropic': return await checkAnthropic(secret);
       case 'apollo': return await checkApollo(secret);
       case 'twilio': return await checkTwilio(secret, meta);
+      case 'elevenlabs': return await checkElevenLabs(secret, meta);
       case 'google_workspace':
       case 'smtp': return await checkSmtp(provider, secret, meta);
       default: return null;

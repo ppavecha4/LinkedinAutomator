@@ -28,6 +28,11 @@
 		reverse_proxy api:3000
 	}
 
+	# AI phone calls (docker compose profile "voice"): Twilio's callbacks and the call's audio WebSocket.
+	handle /voice/* {
+		reverse_proxy voice:8090
+	}
+
 	handle {
 		reverse_proxy dashboard:80
 	}

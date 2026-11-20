@@ -76,7 +76,7 @@ runbook](#v17-deploy-runbook).
 | 1 | Tenancy | V16 schema (this doc), org-scoped JWT, tenant context per DB connection, V17 RLS, credential vault replacing `.env` keys |
 | 2 | Lead sources, channels, language | In slices: **2.1 channels + language foundation (done)** · **2.2 Excel/CSV import backend (done)** · **2.3 prompt-to-ICP offerings (done)** · **2.4 language-aware writing + multilingual opt-out (done)** · **2.5 dashboard screens (done)** |
 | 3 | Onboarding + connectors | Signup + sign-in, invite flow, onboarding wizard that builds the **business profile** (see "Business profile and onboarding"), then connect email → WhatsApp → phone number (voice), each with a "verify credential" step |
-| 4 | Voice channel (own stack) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
+| 4 | Voice channel (ElevenLabs now, own models later; built, slice 7.1) | Speech pipeline design session first; then `voice_channel.py` per the CLAUDE.md "new channel" checklist, call outcomes into the unified inbox, human handoff |
 | 5 | Billing + quotas (built, slices 4.1 / 4.2) | Stripe plans, metering per enriched lead / message / call-minute, quota enforcement in the rate limiter |
 | 6 | Per-tenant compliance (built in part, slices 5.1 / 5.2) | Org-scoped opt-out in every language, quiet hours by recipient timezone, DLT/TRAI templates, recording-consent prompts, consent attestations on uploaded lists |
 | 7 | Hardening (built, slices 6.1-6.3) | Production dashboard build (not the Vite dev server), offsite backups, monitoring/alerting |
@@ -1274,6 +1274,80 @@ Unchanged from before, whatever the stack:
 
 ---
 
+### Voice channel as built (slice 7.1, 2026-11-18)
+
+Decisions (user, 2026-11-18): ElevenLabs now, behind swappable interfaces; our own voice trained later
+on recorded, consented human speech and judged against ElevenLabs in blind listening tests; only people
+who opted in or replied are called; pilot size (5 concurrent calls); the company's own Twilio number.
+**ElevenLabs output is never used as training data**: their use policy (section 12) forbids using output
+to train or improve any AI model, so ElevenLabs is the yardstick and the fallback, never the teacher.
+
+- **The call path**, all in `services/orchestrator/src/voice/`:
+  Twilio rings the person from the company's own number -> when they answer, Twilio asks our server what
+  to do and gets a media stream -> the call's audio (G.711 mu-law, 8 kHz) flows both ways over a WebSocket
+  -> `session.py` runs the call: ElevenLabs realtime speech to text (vendor-side turn detection,
+  `ulaw_8000`, no transcoding), a fast Anthropic model streaming the reply, ElevenLabs streaming text to
+  speech (`ulaw_8000`) straight back to the line.
+- **Interfaces** (`providers.py`): `Stt`, `Tts`; ElevenLabs is `elevenlabs.py`, the only file that knows
+  the vendor. A voice we train ourselves is another implementation; choosing per language is a small
+  change in the provider factory (`server.default_providers`).
+- **What a good call needed, and has**: the person can interrupt (speech while we talk cuts our voice
+  mid-word and clears Twilio's buffer); a request to stop is honoured BEFORE the model sees it (the same
+  opt-out detector as email/WhatsApp, extended with how people say it on a phone: "stop calling me",
+  "no me llamen", "não me ligue"...), answered with a fixed, reviewed sentence in their language, then
+  hang up; silence gets one "are you still there?" then a goodbye; a maximum call length; an answering
+  machine is hung up on with nothing said; any crash still hangs up the line.
+- **Disclosure**: the greeting (fixed text, en / es / pt reviewed; other languages fall back to English
+  until added to `phrases.py`) says it is an automated assistant, who it calls for, and that the call
+  may be transcribed. No audio is recorded: only the transcript is stored.
+- **Who may be called** (`gate.py`, checked again right before every dial): company ACTIVE; the person is
+  not on the suppression list (an email opt-out stops calls, a call opt-out stops email: one list);
+  they OPTED IN (`contacts.voice_opt_in_at`: the company confirms in writing in the dashboard, or they
+  gave it) or REPLIED to us on another channel; the company's profile rules; contact hours in the
+  PERSON'S local time (outside them the call waits). There is no cold-calling mode.
+- **The dialer** (`server.py`): claims queued calls across companies (`claim_calls_to_dial`, SKIP LOCKED),
+  at most `VOICE_MAX_CONCURRENT` live at once (counted in the database, so several servers share the
+  limit), places each through THAT company's Twilio account; stale calls are closed out. Twilio's HTTP
+  callbacks are verified with the company's own auth token; the audio WebSocket (not signed by Twilio)
+  needs a short-lived HMAC token that our TwiML hands out.
+- **What a finished call leaves**: transcript, outcome (INTERESTED / NOT_INTERESTED / CALLBACK / OPT_OUT /
+  WRONG_PERSON / NO_CONVERSATION), duration, characters spoken and seconds heard (for metering); the
+  conversation and its messages in the unified inbox (which also stops email / WhatsApp follow-ups); a
+  timeline event; prospect REPLIED on interest; on opt-out the person's number AND email are suppressed on
+  every channel, the prospect is unsubscribed and call consent is withdrawn.
+- **Accounts** (BYO, vault, verified): ElevenLabs (`api_key`; `voice_id`, `voice_id_<lang>`), Twilio with a
+  `voice_from` number that must belong to the account (checked against Twilio), Anthropic. A voice
+  campaign cannot launch / queue without all three (`missingChannelCredentials`); a Twilio credential
+  with only a WhatsApp number no longer counts for calls, and vice versa. The operator org uses
+  `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `VOICE_FROM_NUMBER`, `TWILIO_*`, `ANTHROPIC_API_KEY`.
+- **API / dashboard**: `GET /api/calls`, `GET /api/calls/:id` (transcript), cancel a waiting call,
+  `GET /api/campaigns/:id/calls/eligibility`, `POST .../voice-opt-in` (the written consent confirmation,
+  logged with who said it), `POST .../calls` (queue the eligible). Dashboard: AI calls page (start calls,
+  consent confirmation, recent calls, transcripts), the ElevenLabs card and a "Phone number for calls"
+  field under Twilio.
+- **Run it**: `docker compose -f docker-compose.prod.yml --profile voice up -d` (the orchestrator image
+  running `voice_server.py`; Caddy sends `/voice/*` to it). Needs `VOICE_PUBLIC_URL` (the public https
+  address Twilio reaches) and `VOICE_STREAM_SECRET`. V32: calls, `contacts.phone`, `voice_opt_in_*`.
+- **Tests**: orchestrator +48 (the whole call with fakes: interruption, opt-out, silence, hang-up, STT
+  failure, model failure, control tags; ElevenLabs clients against a local server speaking the documented
+  protocol; Twilio message codec and stream token; live-database dialer, gate, webhooks, media stream,
+  transcript and suppression written, plus phone-style opt-out phrases); API +8 (the voice accounts' checks, who can be called, consent, queueing, isolation). **No real call has been placed and no real ElevenLabs or
+  Twilio endpoint was contacted**: the protocols follow the vendors' published docs (checked 2026-11-18).
+- **First real call checklist (owner)**: an ElevenLabs key + a voice ID; a Twilio number in an account
+  that may call the destination country; set `VOICE_PUBLIC_URL` / `VOICE_STREAM_SECRET`; start with your
+  own phone (opt yourself in, queue one call) and measure the pause between you finishing a sentence and
+  hearing the reply: the target is under about a second, and it is NOT measured yet.
+- **Not built**: inbound calls (a company's number answered by the assistant); our own speech models and
+  the data programme (record consented speakers per language, fine-tune an open model whose licence allows
+  commercial use, blind-test against ElevenLabs with native speakers, switch per language where ours
+  wins); a listening-test tool; Hindi / Arabic / other fixed phrases (English fallback today); India
+  DLT/TRAI and DND checks and per-country calling rules beyond consent (do not call India or any country
+  with such rules until built); call-minute metering and plan limits (usage is recorded per call:
+  `tts_chars`, `stt_seconds`); the hourly re-check of ElevenLabs keys; a `phone` column in the lead import
+  mapping (imported phone numbers land in `whatsapp_number`, which calls use as a fallback); voicemail
+  messages; transferring a live call to a person; latency measurements and regional placement of the
+  server near the carrier.
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new
@@ -1288,7 +1362,7 @@ requirements land in later forward-only migrations, numbered when written:
 | ~~`organizations.channels` entitlement~~ | Done in V19 |
 | ~~`channel_type` gains `voice`~~ | Done in V18 |
 | ~~`lead_imports` / `lead_import_rows`; `prospects.source`, `contacts.source`, `import_id`, `contacts.prepared_at`~~ | Done in V20 |
-| `calls` table (duration, recording key, transcript, outcome) | Voice |
+| ~~`calls` table (duration, recording key, transcript, outcome)~~ | Done in V32 (transcript, no audio recording) |
 | ~~Tenant defaults, enable + force RLS, `user_settings` key `(org_id, user_id)`~~ | Done in V17 |
 
 ---

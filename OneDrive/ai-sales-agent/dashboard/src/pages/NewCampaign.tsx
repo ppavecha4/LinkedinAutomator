@@ -38,8 +38,8 @@ interface GeneratedDraft {
 }
 
 const STEPS = ['Leads', 'Channels & language', 'Details', 'Review'] as const;
-/** Channels a campaign can use today (voice: the call engine is phase 4). */
-const USABLE: OrgChannel[] = ['email', 'whatsapp', 'linkedin'];
+/** Channels a campaign can use. */
+const USABLE: OrgChannel[] = ['email', 'whatsapp', 'voice', 'linkedin'];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export default function NewCampaign(): React.ReactElement {
@@ -93,7 +93,7 @@ export default function NewCampaign(): React.ReactElement {
     if (!savedId && saved.length) setSavedId(saved[0].id);
   }, [saved, savedId]);
   React.useEffect(() => {
-    if (!channels.length && allowed.length) setChannels(allowed.filter((c) => c !== 'linkedin'));
+    if (!channels.length && allowed.length) setChannels(allowed.filter((c) => c !== 'linkedin' && c !== 'voice'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed.join()]);
   React.useEffect(() => {

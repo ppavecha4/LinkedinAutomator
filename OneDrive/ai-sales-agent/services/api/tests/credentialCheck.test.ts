@@ -113,3 +113,45 @@ describe('email', () => {
     expect(r?.error).toContain('•••');
   });
 });
+
+
+describe('voice accounts (slice 7.1)', () => {
+  it('elevenlabs: sends the key to ElevenLabs only, checks every named voice, explains each failure', async () => {
+    const urls: string[] = [];
+    setCredentialCheckHooks({ fetch: (async (u: string, init?: RequestInit) => {
+      urls.push(u);
+      expect((init?.headers as Record<string, string>)['xi-api-key']).toBe('el-key');
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch });
+    expect(await checkCredential('elevenlabs', { api_key: 'el-key' }, { voice_id: 'v1', voice_id_es: 'v2', voice_id_pt: 'v1' })).toEqual({ ok: true });
+    expect(urls).toEqual(['https://api.elevenlabs.io/v1/voices/v1', 'https://api.elevenlabs.io/v1/voices/v2']);   // each voice once
+    urls.length = 0;
+    await checkCredential('elevenlabs', { api_key: 'el-key' }, {});
+    expect(urls).toEqual(['https://api.elevenlabs.io/v1/user']);                                            // no voice yet: just the key
+
+    setCredentialCheckHooks({ fetch: respond(401) });
+    expect((await checkCredential('elevenlabs', { api_key: 'x' }, {}))?.error).toBe('ElevenLabs rejected this API key.');
+    setCredentialCheckHooks({ fetch: respond(404) });
+    expect((await checkCredential('elevenlabs', { api_key: 'x' }, { voice_id: 'nope' }))?.error).toMatch(/voice ID .* not found/);
+    setCredentialCheckHooks({ fetch: respond(403) });
+    expect((await checkCredential('elevenlabs', { api_key: 'x' }, {}))?.error).toMatch(/not allowed to use voices/);
+    setCredentialCheckHooks({ fetch: respond(503) });
+    expect(await checkCredential('elevenlabs', { api_key: 'x' }, {})).toMatchObject({ ok: false, transient: true });
+  });
+
+  it('twilio: a phone number for calls must belong to the account; WhatsApp alone or calls alone are both fine', async () => {
+    const owned = new Set<string>();
+    setCredentialCheckHooks({ fetch: (async (u: string) => {
+      if (/IncomingPhoneNumbers/.test(u)) return new Response(JSON.stringify({ incoming_phone_numbers: owned.has(decodeURIComponent(u.split('PhoneNumber=')[1])) ? [{}] : [] }), { status: 200 });
+      if (/OutgoingCallerIds/.test(u)) return new Response(JSON.stringify({ outgoing_caller_ids: [] }), { status: 200 });
+      return new Response(JSON.stringify({ status: 'active' }), { status: 200 });
+    }) as typeof fetch });
+    const base = { account_id: SID };
+    expect((await checkCredential('twilio', { auth_token: 't' }, base))?.error).toMatch(/WhatsApp number, a phone number for calls, or both/);
+    expect(await checkCredential('twilio', { auth_token: 't' }, { ...base, whatsapp_from: '+51987654321' })).toEqual({ ok: true });
+    expect((await checkCredential('twilio', { auth_token: 't' }, { ...base, voice_from: '900000001' }))?.error).toMatch(/international format/);
+    expect((await checkCredential('twilio', { auth_token: 't' }, { ...base, voice_from: '+51 900 000 001' }))?.error).toMatch(/not a number in this Twilio account/);
+    owned.add('+51900000001');
+    expect(await checkCredential('twilio', { auth_token: 't' }, { ...base, voice_from: '+51 900 000 001' })).toEqual({ ok: true });
+  });
+});

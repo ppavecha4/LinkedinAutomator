@@ -30,7 +30,7 @@ export const CHANNEL_PROVIDERS: Record<Channel, readonly string[]> = {
   email: ['google_workspace', 'smtp', 'ses'],
   whatsapp: ['twilio'],
   linkedin: ['heyreach'],
-  voice: ['voice'],
+  voice: ['elevenlabs'],
 };
 
 /** Channels the current org is entitled to (RLS: only its own row). */
@@ -122,12 +122,21 @@ export function channelsFromSteps(steps: ReadonlyArray<{ channel: Channel }>): C
  */
 export async function missingChannelCredentials(channels: readonly Channel[]): Promise<Channel[]> {
   if (currentTenant()?.orgId === env.authOrgId) return [];
-  const r = await query<{ provider: string }>(
-    `SELECT DISTINCT provider FROM org_credentials
+  const r = await query<{ provider: string; meta: Record<string, unknown> }>(
+    `SELECT provider, meta FROM org_credentials
       WHERE secret_enc IS NOT NULL AND status = 'VERIFIED'`,
   );
-  const connected = new Set(r.rows.map((x) => x.provider));
-  return channels.filter((c) => !CHANNEL_PROVIDERS[c].some((p) => connected.has(p)));
+  const has = (provider: string, field?: string) =>
+    r.rows.some((x) => x.provider === provider && (!field || String(x.meta?.[field] ?? '').trim() !== ''));
+  // One Twilio account can serve WhatsApp (a WhatsApp number) and calls (a voice number): each
+  // channel needs ITS number. Calls also need the voice (ElevenLabs) and the AI that writes the words.
+  const usable: Record<Channel, boolean> = {
+    email: ['google_workspace', 'smtp', 'ses'].some((p) => has(p)),
+    whatsapp: has('twilio', 'whatsapp_from'),
+    linkedin: has('heyreach'),
+    voice: has('elevenlabs') && has('twilio', 'voice_from') && has('anthropic'),
+  };
+  return channels.filter((c) => !usable[c]);
 }
 
 /** Throw 409 with the list of channels still to connect, if any. */

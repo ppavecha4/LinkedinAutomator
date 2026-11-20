@@ -40,6 +40,7 @@ import Overview from './pages/Overview';
 import Platform from './pages/Platform';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
+import Calls from './pages/Calls';
 import Plan from './pages/Plan';
 import Privacy from './pages/Privacy';
 import Team from './pages/Team';
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/campaigns/:id/edit" element={<CampaignEditor />} />
               <Route path="/prospects" element={<ProspectPipeline />} />
               <Route path="/inbox" element={<Inbox />} />
+              <Route path="/calls" element={<Calls />} />
               <Route path="/linkedin-drafts" element={<LinkedInDrafts />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />

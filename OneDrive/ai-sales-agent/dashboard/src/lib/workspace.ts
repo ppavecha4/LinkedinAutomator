@@ -125,7 +125,8 @@ export const ACCOUNT_KINDS: AccountKind[] = [
         summary: 'whatsapp_from',
         fields: [
           { key: 'account_id', label: 'Account SID', placeholder: 'AC…', pattern: /^AC[0-9a-fA-F]{32}$/, patternMessage: 'An Account SID starts with AC and has 34 characters.' },
-          { key: 'whatsapp_from', label: 'WhatsApp number', placeholder: '+51987654321', hint: 'In international format, with the country code.' },
+          { key: 'whatsapp_from', label: 'WhatsApp number', placeholder: '+51987654321', optional: true, hint: 'In international format, with the country code. Leave empty if you use Twilio only for calls.' },
+          { key: 'voice_from', label: 'Phone number for calls', placeholder: '+51987654321', optional: true, hint: 'A number in your Twilio account that AI phone calls are made from. Leave empty if you do not use calls.' },
           { key: 'auth_token', label: 'Auth token', secret: true, type: 'password' },
           { key: 'template_sid', label: 'Approved first-message template (Content SID)', placeholder: 'HX…', optional: true,
             pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: 'A template Content SID starts with HX and has 34 characters.',
@@ -143,11 +144,22 @@ export const ACCOUNT_KINDS: AccountKind[] = [
   {
     id: 'voice',
     title: 'AI phone calls',
-    subtitle: 'A phone number from your carrier',
-    why: 'Calls will use our own voice engine with your number.',
+    subtitle: 'An ElevenLabs voice and a Twilio number',
+    why: 'An automated assistant calls people who agreed to calls or replied to you. It needs a voice (ElevenLabs), a phone number for calls (in your Twilio account, under WhatsApp above) and your AI key (below).',
     channel: 'voice',
-    providers: [],
-    comingSoon: true,
+    providers: [
+      {
+        id: 'elevenlabs',
+        name: 'ElevenLabs',
+        summary: 'voice_id',
+        fields: [
+          { key: 'api_key', label: 'API key', secret: true, type: 'password', hint: 'elevenlabs.io › Developers › API keys. Allow Text to Speech, Speech to Text and Voices.' },
+          { key: 'voice_id', label: 'Voice ID', placeholder: 'e.g. 21m00Tcm4TlvDq8ikWAM', hint: 'The voice the assistant speaks with: copy its ID from your ElevenLabs voices.' },
+          { key: 'voice_ids', label: 'Voices for other languages', placeholder: 'es=…, pt=…', optional: true, langPrefix: 'voice_id',
+            hint: 'One voice per language, if you want a different voice for each. Others use the voice above.' },
+        ],
+      },
+    ],
   },
   {
     id: 'linkedin',
@@ -194,7 +206,7 @@ export const CHANNEL_PROVIDERS: Record<OrgChannel, string[]> = {
   email: ['google_workspace', 'smtp', 'ses'],
   whatsapp: ['twilio'],
   linkedin: ['heyreach'],
-  voice: ['voice'],
+  voice: ['elevenlabs'],
 };
 
 /** The live (not revoked) credential for any of these providers — verified first. */
@@ -209,4 +221,4 @@ export function verifiedFor(creds: Credential[] | undefined, providers: string[]
 }
 
 /** Providers the API can check ("Verify"); others stay "saved, not checked". */
-export const CHECKABLE = new Set(['anthropic', 'apollo', 'twilio', 'google_workspace', 'smtp']);
+export const CHECKABLE = new Set(['anthropic', 'apollo', 'twilio', 'google_workspace', 'smtp', 'elevenlabs']);

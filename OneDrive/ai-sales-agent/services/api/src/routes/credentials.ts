@@ -28,10 +28,10 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
-/** Mirrors the org_credentials.provider CHECK in V16. */
+/** Mirrors the org_credentials.provider CHECK (V16, 'elevenlabs' added in V32). */
 export const PROVIDERS = [
   'anthropic', 'google_workspace', 'smtp', 'ses', 'twilio', 'heyreach',
-  'apollo', 'fullenrich', 'prospeo', 'datagma', 'voice', 'calendly',
+  'apollo', 'fullenrich', 'prospeo', 'datagma', 'voice', 'calendly', 'elevenlabs',
 ] as const;
 
 const PUBLIC_COLUMNS = `id, provider, label, meta, status, verified_at,

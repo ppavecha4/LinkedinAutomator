@@ -117,6 +117,33 @@ services:
       - ./config:/app/config:ro
     logging: *logging
 
+  # AI phone calls (profile "voice"): the dialer, and the server Twilio talks to (HTTP callbacks and
+  # the call's audio WebSocket). Reached through the proxy at /voice/*. VOICE_PUBLIC_URL must be the
+  # public https address of that proxy.
+  voice:
+    profiles: ["voice"]
+    build: ./services/orchestrator
+    restart: unless-stopped
+    command: ["python", "-u", "src/voice_server.py"]
+    env_file: .env
+    environment:
+      DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in .env}
+      # Required when this profile is on (the server exits with a clear message otherwise). Not `:?` here:
+      # compose would then demand it even for people who never start the voice profile.
+      VOICE_PUBLIC_URL: ${VOICE_PUBLIC_URL:-}
+      VOICE_STREAM_SECRET: ${VOICE_STREAM_SECRET:-}
+      VOICE_MAX_CONCURRENT: ${VOICE_MAX_CONCURRENT:-5}
+    expose: ["8090"]
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8090/voice/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
+
   # Nightly encrypted database backup, copied offsite, with a weekly restore
   # test. See ops/backup/backup.sh for the settings and docs/saas-architecture.md
   # ("Production hardening") for the restore drill.
@@ -147,7 +174,7 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      DOMAIN: ${DOMAIN:-localhost}
     ports: ["80:80", "443:443"]
     volumes:
       - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro

@@ -30,6 +30,7 @@ import googleAuthRouter from './routes/googleAuth';
 import recoveryRouter from './routes/recovery';
 import platformRouter from './routes/platform';
 import billingRouter from './routes/billing';
+import callsRouter from './routes/calls';
 import { startOpsMonitor } from './lib/opsMonitor';
 import privacyRouter from './routes/privacy';
 import stripeWebhookRouter from './routes/stripeWebhook';
@@ -188,6 +189,7 @@ app.use(offeringsRouter);
 app.use(profileRouter);
 app.use(teamRouter);
 app.use(billingRouter);
+app.use(callsRouter);
 app.use(privacyRouter);
 app.use(platformRouter);
 
