@@ -34,6 +34,7 @@ import callsRouter from './routes/calls';
 import { startOpsMonitor } from './lib/opsMonitor';
 import { startTemplateSync } from './lib/whatsappTemplates';
 import privacyRouter from './routes/privacy';
+import setupRouter from './routes/setup';
 import whatsappTemplatesRouter from './routes/whatsappTemplates';
 import stripeWebhookRouter from './routes/stripeWebhook';
 import teamRouter from './routes/team';
@@ -194,6 +195,7 @@ app.use(billingRouter);
 app.use(callsRouter);
 app.use(privacyRouter);
 app.use(whatsappTemplatesRouter);
+app.use(setupRouter);
 app.use(platformRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).

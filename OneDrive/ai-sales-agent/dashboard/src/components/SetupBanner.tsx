@@ -7,12 +7,12 @@ import { ArrowRight, ListChecks } from 'lucide-react';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
-import { useSetup } from '../hooks/useSetup';
+import { nextStep, useSetup } from '../hooks/useSetup';
 
 export function SetupBanner(): React.ReactElement | null {
   const setup = useSetup();
   if (setup.loading || !setup.applicable || setup.complete) return null;
-  const next = setup.steps.find((s) => s.state === 'todo') ?? setup.steps.find((s) => s.state === 'waiting');
+  const next = nextStep(setup.steps);
   return (
     <Link
       to="/get-ready"

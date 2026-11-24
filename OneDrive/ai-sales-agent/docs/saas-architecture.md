@@ -1500,6 +1500,35 @@ server code; it reads what the app already knows.
   partner approvals (WhatsApp Embedded Signup / Meta Tech Provider; Google's OAuth review for
   one-click email) that only the product owner can start.
 
+### Automatic first campaign as built (slice 9.3, 2026-11-24)
+
+A company that finished setup no longer fills a four-step wizard: the first campaign is proposed,
+and one button creates it.
+
+- **`GET /api/setup/first-campaign`** (`lib/firstCampaign.ts`, `routes/setup.ts`). Returns the number of
+  campaigns the company already has and the newest one, and, when there are none, either a proposal or
+  the plain-words `blockers` (nothing sells yet, no sender name, nothing ready to send from).
+- **No AI call here.** The AI's work was already done and reviewed during onboarding (the saved
+  offering: what is sold, who to look for, tone; and the business profile). The proposal only assembles a
+  campaign from that and from what is really ready: **email** once a mailbox is VERIFIED; **WhatsApp**
+  only once the Twilio account is VERIFIED and both WhatsApp messages (first + follow-up, slice 9.1) are
+  APPROVED, or hand-pasted template IDs exist; never LinkedIn or calls on their own. Sequence: two
+  follow-ups three days apart on each follow-up channel (the wizard's own defaults; email steps 2.., WhatsApp
+  12..); languages: each person's own; sender: the profile's sender name, else the signed-in person.
+- **The proposal is the exact body for `POST /api/campaigns`**, so creating it uses the normal path
+  (quota, channel entitlement, audit log): there is no second way to make a campaign. It is saved as a
+  DRAFT: nothing is sent until people are added and the owner launches.
+- **Dashboard.** On "Get ready to send" the step shows the campaign in plain words (offers, roles,
+  industries, countries, channels, follow-ups, language, goal) and "Create it and add my people", which
+  creates the draft and opens the import page; "Set it up myself instead" opens the wizard. A new last
+  step, "Add your people and launch", points at that import page while the newest campaign is a draft.
+- **Checklist logic.** Only the business, the AI and ONE way to send are needed: once email (or approved
+  WhatsApp) is ready, the other channel's steps are marked Optional and never block anyone. The
+  checklist is complete when the newest campaign is no longer a draft.
+- **Known gap found while reading the code.** `campaigns.daily_limits` is stored and shown but no
+  sender enforces it, so a brand-new mailbox is not throttled by it. A gentle ramp for new senders is a
+  separate, worthwhile deliverability slice.
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new

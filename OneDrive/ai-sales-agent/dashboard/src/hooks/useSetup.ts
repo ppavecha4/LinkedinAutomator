@@ -8,6 +8,7 @@
  */
 
 import { useBilling } from './useBilling';
+import { useFirstCampaign } from './useFirstCampaign';
 import { useProfile } from './useProfile';
 import { useCredentials, useOrganization } from './useWorkspace';
 import { useWhatsAppTemplates } from './useWhatsAppTemplates';
@@ -16,13 +17,20 @@ import { verifiedFor, connectedFor } from '../lib/workspace';
 export type StepState = 'done' | 'todo' | 'waiting' | 'blocked';
 
 export interface SetupStep {
-  id: 'business' | 'ai' | 'email' | 'whatsapp' | 'whatsapp-messages';
+  id: 'business' | 'ai' | 'email' | 'whatsapp' | 'whatsapp-messages' | 'first-campaign' | 'launch';
   title: string;
   /** One plain sentence on where this stands. */
   detail: string;
   state: StepState;
   /** The one thing to do next (a screen to open). */
   action?: { label: string; to: string };
+  /** Not needed: another channel is already ready, so this one can wait. */
+  optional?: boolean;
+}
+
+/** The step to put in front of the person: the first thing to do that is actually needed. */
+export function nextStep(steps: SetupStep[]): SetupStep | undefined {
+  return steps.find((s) => s.state === 'todo' && !s.optional) ?? steps.find((s) => s.state === 'todo') ?? steps.find((s) => s.state === 'waiting' && !s.optional);
 }
 
 export interface Setup {
@@ -45,6 +53,7 @@ export function useSetup(): Setup {
   const billing = useBilling();
   const wantsWhatsApp = !!org.data?.channels.includes('whatsapp');
   const templates = useWhatsAppTemplates(wantsWhatsApp && !org.data?.operator);
+  const first = useFirstCampaign(!org.data?.operator);
 
   const loading = org.isLoading || creds.isLoading || profile.isLoading || billing.isLoading || (wantsWhatsApp && templates.isLoading);
   if (loading || !org.data) return { loading: true, steps: [], done: 0, total: 0, complete: false, applicable: true };
@@ -120,7 +129,39 @@ export function useSetup(): Setup {
     });
   }
 
+  // Needed: the business, the AI, and ONE way to send. The other channel is a bonus, so it never holds anyone back.
+  const state = (id: SetupStep['id']) => steps.find((s) => s.id === id)?.state;
+  const channelReady = state('email') === 'done' || state('whatsapp-messages') === 'done';
+  const ready = onboarded && state('ai') === 'done' && channelReady;
+  if (channelReady) for (const s of steps) if ((s.id === 'email' || s.id === 'whatsapp' || s.id === 'whatsapp-messages') && s.state !== 'done') s.optional = true;
+
+  // 6. The first campaign, proposed by the AI from what the company already told us.
+  const view = first.data;
+  const hasCampaign = (view?.existing_campaigns ?? 0) > 0;
+  steps.push({
+    id: 'first-campaign',
+    title: 'Create your first campaign',
+    detail: hasCampaign ? 'You have a campaign.'
+      : !ready ? 'The AI proposes it for you as soon as the steps above are done: you only press a button.'
+      : view?.proposal ? 'The AI has a campaign ready for you to look over.'
+      : (view?.blockers[0] ?? 'Almost there.'),
+    state: hasCampaign ? 'done' : ready && view?.proposal ? 'todo' : 'blocked',
+    action: hasCampaign ? { label: 'View campaigns', to: '/campaigns' } : undefined,
+  });
+
+  // 7. People and launch: the draft needs people before anything can be sent.
+  const latest = view?.latest ?? null;
+  steps.push({
+    id: 'launch',
+    title: 'Add your people and launch',
+    detail: !latest ? 'Once your campaign is created, you add the people to reach and launch it.'
+      : latest.status === 'DRAFT' ? 'Add the people you want to reach, then launch.'
+      : 'Your campaign is running.',
+    state: !latest ? 'blocked' : latest.status === 'DRAFT' ? 'todo' : 'done',
+    action: latest && latest.status === 'DRAFT' ? { label: 'Add my people', to: `/campaigns/${latest.id}/import` } : undefined,
+  });
+
   // "waiting" counts as not done yet but is nothing the person can speed up.
   const done = steps.filter((s) => s.state === 'done').length;
-  return { loading: false, steps, done, total: steps.length, complete: done === steps.length, applicable: true };
+  return { loading: false, steps, done, total: steps.length, complete: ready && state('launch') === 'done', applicable: true };
 }

@@ -31,6 +31,7 @@ import privacyRouter from '../src/routes/privacy';
 import stripeWebhookRouter from '../src/routes/stripeWebhook';
 import teamRouter from '../src/routes/team';
 import webhooksRouter from '../src/routes/webhooks';
+import setupRouter from '../src/routes/setup';
 import whatsappTemplatesRouter from '../src/routes/whatsappTemplates';
 import { ApiError } from '../src/lib/errors';
 
@@ -81,6 +82,7 @@ export function buildApp(): express.Express {
   app.use(importsRouter);
   app.use(offeringsRouter);
   app.use(whatsappTemplatesRouter);
+  app.use(setupRouter);
   app.use(profileRouter);
   app.use(teamRouter);
   app.use(billingRouter);

@@ -11,7 +11,8 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/ui/page-header';
 import { Progress } from '../components/ui/progress';
 import { Skeleton } from '../components/ui/skeleton';
-import { type SetupStep, type StepState, useSetup } from '../hooks/useSetup';
+import { FirstCampaignCard } from '../components/setup/FirstCampaignCard';
+import { nextStep, type SetupStep, type StepState, useSetup } from '../hooks/useSetup';
 import { cn } from '../lib/cn';
 
 const LINK = 'font-medium text-primary underline';
@@ -49,7 +50,7 @@ const STATE_LABEL: Record<StepState, string> = { done: 'Done', todo: 'To do', wa
 
 export default function GetReady(): React.ReactElement {
   const setup = useSetup();
-  const nextId = setup.steps.find((s) => s.state === 'todo')?.id;
+  const nextId = nextStep(setup.steps)?.id;
 
   return (
     <div className="space-y-8">
@@ -105,15 +106,16 @@ function StepCard({ step, index, primary }: { step: SetupStep; index: number; pr
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <h2 className="text-base font-bold">{index}. {step.title}</h2>
             <span className={cn('text-xs font-semibold', step.state === 'done' ? 'text-emerald-600' : step.state === 'waiting' ? 'text-amber-600' : 'text-muted-foreground')}>
-              {STATE_LABEL[step.state]}
+              {step.optional && step.state !== 'done' ? 'Optional' : STATE_LABEL[step.state]}
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{step.detail}</p>
           {step.action && (
-            <Link to={step.action.to} className={cn('mt-3 inline-flex', primary || active ? 'btn-primary' : 'btn-secondary')}>
+            <Link to={step.action.to} className={cn('mt-3 inline-flex', primary || (active && !step.optional) ? 'btn-primary' : 'btn-secondary')}>
               {step.action.label}
             </Link>
           )}
+          {step.id === 'first-campaign' && active && <FirstCampaignCard />}
           {help && active && (
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer font-medium text-primary">{help.summary}</summary>
