@@ -814,8 +814,12 @@ accounts — only accounts that passed a check with the provider.
   (`meta.template_sid_<lang>`), filled with {{1}} first name, {{2}}
   company, like the operator's. No template for the message's language →
   it waits. Opt-out confirmations go as free text (inside the 24-hour
-  window). `--customers-only` skips operator campaigns; `auto_sends.sh`
-  now runs WhatsApp for customers (the operator's stays dormant).
+  window). `--customers-only` (cron) skips operator campaigns only while the
+  operator's WhatsApp is not set up in `.env` (Twilio account, token and WhatsApp
+  number plus a `WHATSAPP_TEMPLATE_SID_*`); once it is, the operator's queued WhatsApp
+  messages send too, and until then the log says why they wait. (Before 2026-11-24
+  the flag skipped operator campaigns unconditionally, which left an operator's
+  WhatsApp messages QUEUED forever while its email sent normally.)
 - **Reply poller** (`poll_email_replies.py`): after the operator's .env
   mailbox (now optional), every `customer_mailboxes()` entry is read as
   its org — Gmail at imap.gmail.com; other servers at the IMAP host given

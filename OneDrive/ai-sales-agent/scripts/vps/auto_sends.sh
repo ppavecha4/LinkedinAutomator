@@ -43,9 +43,10 @@ for cid in $CAMPAIGN_IDS; do
         | tail -3 >> "$LOG" || log "  heyreach push errored (see above)"
 
     # WhatsApp: customers' campaigns send from their own verified Twilio
-    # account (slice 3.4). The operator's WhatsApp stays dormant (no phone
-    # data for LATAM) — --customers-only skips operator campaigns. Drop the
-    # flag when the operator starts Indian ICP campaigns.
+    # account (slice 3.4). The operator's own campaigns send WhatsApp too, but
+    # only once the operator's WhatsApp is set up in .env (TWILIO_ACCOUNT_SID,
+    # TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM and WHATSAPP_TEMPLATE_SID_*): until
+    # then --customers-only leaves them queued and the log says why.
     log "campaign=$cid — draining WhatsApp (customers)"
     docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/send_pending_whatsapp.py "$cid" --customers-only 2>&1         | tail -3 >> "$LOG" || log "  whatsapp send errored (see above)"
 done

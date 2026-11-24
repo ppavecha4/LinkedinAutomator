@@ -37,7 +37,9 @@ Twilio account in the vault, with the Meta-approved template they gave
 for the message's language (meta.template_sid_<lang>, else
 meta.template_sid; variables {{1}} first name, {{2}} company). No
 verified account or no template → the message waits, nothing is sent.
---customers-only skips the operator's campaigns (cron).
+--customers-only (cron) skips the operator's campaigns ONLY while the operator's WhatsApp is not
+set up (the Twilio variables below and at least one WHATSAPP_TEMPLATE_SID_*). Once it is, the
+operator's campaigns send too: no one has to edit the cron job.
 
 Env vars required (operator campaigns):
     TWILIO_ACCOUNT_SID
@@ -101,6 +103,15 @@ PITCH_TO_ENV = {
     "rpa_workflow": "WHATSAPP_TEMPLATE_SID_RPA_WORKFLOW",
     "consulting": "WHATSAPP_TEMPLATE_SID_CONSULTING",
 }
+
+
+def operator_whatsapp_ready(env: "os._Environ[str] | dict") -> bool:
+    """The operator (.env) has what it takes to send WhatsApp: a Twilio account and WhatsApp number,
+    and at least one approved first-message template."""
+    def has(name: str) -> bool:
+        return bool((env.get(name) or "").strip())
+    return (has("TWILIO_ACCOUNT_SID") and has("TWILIO_AUTH_TOKEN") and has("TWILIO_WHATSAPP_FROM")
+            and any(has(v) for v in PITCH_TO_ENV.values()))
 
 
 def resolve_template_sid(pitch_type: Optional[str]) -> tuple[Optional[str], str]:
@@ -192,8 +203,11 @@ async def main(args: argparse.Namespace) -> None:
         org = await use_campaign_org(pool, args.campaign_id)
         account: Optional[WhatsAppAccount] = None
         if is_operator_org(org):
-            if args.customers_only:
-                print("Skipping: operator campaign (--customers-only).")
+            if args.customers_only and not operator_whatsapp_ready(os.environ):
+                print("Skipping: this is the operator's campaign and the operator's WhatsApp is not set up, "
+                      "so its queued WhatsApp messages wait. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, "
+                      "TWILIO_WHATSAPP_FROM and WHATSAPP_TEMPLATE_SID_AI_AGENTS (and the other two) in .env, "
+                      "then they send on the next run.")
                 return
             # The operator: .env Twilio number and its pitch templates.
             account_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
@@ -403,7 +417,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--limit", type=int, help="cap number of sends")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--customers-only", action="store_true",
-                   help="skip the operator's campaigns (used by cron)")
+                   help="cron: skip the operator's campaigns unless the operator's WhatsApp is set up")
     p.add_argument(
         "--to",
         help="override every recipient with this E.164 number (self-test)",
