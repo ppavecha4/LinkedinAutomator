@@ -141,7 +141,7 @@ describeIfDb('signup, profile and onboarding (live DB)', () => {
     expect(over.body.error.message).toMatch(/allowance is used up/);
   });
 
-  it('with its own Anthropic key connected, the org pays for its own calls', async () => {
+  it('once the platform allowance is used up, the org\'s own connected key takes over', async () => {
     const app = buildApp();
     await request(app).put('/api/credentials/anthropic').set('Cookie', cookieA).send({ secret: { api_key: 'acme-own-key' } });
     const u = await request(app).post('/api/profile/understanding').set('Cookie', cookieA);

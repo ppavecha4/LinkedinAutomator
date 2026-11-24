@@ -613,10 +613,10 @@ for confirmation).
   per section; `PUT /api/profile/:section`; `GET /api/profile` with a
   weighted completeness score and concrete hints. `profileDescription()`
   only ever includes proof marked "may mention".
-- **Onboarding AI** (`lib/onboardingAi.ts`): the org's own Anthropic key
-  if connected (operator: `.env`), else the platform key for at most
-  `ONBOARDING_AI_CAP` calls per org (atomic counter), then 409 "connect
-  your Anthropic account". Used only by: `POST /api/profile/read-website`
+- **Onboarding AI** (`lib/onboardingAi.ts`): the platform key first, for at
+  most `ONBOARDING_AI_CAP` calls per org (atomic counter) so a new customer
+  needs no account of their own; after that the org's own Anthropic key if
+  connected (operator: `.env`), else 409 "connect your Anthropic account". Used only by: `POST /api/profile/read-website`
   (SSRF-guarded fetch of homepage + one about page → draft fields, proof
   always `may_mention: false` until the customer ticks it), `POST
   /api/profile/understanding` (offering draft via the slice 2.3
@@ -1347,6 +1347,85 @@ to train or improve any AI model, so ElevenLabs is the yardstick and the fallbac
   mapping (imported phone numbers land in `whatsapp_number`, which calls use as a fallback); voicemail
   messages; transferring a live call to a person; latency measurements and regional placement of the
   server near the carrier.
+
+### AI usage ledger as built (slice 8.1, 2026-11-20)
+
+The platform now pays for most AI (onboarding already does; the plan is for all of
+it), so every model call is recorded and priced. Nothing is blocked yet: this slice
+only measures. Slice 8.2 turns the measurements into a per-plan budget and managed
+keys; 8.3 shows them on the Plan page.
+
+- **V33.** `ai_usage` (one row per call: company, feature, model, tokens, cache
+  tokens, web searches, `key_source`, `cost_micros`). The cost is computed by a
+  `BEFORE INSERT` trigger from `ai_prices` (USD per million tokens, by model, with
+  a deliberately expensive `'*'` fallback for an unpriced model) and
+  `ai_tool_prices` (web search, per search). Prices are data: a price change or new
+  model is an `UPDATE`/`INSERT`, never a deploy, and the API and orchestrator can
+  never disagree. Money is in micro-dollars (integers).
+- **Tenant-isolated and append-only.** RLS like every tenant table; the app role has
+  `SELECT, INSERT` only, so the ledger cannot be edited or deleted by the app.
+- **`key_source`.** `platform` = the call used our own `ANTHROPIC_API_KEY`; `org` =
+  the company's own connected key. Only `platform` counts toward budgets and our
+  cost; `org` is recorded for visibility. Both services derive it by comparing the
+  key used with the platform key.
+- **Reading it.** `org_ai_usage(org)` (this month, platform vs own-key cost, calls,
+  web searches, the plan's budget), `platform_ai_usage()` (every company, for the
+  platform admin). `GET /api/billing` now carries `ai`; `GET /api/platform/ai-usage`
+  lists every company. `plans.monthly_ai_budget_micros` holds the per-plan budget
+  (placeholders: free $1.50, starter $10, growth $50, scale $250, enterprise none;
+  NOT enforced yet).
+- **Where it is recorded.** Orchestrator (`src/ai_usage.py`, `record()` after each
+  parsed Anthropic response, never raising): research (`research`), message writing
+  (`write_message`), email follow-ups (`followup`), LinkedIn follow-ups
+  (`followup_linkedin`), voice calls (`voice`, tokens accumulated on the brain and
+  written when the call ends). API (`lib/aiUsage.ts`): onboarding offering draft
+  (`offering`), campaign planner (`plan_campaign`).
+- **Not in the ledger.** ElevenLabs speech and Twilio minutes (voice keeps
+  `tts_chars` / `stt_seconds` / `duration_seconds` on `calls`; metering those is a
+  separate slice); the maintenance scripts that rewrite drafts; Apollo lead search.
+- **Worth knowing from reading the code.** Lead research (`ENABLE_RESEARCH_AGENT`,
+  off by default) uses the web search tool, up to 4 searches per lead, billed per
+  search on top of tokens, and runs with the platform key whoever the company is.
+  Message writing runs one model call per channel per lead. Both are why the real
+  cost per lead has to come from this ledger, not from an estimate.
+
+### Managed AI and the monthly AI budget as built (slice 8.2, 2026-11-20)
+
+The platform's own Anthropic account now carries a company's AI by default, within a
+monthly budget set by its plan. One rule, in the API (`lib/aiKey.ts`) and the
+orchestrator (`db/ai_key.py`), for every AI call a company triggers:
+
+1. **The operator org** (`AUTH_ORG_ID`, the Appson deployment): the `.env` key, never limited.
+2. **A company that connected its own Anthropic account**: its key. It pays for itself,
+   nothing counts against its plan, and the budget is not even consulted.
+3. **Everyone else (managed AI)**: the platform key (`ANTHROPIC_API_KEY`) until this
+   month's `platform` cost in `ai_usage` reaches `plans.monthly_ai_budget_micros`
+   (NULL = unlimited). Then:
+   - API: **402 `PLAN_LIMIT`** (`kind: 'ai'`) with an upgrade / connect-your-own message.
+   - Orchestrator: the work is **deferred, not failed**. Preparing leads and writing
+     follow-ups return `skipped_reason`, check the budget again before each contact, and
+     leave what is left queued for the next run (after the month rolls over or the plan
+     is upgraded). WhatsApp template follow-ups do not use AI and are unaffected.
+4. **No platform key and no own key**: the old "connect your Anthropic account" 409.
+
+Details worth knowing:
+
+- Onboarding's setup helpers keep their own earlier rule (platform pays first for up to
+  `ONBOARDING_AI_CAP` calls, then the company's own key); their calls still land in the ledger.
+- Lead research now uses the key resolved for the company (it used to read the platform key
+  directly for every company). A BYO company's research runs on its own key and is not ours.
+- Voice: a company with no Anthropic account of its own gets the platform key for the
+  assistant's words, within the budget, checked when each call starts (a call in progress is
+  never cut). ElevenLabs and Twilio are still the company's own accounts.
+- Launch gate: a voice campaign no longer requires a connected Anthropic account while the
+  platform has one (`platformAiConfigured()`); the campaign wizard and the calls page follow.
+- `GET /api/billing` carries `ai: { platform_cost_usd, own_key_cost_usd, calls, budget_usd,
+  managed, exhausted }`; the Plan page shows "AI included this month" as a percentage (the
+  dollar figures are our cost, not shown to customers).
+- Budgets are still the placeholders from V33 (free $1.50, starter $10, growth $50,
+  scale $250, enterprise none): tune them from the ledger with an `UPDATE plans`, no deploy.
+- A single lead can overshoot the budget by about one lead's cost (checked before each lead,
+  not inside it). The AI-discovery path (`smoke_test_campaign.run`) checks once at the start.
 
 ## Schema still to come
 

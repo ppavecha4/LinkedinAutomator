@@ -18,6 +18,7 @@
 import { z } from 'zod';
 
 import { logger } from '../logger';
+import { recordAiUsage, type AnthropicUsage } from './aiUsage';
 import type { Channel } from './channels';
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
@@ -91,7 +92,8 @@ export const callAnthropic: CallModel = async (apiKey, prompt) => {
     logger.warn('offering generation: model call failed', { status: r.status, detail });
     throw new Error(`model call failed (${r.status})`);
   }
-  const data = (await r.json()) as { content?: Array<{ type: string; text?: string }> };
+  const data = (await r.json()) as { content?: Array<{ type: string; text?: string }>; usage?: AnthropicUsage };
+  await recordAiUsage('offering', MODEL, data.usage, { apiKey });
   return (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
 };
 

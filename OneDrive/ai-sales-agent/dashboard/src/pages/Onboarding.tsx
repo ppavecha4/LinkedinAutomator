@@ -139,19 +139,24 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
                 onClick={() => go(i)}
                 disabled={saving}
                 className={cn(
-                  'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                  i === step ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground',
+                  'flex shrink-0 items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-bold transition-colors',
+                  i === step
+                    ? 'border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30'
+                    : i < step
+                      ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                      : 'border-border text-foreground/80 hover:border-primary/50 hover:text-foreground',
                 )}
               >
-                <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                  i < step ? 'bg-primary text-primary-foreground' : 'border border-current')}>
-                  {i < step ? <Check className="h-3 w-3" aria-hidden="true" /> : i + 1}
+                <span className={cn('flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
+                  i === step ? 'bg-primary-foreground text-primary'
+                    : i < step ? 'bg-primary text-primary-foreground' : 'border-2 border-current')}>
+                  {i < step ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : i + 1}
                 </span>
                 {s.label}
               </button>
             ))}
           </nav>
-          <button type="button" className="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground xl:ml-0" onClick={finishLater} disabled={saving}>
+          <button type="button" className="btn-secondary ml-auto px-4 py-2 text-sm font-semibold xl:ml-0" onClick={finishLater} disabled={saving}>
             Save and finish later
           </button>
         </div>

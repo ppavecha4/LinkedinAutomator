@@ -96,12 +96,37 @@ function Usage({ billing, isOwner }: { billing: Billing; isOwner: boolean }): Re
         )}
       </div>
       {note && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">{note}</p>}
-      <div className="grid gap-5 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <MeterBar label="Messages sent this month" meter={billing.messages} />
+        <AiBar ai={billing.ai} />
         <MeterBar label="Active campaigns" meter={billing.campaigns} />
         <MeterBar label="Team seats (people + invitations)" meter={billing.seats} />
       </div>
     </section>
+  );
+}
+
+/** AI included in the plan, in dollars of what it costs us. Hidden when the company brings its own AI account and uses no ours. */
+function AiBar({ ai }: { ai: Billing['ai'] }): React.ReactElement | null {
+  if (!ai.managed && ai.platform_cost_usd === 0) return null;
+  const budgetCents = ai.budget_usd === null ? null : Math.round(ai.budget_usd * 100);
+  const usedCents = Math.round(ai.platform_cost_usd * 100);
+  const pct = budgetCents === null ? 0 : budgetCents === 0 ? 100 : Math.min(100, Math.round((usedCents / budgetCents) * 100));
+  const tone = pct >= 100 ? 'bg-destructive' : pct >= 80 ? 'bg-amber-500' : 'bg-primary';
+  const label = 'AI included this month';
+  return (
+    <div>
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <p className="mt-1 text-lg font-semibold">
+        {pct}% <span className="text-sm font-normal text-muted-foreground">{budgetCents === null ? 'of unlimited' : 'used'}</span>
+      </p>
+      <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+        <div className={cn('h-full rounded-full transition-all', tone)} style={{ width: `${pct}%` }} />
+      </div>
+      {ai.exhausted && (
+        <p className="mt-1 text-xs text-destructive">Used up: writing pauses until next month. Upgrade, or connect your own AI account.</p>
+      )}
+    </div>
   );
 }
 

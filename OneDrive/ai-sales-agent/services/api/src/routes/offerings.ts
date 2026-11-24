@@ -8,7 +8,8 @@
  *   PATCH  /api/offerings/:id       edit any part
  *   DELETE /api/offerings/:id       only when no campaign uses it
  *
- * Generation runs on the org's own Anthropic key (lib/providerKeys.ts).
+ * Generation runs on the platform's AI within the plan's monthly budget, or on
+ * the company's own Anthropic key when connected (lib/aiKey.ts).
  * Owners/admins/members may write; viewers read. RLS scopes everything.
  */
 
@@ -27,7 +28,7 @@ import {
   TONES,
   type CallModel,
 } from '../lib/offering';
-import { providerSecret } from '../lib/providerKeys';
+import { resolveAiKey } from '../lib/aiKey';
 import { ok } from '../lib/response';
 import { requireRole } from '../middleware/requireRole';
 import { validate } from '../middleware/validate';
@@ -55,7 +56,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { description } = req.validated!.body as z.infer<typeof generateBody>;
-      const apiKey = await providerSecret('anthropic');
+      const { apiKey } = await resolveAiKey();
       try {
         const draft = await generateOffering(description, {
           apiKey,

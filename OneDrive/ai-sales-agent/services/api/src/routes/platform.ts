@@ -115,6 +115,22 @@ router.patch('/api/platform/orgs/:id', validate({ params: idParams, body: patchB
   }
 });
 
+/** What AI cost the platform this month, per company (slice 8.1). */
+router.get('/api/platform/ai-usage', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const r = await query<{ org_id: string; org_name: string; plan: string; platform_cost_micros: string; own_key_cost_micros: string; calls: string; web_searches: string; budget_micros: string | null }>(`SELECT * FROM platform_ai_usage()`);
+    const usd = (m: string | null) => Math.round(Number(m ?? 0)) / 1e6;
+    const orgs = r.rows.map((o) => ({
+      org_id: o.org_id, name: o.org_name, plan: o.plan, calls: Number(o.calls), web_searches: Number(o.web_searches),
+      platform_cost_usd: usd(o.platform_cost_micros), own_key_cost_usd: usd(o.own_key_cost_micros),
+      budget_usd: o.budget_micros == null ? null : usd(o.budget_micros),
+    }));
+    return ok(res, { orgs, total_platform_cost_usd: Math.round(orgs.reduce((s, o) => s + o.platform_cost_usd, 0) * 1e6) / 1e6 });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get('/api/platform/audit', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     return ok(res, (await query(`SELECT * FROM platform_audit_recent(200)`)).rows);

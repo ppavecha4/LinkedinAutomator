@@ -21,6 +21,7 @@ import {
 } from '../components/ui/dialog';
 import { PageHeader } from '../components/ui/page-header';
 import { type CallRow, useCall, useCalls, useCancelCall, useConfirmConsent, useEligibility, useQueueCalls } from '../hooks/useCalls';
+import { useBilling } from '../hooks/useBilling';
 import { useCampaigns } from '../hooks/useCampaigns';
 import { useCredentials } from '../hooks/useWorkspace';
 import { errorMessage, useAuth } from '../lib/authContext';
@@ -60,7 +61,9 @@ export default function Calls(): React.ReactElement {
   const [open, setOpen] = React.useState<string | null>(null);
   const calls = useCalls();
 
-  const ready = !!verifiedFor(creds.data, ['elevenlabs']) && !!verifiedFor(creds.data, ['anthropic']) && (creds.data ?? []).some(
+  const billing = useBilling();
+  const aiOk = !!verifiedFor(creds.data, ['anthropic']) || (!!billing.data?.ai.managed && !billing.data?.ai.exhausted);
+  const ready = !!verifiedFor(creds.data, ['elevenlabs']) && aiOk && (creds.data ?? []).some(
     (c) => c.provider === 'twilio' && c.status === 'VERIFIED' && String((c.meta as Record<string, unknown>)?.voice_from ?? '').trim() !== '');
 
   return (
@@ -73,7 +76,7 @@ export default function Calls(): React.ReactElement {
       />
       {!creds.isLoading && !ready && (
         <p role="status" className="max-w-3xl rounded-xl border border-border bg-muted/40 p-4 text-sm">
-          To make calls, connect your ElevenLabs account (the voice), a phone number for calls in your Twilio account, and your AI key.{' '}
+          To make calls, connect your ElevenLabs account (the voice), a phone number for calls in your Twilio account, and your AI key (not needed while the AI included in your plan lasts).{' '}
           <Link to="/settings/connections" className="font-semibold text-primary underline">Connected accounts</Link>
         </p>
       )}

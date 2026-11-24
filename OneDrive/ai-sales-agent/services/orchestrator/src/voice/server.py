@@ -25,6 +25,7 @@ from xml.sax.saxutils import quoteattr
 from aiohttp import WSMsgType, web
 
 from db import tenant as t  # type: ignore
+import ai_usage
 from voice import calls as db
 from voice import twilio_stream as ts
 from voice.accounts import VoiceConfig, VoiceConfigError, load_voice_config
@@ -245,6 +246,10 @@ class VoiceServer:
             with t.tenant(org):
                 async with self.pool.acquire() as conn:
                     await db.finalize(conn, call, result)
+                brain = getattr(prov, "brain", None)
+                if getattr(brain, "usage", None):
+                    await ai_usage.record("voice", getattr(brain, "model", "*"), brain.usage,
+                                          api_key=cfg.anthropic_key, pool=self.pool)
             log.info("call %s finished: outcome=%s by=%s seconds=%s", call_id, result.outcome, result.ended_by, result.duration_seconds)
 
         return session, asyncio.create_task(run())

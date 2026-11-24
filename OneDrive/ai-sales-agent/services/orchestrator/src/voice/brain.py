@@ -180,6 +180,9 @@ class AnthropicBrain:
             client = anthropic.AsyncAnthropic(api_key=api_key)
         self._client, self._model, self._max = client, model, max_tokens
         self._system = build_system_prompt(context)
+        #: Tokens used by this call so far (the server records them in the usage ledger when the call ends).
+        self.model = model
+        self.usage: dict[str, int] = {}
 
     def reply(self, history: list[tuple[str, str]], user_text: str) -> ReplyStream:
         messages = to_messages(history, user_text)
@@ -190,5 +193,18 @@ class AnthropicBrain:
             ) as stream:
                 async for piece in stream.text_stream:
                     yield piece
+                final = getattr(stream, "get_final_message", None)   # accounting only: never break the call
+                if final is not None:
+                    try:
+                        self._add_usage(await final())
+                    except Exception:  # noqa: BLE001
+                        pass
 
         return ReplyStream(source())
+
+    def _add_usage(self, message: Any) -> None:
+        u = getattr(message, "usage", None)
+        if u is None:
+            return
+        for key in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+            self.usage[key] = self.usage.get(key, 0) + int(getattr(u, key, 0) or 0)

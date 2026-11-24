@@ -23,6 +23,11 @@ from typing import Optional
 
 import httpx
 
+try:
+    import ai_usage
+except ImportError:  # pragma: no cover
+    from src import ai_usage  # type: ignore
+
 log = logging.getLogger(__name__)
 
 ANTHROPIC_API = "https://api.anthropic.com/v1/messages"
@@ -131,6 +136,7 @@ async def generate_followup_body(
             )
 
         body = r.json()
+        await ai_usage.record("followup_linkedin", MODEL, body.get("usage"), api_key=api_key)
         chunks = body.get("content") or []
         text = "".join(c.get("text", "") for c in chunks if c.get("type") == "text").strip()
         # Strip stray quote-wrapping the model occasionally adds.

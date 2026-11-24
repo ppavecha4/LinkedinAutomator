@@ -33,6 +33,11 @@ from typing import Optional
 
 import httpx
 
+try:
+    import ai_usage
+except ImportError:  # pragma: no cover
+    from src import ai_usage  # type: ignore
+
 log = logging.getLogger("orchestrator.research")
 
 ANTHROPIC_API = "https://api.anthropic.com/v1/messages"
@@ -134,9 +139,14 @@ async def research_prospect(
     company_name: str,
     domain: Optional[str] = None,
     country: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> dict:
-    """Return a research brief for one prospect. Never raises."""
-    api_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    """Return a research brief for one prospect. Never raises.
+
+    `api_key` is the key the caller resolved for this company (db.ai_key); without one the
+    platform key is used, as before.
+    """
+    api_key = (api_key or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
     if not api_key or not company_name:
         return dict(EMPTY_BRIEF)
 
@@ -185,6 +195,7 @@ async def research_prospect(
         body = r.json()
     except ValueError:
         return dict(EMPTY_BRIEF)
+    await ai_usage.record("research", MODEL, body.get("usage"), api_key=api_key)
 
     text = "".join(
         b.get("text", "")

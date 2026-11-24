@@ -188,8 +188,8 @@ export const ACCOUNT_KINDS: AccountKind[] = [
   {
     id: 'anthropic',
     title: 'AI model',
-    subtitle: 'Anthropic API key',
-    why: 'Plans campaigns, researches prospects and writes every message.',
+    subtitle: 'Optional: your own Anthropic API key',
+    why: 'Writing is included in your plan. Connect your own account to go past the included AI, or to pay Anthropic directly: your usage then does not count against your plan.',
     providers: [{ id: 'anthropic', name: 'Anthropic', fields: [{ key: 'api_key', label: 'API key', secret: true, type: 'password', hint: 'console.anthropic.com › API keys.' }] }],
   },
 ];

@@ -44,7 +44,9 @@ export function mergeWebsiteDraft(
 export function AiNote({ freeLeft }: { freeLeft: number }): React.ReactElement {
   return (
     <span className="text-xs text-muted-foreground">
-      Uses your connected Anthropic account, or one of {freeLeft} free AI uses left for setup.
+      {freeLeft > 0
+        ? `Free during setup: ${freeLeft} AI ${freeLeft === 1 ? 'use' : 'uses'} left, on us.`
+        : 'Uses your connected Anthropic account.'}
     </span>
   );
 }

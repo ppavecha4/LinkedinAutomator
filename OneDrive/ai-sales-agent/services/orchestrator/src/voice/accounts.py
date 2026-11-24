@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from db.ai_key import budget_used_up, platform_key  # type: ignore
 from db.provider_keys import is_operator_org  # type: ignore
 from db.vault import load_credential  # type: ignore
 
@@ -78,6 +79,11 @@ async def load_voice_config(conn: Any) -> VoiceConfig:
             voices=voices, tts_model=str(el.meta.get("model_id") or "").strip(),
             anthropic_key=(an.secret.get("api_key", "") if an else ""),
         )
+        if not cfg.anthropic_key and platform_key():
+            # Managed AI: the platform writes the words, within the plan's monthly AI budget.
+            if await budget_used_up(conn):
+                raise VoiceConfigError("the AI included in your plan is used up this month: upgrade, wait for the new month, or connect your own Anthropic account")
+            cfg.anthropic_key = platform_key()
     if not (cfg.twilio_sid and cfg.twilio_token and cfg.from_number):
         raise VoiceConfigError("Twilio is not set up for calls (account, token and a phone number)")
     if not cfg.eleven_key or not (cfg.voice_id or cfg.voices):

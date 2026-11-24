@@ -15,6 +15,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { query } from '../db/client';
+import { getAiUsageMonth } from '../lib/aiUsage';
 import { ApiError } from '../lib/errors';
 import { getQuota } from '../lib/quota';
 import { ok } from '../lib/response';
@@ -37,8 +38,9 @@ const subscriptionOf = async (): Promise<SubscriptionRow> =>
 
 router.get('/api/billing', async (req, res, next) => {
   try {
-    const [usage, sub, plans] = await Promise.all([
+    const [usage, ai, sub, plans] = await Promise.all([
       getQuota(req.user!.orgId),
+      getAiUsageMonth(req.user!.orgId),
       subscriptionOf(),
       query<{ plan: string; label: string; monthly_messages: number | null; active_campaigns: number | null; seats: number | null }>(
         `SELECT plan, label, monthly_messages, active_campaigns, seats FROM plans ORDER BY sort_order`,
@@ -47,6 +49,7 @@ router.get('/api/billing', async (req, res, next) => {
     const buyable = purchasablePlans();
     return ok(res, {
       ...usage,
+      ai,
       subscription: {
         status: sub.subscription_status,
         renews_at: sub.subscription_period_end ? new Date(sub.subscription_period_end).toISOString() : null,

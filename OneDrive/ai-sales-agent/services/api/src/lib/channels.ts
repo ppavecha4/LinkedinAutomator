@@ -12,6 +12,7 @@
 
 import { query } from '../db/client';
 import { env } from '../env';
+import { platformAiConfigured } from './aiUsage';
 import { ApiError } from './errors';
 import { currentTenant } from './tenantContext';
 
@@ -134,7 +135,7 @@ export async function missingChannelCredentials(channels: readonly Channel[]): P
     email: ['google_workspace', 'smtp', 'ses'].some((p) => has(p)),
     whatsapp: has('twilio', 'whatsapp_from'),
     linkedin: has('heyreach'),
-    voice: has('elevenlabs') && has('twilio', 'voice_from') && has('anthropic'),
+    voice: has('elevenlabs') && has('twilio', 'voice_from') && (has('anthropic') || platformAiConfigured()),
   };
   return channels.filter((c) => !usable[c]);
 }

@@ -35,6 +35,7 @@ import asyncpg
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org, provider_secret
+    from db.ai_key import resolve_ai_key
     from agents.language import language_name, opt_out_line, primary, resolve_language
     from agents.profile_rules import (
         ProfileRules, load_profile, sender_name as profile_sender_name,
@@ -45,6 +46,7 @@ except ImportError:  # pragma: no cover
         create_pool as create_tenant_pool, use_campaign_org,
     )
     from src.db.provider_keys import is_operator_org, provider_secret  # type: ignore
+    from src.db.ai_key import resolve_ai_key  # type: ignore
     from src.agents.language import (  # type: ignore
         language_name, opt_out_line, primary, resolve_language,
     )
@@ -53,6 +55,11 @@ except ImportError:  # pragma: no cover
         skip_reason_for_prospect, writer_rules,
     )
 import httpx
+
+try:
+    import ai_usage
+except ImportError:  # pragma: no cover
+    from src import ai_usage  # type: ignore
 
 # Service-line routing + global market positioning. Import works both
 # inside the container (/app/src on path) and from repo root.
@@ -643,6 +650,7 @@ async def generate_message(
             "fallback",
         )
     payload = r.json()
+    await ai_usage.record("write_message", ANTHROPIC_MODEL, payload.get("usage"), api_key=anthropic_key)
     parts = payload.get("content", [])
     text = next(
         (p["text"] for p in parts if isinstance(p, dict) and p.get("type") == "text"),
@@ -918,11 +926,15 @@ async def process_campaign(
     """
     # Keys: the operator org uses .env; customers their own vault accounts.
     apollo_key = apollo_key or await provider_secret(pool, "apollo") or ""
-    anthropic_key = anthropic_key or await provider_secret(pool, "anthropic") or ""
+    ai_reason = None
+    if not anthropic_key:
+        # The company's own key, else managed AI within its plan's budget (db/ai_key.py).
+        ai_key, ai_reason = await resolve_ai_key(pool)
+        anthropic_key = ai_key.api_key if ai_key else ""
     if not apollo_key:
         return {"ok": False, "discovered": 0, "skipped_reason": "no Apollo key (connect Apollo / set APOLLO_API_KEY)"}
     if not anthropic_key:
-        return {"ok": False, "discovered": 0, "skipped_reason": "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"}
+        return {"ok": False, "discovered": 0, "skipped_reason": ai_reason or "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"}
 
     # 1. Load the campaign config (+ its offering) from DB.
     async with pool.acquire() as conn:
@@ -980,6 +992,7 @@ async def process_campaign(
                 company_name=p["company"].get("company_name") or "",
                 domain=p["company"].get("domain"),
                 country=p["company"].get("country"),
+                api_key=anthropic_key,
             )
             p["research"] = brief
             p["hiring_signal"] = {

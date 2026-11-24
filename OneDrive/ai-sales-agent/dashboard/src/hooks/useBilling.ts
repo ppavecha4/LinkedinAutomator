@@ -21,6 +21,18 @@ export interface PlanOption {
   current: boolean;
 }
 
+/** This month's AI, paid by the platform (slice 8.1 / 8.2). Dollars; budget null = unlimited. */
+export interface AiUsage {
+  platform_cost_usd: number;
+  own_key_cost_usd: number;
+  calls: number;
+  budget_usd: number | null;
+  /** The platform has its own AI account, so a company needs none of its own. */
+  managed: boolean;
+  /** This month's platform-paid AI has reached the plan's budget. */
+  exhausted: boolean;
+}
+
 export interface Billing {
   plan: string;
   plan_label: string;
@@ -28,6 +40,7 @@ export interface Billing {
   messages: Meter;
   campaigns: Meter;
   seats: Meter;
+  ai: AiUsage;
   subscription: { status: string | null; renews_at: string | null; has_customer: boolean };
   payments_enabled: boolean;
   plans: PlanOption[];

@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 
 import { Field, TagInput, ToggleChips } from '../components/profile/fields';
 import { PageHeader } from '../components/ui/page-header';
+import { useBilling } from '../hooks/useBilling';
 import { useProfile } from '../hooks/useProfile';
 import { useCredentials, useOfferings, useOrganization } from '../hooks/useWorkspace';
 import { api, ApiClientError } from '../lib/api';
@@ -213,7 +214,12 @@ export default function NewCampaign(): React.ReactElement {
   const missing = channels.filter((c) => !verifiedFor(creds.data, CHANNEL_PROVIDERS[c]));
   const emailOn = channels.includes('email');
   const followUpsOn = followUpChannels.length > 0;
-  const needsAiKey = !org.data?.operator && !verifiedFor(creds.data, ['anthropic']);
+  // Managed AI (slice 8.2): the platform writes within the plan's monthly AI, so no account is needed
+  // unless that is used up. A company's own connected account always works.
+  const billing = useBilling();
+  const aiUsedUp = !!billing.data?.ai.exhausted;
+  const aiManaged = !!billing.data?.ai.managed && !aiUsedUp;
+  const needsAiKey = !org.data?.operator && !billing.isLoading && !aiManaged && !verifiedFor(creds.data, ['anthropic']);
   const needsApollo = source === 'ai' && !org.data?.operator && !verifiedFor(creds.data, ['apollo']);
 
   return (
@@ -279,7 +285,11 @@ export default function NewCampaign(): React.ReactElement {
                       {generating ? 'Drafting…' : 'Draft my ideal customer profile'}
                     </button>
                     {needsAiKey && (
-                      <span className="text-xs text-muted-foreground">Needs your verified AI model account — <Link className="underline" to="/settings/connections">connect it</Link>.</span>
+                      <span className="text-xs text-muted-foreground">
+                        {aiUsedUp
+                          ? <>The AI included in your plan is used up this month — <Link className="underline" to="/settings/plan">upgrade</Link> or <Link className="underline" to="/settings/connections">connect your own AI account</Link>.</>
+                          : <>Needs your verified AI model account — <Link className="underline" to="/settings/connections">connect it</Link>.</>}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -449,7 +459,7 @@ export default function NewCampaign(): React.ReactElement {
                 <p className="font-medium">Before it can run</p>
                 <ul className="mt-1 list-disc pl-5 text-muted-foreground">
                   {missing.map((c) => <li key={c}>Connect and verify a {CHANNEL_LABEL[c]} account</li>)}
-                  {needsAiKey && <li>Connect and verify your AI model account (it writes the messages)</li>}
+                  {needsAiKey && <li>{aiUsedUp ? 'The AI included in your plan is used up this month: upgrade, or connect your own AI model account' : 'Connect and verify your AI model account (it writes the messages)'}</li>}
                   {needsApollo && <li>Connect and verify lead search (Apollo) so the agent can find people</li>}
                 </ul>
                 <Link to="/settings/connections" className="mt-2 inline-block text-sm font-medium underline">Open connected accounts</Link>

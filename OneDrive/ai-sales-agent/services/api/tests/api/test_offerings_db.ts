@@ -74,18 +74,26 @@ describeIfDb('offerings (live DB)', () => {
 
   const describeBusiness = { description: 'We make food-grade export packaging for Peruvian exporters.' };
 
-  it('a customer without its own Anthropic key cannot generate (never the platform key)', async () => {
-    const res = await as(request(app()).post('/api/offerings/generate')).send(describeBusiness);
-    expect(res.status).toBe(409);
-    expect(res.body.error.message).toMatch(/connect your Anthropic/);
-    expect(keysSeen).toEqual([]);
+  it('a customer without its own Anthropic key is on the platform AI; with no platform AI configured it must connect one', async () => {
+    process.env.ANTHROPIC_API_KEY = '';
+    try {
+      const none = await as(request(app()).post('/api/offerings/generate')).send(describeBusiness);
+      expect(none.status).toBe(409);
+      expect(none.body.error.message).toMatch(/connect your Anthropic/);
+      expect(keysSeen).toEqual([]);
+    } finally {
+      process.env.ANTHROPIC_API_KEY = 'platform-env-key';
+    }
+    const res = await as(request(app()).post('/api/offerings/generate')).send(describeBusiness);   // managed AI (slice 8.2)
+    expect(res.status).toBe(200);
+    expect(keysSeen).toEqual(['platform-env-key']);
   });
 
   it('with its key connected, a customer gets a draft generated on THAT key', async () => {
     await as(request(app()).put('/api/credentials/anthropic')).send({ secret: { api_key: 'customer-own-key' } });
     const res = await as(request(app()).post('/api/offerings/generate')).send(describeBusiness);
     expect(res.status).toBe(200);
-    expect(keysSeen).toEqual(['customer-own-key']);
+    expect(keysSeen.at(-1)).toBe('customer-own-key');
     expect(res.body.data).toMatchObject({
       offering: { name: 'Export food packaging' },
       suggested_channels: ['email', 'whatsapp'],

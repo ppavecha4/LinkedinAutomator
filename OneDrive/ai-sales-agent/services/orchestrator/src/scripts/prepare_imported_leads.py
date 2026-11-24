@@ -27,7 +27,7 @@ import sys
 from typing import Any, Awaitable, Callable, Optional
 
 try:
-    from db.provider_keys import provider_secret
+    from db.ai_key import BUDGET_USED_UP, has_budget, resolve_ai_key
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from scripts.smoke_test_campaign import (
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
@@ -35,13 +35,18 @@ try:
         ProfileRules, skip_reason_for_prospect,
     )
 except ImportError:  # pragma: no cover
-    from src.db.provider_keys import provider_secret  # type: ignore
+    from src.db.ai_key import BUDGET_USED_UP, has_budget, resolve_ai_key  # type: ignore
     from src.db.tenant import create_pool as create_tenant_pool, use_campaign_org  # type: ignore
     from src.scripts.smoke_test_campaign import (  # type: ignore
         ENABLE_RESEARCH, campaign_text_channels, generate_message,
         insert_messages, language_for, load_campaign, research_prospect, route_for,
         ProfileRules, skip_reason_for_prospect,
     )
+
+try:
+    import ai_usage
+except ImportError:  # pragma: no cover
+    from src import ai_usage  # type: ignore
 
 DEFAULT_BATCH = 25
 
@@ -103,11 +108,12 @@ async def prepare_imported(
     Must run inside the campaign's tenant (poller / use_campaign_org).
     Returns {"ok", "prepared", "messages", "skipped_reason"?}.
     """
-    # The operator org uses .env; customers their own connected account.
-    anthropic_key = await provider_secret(pool, "anthropic") or ""
-    if not anthropic_key:
-        return {"ok": False, "prepared": 0, "messages": 0,
-                "skipped_reason": "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"}
+    ai_usage.bind_pool(pool)
+    # The company's own key if it connected one, else managed AI within its plan's budget (db/ai_key.py).
+    ai_key, reason = await resolve_ai_key(pool)
+    if ai_key is None:
+        return {"ok": False, "prepared": 0, "messages": 0, "skipped_reason": reason}
+    anthropic_key = ai_key.api_key
 
     async with pool.acquire() as conn:
         campaign = await load_campaign(conn, campaign_id)
@@ -135,7 +141,13 @@ async def prepare_imported(
     # Slice 3.2: rules added to the profile after the import still hold.
     rules = ProfileRules.from_profile(campaign.get("profile"))
     written = 0
+    done = 0
+    out_of_budget = False
     for i, row in enumerate(rows, 1):
+        if not await has_budget(pool, ai_key):
+            out_of_budget = True        # the rest stay unprepared and are picked up next run
+            log(f"  AI budget used up: {len(rows) - done} contact(s) wait for the next run")
+            break
         p = _prospect_dict(row)
         contact = p["contact"]
         blocked = skip_reason_for_prospect(rules, p)
@@ -150,6 +162,7 @@ async def prepare_imported(
                     company_name=p["company"]["company_name"] or "",
                     domain=p["company"]["domain"],
                     country=p["company"]["country"],
+                    api_key=anthropic_key,
                 )
             note_hook = (p.get("research") or {}).get("personalization_hook")
             p["research"] = {**brief, **({"personalization_hook": note_hook} if note_hook else {})}
@@ -211,10 +224,14 @@ async def prepare_imported(
                     "UPDATE contacts SET prepared_at = now() WHERE id = $1", row["contact_id"]
                 )
         written += len(messages)
+        done += 1
         log(f"  [{i}/{len(rows)}] {contact['full_name']} — "
             f"{', '.join(messages) or blocked or 'no reachable channel'}")
 
-    return {"ok": True, "prepared": len(rows), "messages": written}
+    result = {"ok": True, "prepared": done, "messages": written}
+    if out_of_budget:
+        result["skipped_reason"] = BUDGET_USED_UP
+    return result
 
 
 async def main(campaign_id: str, limit: int) -> None:

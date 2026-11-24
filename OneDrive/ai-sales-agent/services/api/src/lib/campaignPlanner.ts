@@ -17,6 +17,7 @@
 
 import { env } from '../env';
 import { logger } from '../logger';
+import { recordAiUsage, type AnthropicUsage } from './aiUsage';
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = process.env.PLANNER_MODEL ?? 'claude-sonnet-4-6';
@@ -315,7 +316,9 @@ export async function planCampaign(
     }
     const body = (await r.json()) as {
       content?: Array<{ type: string; text?: string }>;
+      usage?: AnthropicUsage;
     };
+    await recordAiUsage('plan_campaign', MODEL, body.usage, { keySource: 'platform' });
     const text = (body.content ?? [])
       .filter((b) => b.type === 'text')
       .map((b) => b.text ?? '')

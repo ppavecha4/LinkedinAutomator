@@ -39,14 +39,19 @@ from typing import Any, Awaitable, Callable, Optional
 import httpx
 
 try:
-    from db.provider_keys import provider_secret
+    import ai_usage
+except ImportError:  # pragma: no cover
+    from src import ai_usage  # type: ignore
+
+try:
+    from db.ai_key import BUDGET_USED_UP, has_budget, resolve_ai_key
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from agents.profile_rules import writer_rules
     from scripts.smoke_test_campaign import (
         ANTHROPIC_MODEL, _language_instruction, load_campaign, profile_sender_name,
     )
 except ImportError:  # pragma: no cover
-    from src.db.provider_keys import provider_secret  # type: ignore
+    from src.db.ai_key import BUDGET_USED_UP, has_budget, resolve_ai_key  # type: ignore
     from src.db.tenant import create_pool as create_tenant_pool, use_campaign_org  # type: ignore
     from src.agents.profile_rules import writer_rules  # type: ignore
     from src.scripts.smoke_test_campaign import (  # type: ignore
@@ -96,7 +101,9 @@ async def anthropic_generate(api_key: str, prompt: str) -> str:
                   "messages": [{"role": "user", "content": prompt}]},
         )
     r.raise_for_status()
-    parts = r.json().get("content", [])
+    data = r.json()
+    await ai_usage.record("followup", ANTHROPIC_MODEL, data.get("usage"), api_key=api_key)
+    parts = data.get("content", [])
     text = next((p["text"] for p in parts if isinstance(p, dict) and p.get("type") == "text"), "")
     return text.strip()
 
@@ -132,6 +139,7 @@ async def schedule_followups(
     """Must run inside the campaign's tenant. Returns
     {"ok", "queued", "skipped_reason"?}."""
     now = now or dt.datetime.now(dt.timezone.utc)
+    ai_usage.bind_pool(pool)
     async with pool.acquire() as conn:
         campaign = await load_campaign(conn, campaign_id)
         if campaign is None:
@@ -149,13 +157,14 @@ async def schedule_followups(
     if not steps and not wa_steps:
         return {"ok": True, "queued": 0, "skipped_reason": "no follow-up steps"}
 
+    ai_key = None
     if generate is None and steps:
-        key = await provider_secret(pool, "anthropic") or ""
-        if not key:
-            return {"ok": False, "queued": 0,
-                    "skipped_reason": "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"}
+        # The company's own key if it connected one, else managed AI within its plan's budget.
+        ai_key, reason = await resolve_ai_key(pool)
+        if ai_key is None:
+            return {"ok": False, "queued": 0, "skipped_reason": reason}
 
-        async def generate(prompt: str, _key: str = key) -> str:  # type: ignore[misc]
+        async def generate(prompt: str, _key: str = ai_key.api_key) -> str:  # type: ignore[misc]
             return await anthropic_generate(_key, prompt)
 
     candidates: list = []
@@ -188,12 +197,17 @@ async def schedule_followups(
         )
 
     queued = 0
+    out_of_budget = False
     for row in candidates:
         if queued >= limit:
             break
         due = next_due_step(steps, row["last_step"], row["sent_at"], now)
         if due is None:
             continue
+        if ai_key is not None and not await has_budget(pool, ai_key):
+            out_of_budget = True        # due follow-ups wait for the next run
+            log("  AI budget used up: remaining follow-ups wait for the next run")
+            break
         number, _delay = due
         async with pool.acquire() as conn:
             prior = await conn.fetch(
@@ -262,7 +276,10 @@ async def schedule_followups(
         log(f"  follow-up {number - 1} queued for {row['full_name']}")
     if wa_steps:
         queued += await _whatsapp_followups(pool, campaign_id, wa_steps, now, max(0, limit - queued), log)
-    return {"ok": True, "queued": queued}
+    result = {"ok": True, "queued": queued}
+    if out_of_budget:
+        result["skipped_reason"] = BUDGET_USED_UP
+    return result
 
 
 async def _whatsapp_followups(pool: Any, campaign_id: str, steps: list, now: dt.datetime, limit: int,
