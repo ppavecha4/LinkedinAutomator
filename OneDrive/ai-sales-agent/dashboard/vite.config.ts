@@ -15,6 +15,8 @@ export default defineConfig({
     // Disable the error overlay — the public dev server gets hit by bot
     // scans (e.g. /app/sweeper/signer.json) whose failed transforms
     // would otherwise throw a full-screen overlay over the real page.
-    hmr: { clientPort: 443, protocol: 'wss', overlay: false },
+    // On your own computer (docker-compose.local.yml sets VITE_LOCAL) hot reload talks straight to
+    // the dev server; behind the reverse proxy it goes through wss on 443.
+    hmr: process.env.VITE_LOCAL === 'true' ? { overlay: false } : { clientPort: 443, protocol: 'wss', overlay: false },
   },
 });

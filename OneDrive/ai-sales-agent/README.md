@@ -18,6 +18,8 @@ every channel. ComplianceErrors are never swallowed silently.
 
 ---
 
+> **Run the whole system on your computer:** see [docs/run-locally.md](docs/run-locally.md) (one command; Docker Desktop and Python are all you need).
+
 ## Architecture
 
 ```

@@ -1,0 +1,164 @@
+# The WHOLE system on your own computer, with hot reload.
+#
+#   python scripts/local/setup.py            # once: writes .env.local with fresh secrets
+#   scripts/local/up.ps1   (Windows)  or  scripts/local/up.sh
+#
+# Always run through those scripts (they pass --env-file .env.local so your existing
+# .env is never read). Ports differ from the older dev stack (3000 / 5173), so both can run
+# side by side; the data is separate (its own database volume). What you get:
+#
+#   http://localhost:5180   the dashboard (sign up here)
+#   http://localhost:3100   the API
+#   http://localhost:8025   Mailpit: every email the platform sends (invites, verification,
+#                           password reset, alerts) lands here instead of going out
+#   localhost:5433          Postgres (user agent; the app itself connects as the
+#                           non-superuser sales_app_login, so tenant isolation is REAL here too)
+#
+# The scheduler container stands in for the VPS cron jobs: it sends queued emails and
+# WhatsApp, schedules follow-ups, reads replies, and reports heartbeats.
+#
+# Voice calls need Twilio to reach you over the internet: see docs/run-locally.md ("Voice").
+
+name: ai-sales-agent-local
+
+x-app-env: &app-env
+  env_file: .env.local
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: salesagent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run python scripts/local/setup.py first}
+    ports: ["127.0.0.1:${LOCAL_PG_PORT:-5433}:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d salesagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  flyway:
+    image: flyway/flyway:9
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/salesagent
+      FLYWAY_USER: agent
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./database/migrations:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Creates the login the services use. Row-level security only isolates companies when
+  # the app is NOT a superuser, so locally it connects as sales_app_login, like production.
+  dbinit:
+    image: postgres:15-alpine
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      SALES_APP_DB_PASSWORD: ${SALES_APP_DB_PASSWORD:?run python scripts/local/setup.py first}
+    volumes:
+      - ./scripts/local/dbinit.sql:/dbinit.sql:ro
+    command: ["psql", "-h", "postgres", "-U", "agent", "-d", "salesagent", "-v", "ON_ERROR_STOP=1", "-v", "login=sales_app_login", "-q", "-f", "/dbinit.sql"]
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["127.0.0.1:${LOCAL_MAIL_PORT:-8025}:8025"]
+    environment:
+      MP_MAX_MESSAGES: 500
+
+  api:
+    <<: *app-env
+    build: ./services/api
+    environment:
+      DATABASE_URL: postgresql://sales_app_login:${SALES_APP_DB_PASSWORD}@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      PLATFORM_SMTP_HOST: mailpit
+      PLATFORM_SMTP_PORT: "1025"
+    ports: ["127.0.0.1:${LOCAL_API_PORT:-3100}:3000"]
+    volumes:
+      - ./services/api/src:/app/src
+    depends_on:
+      dbinit:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  orchestrator:
+    <<: *app-env
+    build: ./services/orchestrator
+    environment:
+      DATABASE_URL: postgresql://sales_app_login:${SALES_APP_DB_PASSWORD}@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./services/orchestrator/src:/app/src
+      - ./config:/app/config:ro
+    depends_on:
+      dbinit:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # The VPS cron jobs, as a loop: send emails / WhatsApp, schedule follow-ups, read replies.
+  scheduler:
+    <<: *app-env
+    build: ./services/orchestrator
+    command: ["python", "-u", "src/local_scheduler.py"]
+    environment:
+      DATABASE_URL: postgresql://sales_app_login:${SALES_APP_DB_PASSWORD}@postgres:5432/salesagent
+      SCHEDULER_ADMIN_DATABASE_URL: postgresql://agent:${POSTGRES_PASSWORD}@postgres:5432/salesagent
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./services/orchestrator/src:/app/src
+      - ./config:/app/config:ro
+    depends_on:
+      dbinit:
+        condition: service_completed_successfully
+
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:${LOCAL_API_PORT:-3100}
+      VITE_LOCAL: "true"
+    ports: ["127.0.0.1:${LOCAL_DASHBOARD_PORT:-5180}:5173"]
+    volumes:
+      - ./dashboard/src:/app/src
+
+  # AI phone calls. Off by default: Twilio must reach this server over the internet, so
+  # you run a tunnel (docs/run-locally.md), set VOICE_PUBLIC_URL, and add --profile voice.
+  voice:
+    <<: *app-env
+    profiles: ["voice"]
+    build: ./services/orchestrator
+    command: ["python", "-u", "src/voice_server.py"]
+    environment:
+      DATABASE_URL: postgresql://sales_app_login:${SALES_APP_DB_PASSWORD}@postgres:5432/salesagent
+      VOICE_PORT: "8090"
+    ports: ["127.0.0.1:${LOCAL_VOICE_PORT:-8090}:8090"]
+    volumes:
+      - ./services/orchestrator/src:/app/src
+    depends_on:
+      dbinit:
+        condition: service_completed_successfully
+
+volumes:
+  pg_data:

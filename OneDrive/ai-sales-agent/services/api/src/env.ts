@@ -90,6 +90,8 @@ export const env = {
   platformSmtpPort: int('PLATFORM_SMTP_PORT', 587),
   platformSmtpUser: str('PLATFORM_SMTP_USER', ''),
   platformSmtpPass: str('PLATFORM_SMTP_PASS', ''),
+  // A local mail catcher (Mailpit) speaks no TLS: send in the clear. Never set this in production.
+  platformSmtpPlain: str('PLATFORM_SMTP_PLAIN', 'false').toLowerCase() === 'true',
   platformMailFrom: str('PLATFORM_MAIL_FROM', ''),
   // Launching a campaign needs a verified email — enforced only where
   // platform email is configured (otherwise nobody could verify).
