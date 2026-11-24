@@ -12,6 +12,7 @@
 
 import { CheckCircle2, CircleDashed, KeyRound, Loader2, Plug, RefreshCw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import * as React from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { CountrySelect, Field } from '../components/profile/fields';
@@ -44,6 +45,7 @@ import {
   connectedFor,
   type Credential,
   type Provider,
+  type ProviderField,
   verifiedFor,
 } from '../lib/workspace';
 
@@ -52,6 +54,15 @@ export default function Connections(): React.ReactElement {
   const creds = useCredentials();
   const { user } = useAuth();
   const canManage = !user?.role || user.role === 'owner' || user.role === 'admin';
+
+  // Deep links from "Get ready to send": ?connect=<provider> opens that account's dialog, #id scrolls to a section.
+  const [params, setParams] = useSearchParams();
+  const connectParam = params.get('connect');
+  const { hash } = useLocation();
+  const loaded = !org.isLoading && !creds.isLoading;
+  React.useEffect(() => {
+    if (loaded && hash) document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loaded, hash]);
 
   const kinds = ACCOUNT_KINDS.filter((k) => !k.channel || org.data?.channels.includes(k.channel));
   const countable = kinds.filter((k) => !k.comingSoon);
@@ -82,7 +93,13 @@ export default function Connections(): React.ReactElement {
             )}
             {kinds.map((k) => (
               <React.Fragment key={k.id}>
-                <AccountCard kind={k} creds={creds.data ?? []} canManage={canManage} />
+                <AccountCard
+                  kind={k}
+                  creds={creds.data ?? []}
+                  canManage={canManage}
+                  autoOpen={!!connectParam && k.providers.some((p) => p.id === connectParam)}
+                  onAutoOpened={() => setParams((p) => { p.delete('connect'); return p; }, { replace: true })}
+                />
                 {/* The AI writes the WhatsApp templates and gets them approved (slice 9.1). */}
                 {k.id === 'whatsapp' && !org.data?.operator && <WhatsAppMessages canManage={canManage} />}
               </React.Fragment>
@@ -127,10 +144,15 @@ function StatusBadge({ cred }: { cred: Credential | undefined }): React.ReactEle
   );
 }
 
-function AccountCard({ kind, creds, canManage }: { kind: AccountKind; creds: Credential[]; canManage: boolean }): React.ReactElement {
+function AccountCard({ kind, creds, canManage, autoOpen = false, onAutoOpened }: {
+  kind: AccountKind; creds: Credential[]; canManage: boolean; autoOpen?: boolean; onAutoOpened?: () => void;
+}): React.ReactElement {
   const cred = connectedFor(creds, kind.providers.map((p) => p.id));
   const provider = cred ? kind.providers.find((p) => p.id === cred.provider) : undefined;
   const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (autoOpen && canManage && !kind.comingSoon) { setOpen(true); onAutoOpened?.(); }
+  }, [autoOpen, canManage, kind.comingSoon, onAutoOpened]);
   const [confirmRemove, setConfirmRemove] = React.useState(false);
   const remove = useRemoveCredential();
   const verify = useVerifyCredential();
@@ -298,6 +320,20 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
     }
   }
 
+  const renderField = (f: ProviderField) => (
+    <Field key={f.key} label={`${f.label}${f.optional ? ' (optional)' : ''}`} hint={f.hint} htmlFor={`cx-${f.key}`}>
+      <input
+        id={`cx-${f.key}`}
+        className="input font-mono text-sm"
+        type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text'}
+        autoComplete={f.secret ? 'new-password' : 'off'}
+        placeholder={f.placeholder}
+        value={values[f.key] ?? ''}
+        onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+      />
+    </Field>
+  );
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
@@ -315,19 +351,13 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
               </select>
             </Field>
           )}
-          {provider.fields.map((f) => (
-            <Field key={f.key} label={`${f.label}${f.optional ? ' (optional)' : ''}`} hint={f.hint} htmlFor={`cx-${f.key}`}>
-              <input
-                id={`cx-${f.key}`}
-                className="input font-mono text-sm"
-                type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text'}
-                autoComplete={f.secret ? 'new-password' : 'off'}
-                placeholder={f.placeholder}
-                value={values[f.key] ?? ''}
-                onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
-              />
-            </Field>
-          ))}
+          {provider.fields.filter((f) => !f.advanced).map(renderField)}
+          {provider.fields.some((f) => f.advanced) && (
+            <details className="rounded-lg border border-border/70 p-3" open={provider.fields.some((f) => f.advanced && !!values[f.key])}>
+              <summary className="cursor-pointer text-sm font-medium">Advanced options (you can skip these)</summary>
+              <div className="mt-3 space-y-4">{provider.fields.filter((f) => f.advanced).map(renderField)}</div>
+            </details>
+          )}
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             Keys are encrypted before they are stored, tied to your organization, and never shown again.

@@ -49,6 +49,8 @@ export interface ProviderField {
   hint?: string;
   type?: 'text' | 'email' | 'number' | 'password';
   optional?: boolean;
+  /** Rarely needed: shown under "Advanced options" so the form stays short for most people. */
+  advanced?: boolean;
   /**
    * "es=HX…, ar=HX…" in the form, stored as meta.<langPrefix>_es,
    * meta.<langPrefix>_ar (one Content SID per language).
@@ -126,17 +128,17 @@ export const ACCOUNT_KINDS: AccountKind[] = [
         fields: [
           { key: 'account_id', label: 'Account SID', placeholder: 'AC…', pattern: /^AC[0-9a-fA-F]{32}$/, patternMessage: 'An Account SID starts with AC and has 34 characters.' },
           { key: 'whatsapp_from', label: 'WhatsApp number', placeholder: '+51987654321', optional: true, hint: 'In international format, with the country code. Leave empty if you use Twilio only for calls.' },
-          { key: 'voice_from', label: 'Phone number for calls', placeholder: '+51987654321', optional: true, hint: 'A number in your Twilio account that AI phone calls are made from. Leave empty if you do not use calls.' },
+          { key: 'voice_from', advanced: true, label: 'Phone number for calls', placeholder: '+51987654321', optional: true, hint: 'A number in your Twilio account that AI phone calls are made from. Leave empty if you do not use calls.' },
           { key: 'auth_token', label: 'Auth token', secret: true, type: 'password' },
-          { key: 'template_sid', label: 'Approved first-message template (Content SID)', placeholder: 'HX…', optional: true,
+          { key: 'template_sid', advanced: true, label: 'Approved first-message template (Content SID)', placeholder: 'HX…', optional: true,
             pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: 'A template Content SID starts with HX and has 34 characters.',
             hint: 'Optional. The AI writes these for you under “WhatsApp messages” and gets them approved: paste an ID here only if you already have your own approved template. Ours fills {{1}} with the first name and {{2}} with the company.' },
-          { key: 'template_sids', label: 'Templates for other languages', placeholder: 'es=HX…, ar=HX…', optional: true, langPrefix: 'template_sid',
+          { key: 'template_sids', advanced: true, label: 'Templates for other languages', placeholder: 'es=HX…, ar=HX…', optional: true, langPrefix: 'template_sid',
             hint: 'One per language your prospects get. Without a template for their language (and no default above), WhatsApp messages wait.' },
-          { key: 'followup_template_sid', label: 'Follow-up template (Content SID)', placeholder: 'HX…', optional: true,
+          { key: 'followup_template_sid', advanced: true, label: 'Follow-up template (Content SID)', placeholder: 'HX…', optional: true,
             pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: 'A template Content SID starts with HX and has 34 characters.',
             hint: 'Optional. The AI writes this too (under “WhatsApp messages”). Paste an ID only if you already have your own approved follow-up template ({{1}} first name, {{2}} company).' },
-          { key: 'followup_template_sids', label: 'Follow-up templates for other languages', placeholder: 'es=HX…, ar=HX…', optional: true, langPrefix: 'followup_template_sid' },
+          { key: 'followup_template_sids', advanced: true, label: 'Follow-up templates for other languages', placeholder: 'es=HX…, ar=HX…', optional: true, langPrefix: 'followup_template_sid' },
         ],
       },
     ],

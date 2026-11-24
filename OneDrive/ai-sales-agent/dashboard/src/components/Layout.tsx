@@ -25,6 +25,7 @@ import {
   HelpCircle,
   Inbox,
   LayoutDashboard,
+  ListChecks,
   Loader2,
   Briefcase,
   LogOut,
@@ -87,6 +88,8 @@ interface NavItem {
   section?: string;
   /** Only the operator (Appson) workspace has this feature. */
   operatorOnly?: boolean;
+  /** Customer workspaces only (the operator runs on server settings and has nothing to set up). */
+  customerOnly?: boolean;
   /** Owners and admins only (not shown to members and viewers). */
   managerOnly?: boolean;
   /** Platform administrators only (the people running the product). */
@@ -95,6 +98,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/', label: 'Overview', end: true, icon: LayoutDashboard, section: 'Workspace' },
+  { to: '/get-ready', label: 'Get ready', end: true, icon: ListChecks, section: 'Workspace', customerOnly: true },
   { to: '/campaigns', label: 'Campaigns', end: false, icon: Sparkles, section: 'Workspace' },
   { to: '/campaigns/plan', label: 'Plan with AI', end: true, icon: Wand2, section: 'Workspace', operatorOnly: true },
   { to: '/prospects', label: 'Prospects', end: false, icon: Users, section: 'Workspace' },
@@ -196,7 +200,7 @@ export default function Layout(): React.ReactElement {
   // Group NAV by section for the sidebar.
   const grouped = React.useMemo(() => {
     const map = new Map<string, NavItem[]>();
-    NAV.filter((n) => (!n.operatorOnly || isOperator) && (!n.managerOnly || isManager) && (!n.platformOnly || user?.platform_admin === true)).forEach((n) => {
+    NAV.filter((n) => (!n.operatorOnly || isOperator) && (!n.customerOnly || !isOperator) && (!n.managerOnly || isManager) && (!n.platformOnly || user?.platform_admin === true)).forEach((n) => {
       const key = n.section ?? 'Other';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(n);

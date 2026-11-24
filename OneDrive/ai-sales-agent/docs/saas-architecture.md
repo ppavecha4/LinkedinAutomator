@@ -1472,6 +1472,34 @@ Content SID per language into Connected accounts. Now:
   the first real submission needs a Twilio account with a WhatsApp sender. Meta's decision time
   and rejection reasons are Meta's.
 
+### Get ready to send as built (slice 9.2, 2026-11-24)
+
+The easy half of "plug and play": a guided checklist instead of a settings page. No new
+server code; it reads what the app already knows.
+
+- **`/get-ready` (dashboard `pages/GetReady.tsx`, `hooks/useSetup.ts`).** Five steps, each with
+  one plain sentence on where it stands and one button: tell us about your business
+  (onboarding), the AI that writes the messages (done when the platform's managed AI is
+  available and not used up, or the company connected its own), email (a verified mailbox),
+  connect WhatsApp (a verified Twilio account), get the WhatsApp messages approved (slice 9.1:
+  blocked until Twilio is connected, "waiting for WhatsApp" while Meta decides, done when a
+  language has both messages approved). Email and WhatsApp carry a short "how do I get this?"
+  in plain words (Google app password; where Twilio keeps the account SID, token and a WhatsApp
+  sender). When everything is done it offers "Create a campaign".
+- **Where people land.** Finishing onboarding now goes to `/get-ready`; Overview shows a short
+  "Finish setting up: 2 of 5 ready" banner until it is complete; the sidebar has "Get ready"
+  (customer workspaces only: the operator runs on server settings).
+- **Deep links.** A step's button opens the exact screen: `/settings/connections?connect=<provider>`
+  opens that account's connect dialog by itself (the parameter is removed once used), and
+  `#wa-messages-title` scrolls to the WhatsApp messages panel.
+- **Shorter connect forms.** Fields most people never need (the phone number for calls and the
+  hand-pasted WhatsApp template IDs) sit under "Advanced options" in the connect dialog
+  (`ProviderField.advanced`).
+- **Still manual, by design for now.** The company still creates its own Twilio account and
+  copies the SID and token once, and its own Google app password. Removing those needs
+  partner approvals (WhatsApp Embedded Signup / Meta Tech Provider; Google's OAuth review for
+  one-click email) that only the product owner can start.
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new

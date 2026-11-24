@@ -41,6 +41,7 @@ import Platform from './pages/Platform';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
 import Calls from './pages/Calls';
+import GetReady from './pages/GetReady';
 import Plan from './pages/Plan';
 import Privacy from './pages/Privacy';
 import Team from './pages/Team';
@@ -89,6 +90,7 @@ export default function App() {
              <Route path="/onboarding" element={<Onboarding />} />
              <Route element={<Layout />}>
               <Route path="/" element={<Overview />} />
+              <Route path="/get-ready" element={<GetReady />} />
               <Route path="/campaigns" element={<ActiveCampaigns />} />
               <Route path="/campaigns/plan" element={<CampaignPlanner />} />
               <Route path="/campaigns/new" element={<NewCampaign />} />

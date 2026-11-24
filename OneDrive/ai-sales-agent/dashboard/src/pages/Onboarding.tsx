@@ -113,8 +113,8 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
     try {
       await complete.mutateAsync(understanding?.offering);
       await refresh();
-      toast.success('Setup done', { description: 'Next: connect the email and WhatsApp accounts messages go from.' });
-      navigate('/', { replace: true });
+      toast.success('Setup done', { description: 'Next: a few quick steps to get ready to send.' });
+      navigate('/get-ready', { replace: true });
     } catch (e) {
       setError(errorMessage(e, 'Could not finish setup. Try again.'));
     }

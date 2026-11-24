@@ -32,6 +32,7 @@ import * as React from 'react';
 import { Link } from 'react-router-dom';
 
 import { LifecycleFunnel } from '../components/LifecycleFunnel';
+import { SetupBanner } from '../components/SetupBanner';
 import StatusBadge from '../components/StatusBadge';
 import { PageHeader } from '../components/ui/page-header';
 import { ProgressRing } from '../components/ui/progress';
@@ -274,6 +275,8 @@ export default function Overview(): React.ReactElement {
           </Link>
         }
       />
+
+      <SetupBanner />
 
       {/* ═══ Hero KPI strip ═══════════════════════════════════════ */}
       {isLoading ? (
