@@ -26,7 +26,7 @@ from __future__ import annotations
 import ipaddress
 import re
 import socket
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional
 
 try:
@@ -177,6 +177,25 @@ def whatsapp_account_from(label: str, secret: dict, meta: dict) -> WhatsAppAccou
     return WhatsAppAccount(label, sid, token, from_number, templates, followups)
 
 
+async def with_approved_templates(conn: Any, account: WhatsAppAccount) -> WhatsAppAccount:
+    """Add the templates the AI wrote and Meta approved (V34, slice 9.1) to the account.
+
+    A template ID the company pasted by hand (Connected accounts) wins for its language;
+    the approved ones fill the rest, so a non-technical company never has to paste anything.
+    PENDING, REJECTED, PAUSED and DISABLED templates are never used.
+    """
+    try:
+        rows = await conn.fetch(
+            "SELECT kind, language, content_sid FROM whatsapp_templates WHERE status = 'APPROVED' AND content_sid IS NOT NULL")
+    except Exception:  # noqa: BLE001 — before V34 there is no such table: nothing to add
+        return account
+    templates, followups = dict(account.templates), dict(account.followup_templates)
+    for r in rows:
+        target = followups if r["kind"] == "followup" else templates
+        target.setdefault(str(r["language"]).lower(), str(r["content_sid"]).strip())
+    return replace(account, templates=templates, followup_templates=followups)
+
+
 async def whatsapp_account(conn: Any) -> Optional[WhatsAppAccount]:
     """The current org's verified Twilio WhatsApp account, or None."""
     found = await _verified_label(conn, ("twilio",))
@@ -185,4 +204,4 @@ async def whatsapp_account(conn: Any) -> Optional[WhatsAppAccount]:
     cred = await load_credential(conn, "twilio", found[1])
     if cred is None:
         return None
-    return whatsapp_account_from(found[1], cred.secret, cred.meta)
+    return await with_approved_templates(conn, whatsapp_account_from(found[1], cred.secret, cred.meta))

@@ -75,9 +75,9 @@ export interface OfferingDraft {
 }
 
 /** Injectable model call (tests replace it). Returns the raw text reply. */
-export type CallModel = (apiKey: string, prompt: string) => Promise<string>;
+export type CallModel = (apiKey: string, prompt: string, feature?: string) => Promise<string>;
 
-export const callAnthropic: CallModel = async (apiKey, prompt) => {
+export const callAnthropic: CallModel = async (apiKey, prompt, feature = 'offering') => {
   const r = await fetch(ANTHROPIC_API, {
     method: 'POST',
     headers: {
@@ -93,7 +93,7 @@ export const callAnthropic: CallModel = async (apiKey, prompt) => {
     throw new Error(`model call failed (${r.status})`);
   }
   const data = (await r.json()) as { content?: Array<{ type: string; text?: string }>; usage?: AnthropicUsage };
-  await recordAiUsage('offering', MODEL, data.usage, { apiKey });
+  await recordAiUsage(feature, MODEL, data.usage, { apiKey });
   return (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
 };
 

@@ -32,7 +32,9 @@ import platformRouter from './routes/platform';
 import billingRouter from './routes/billing';
 import callsRouter from './routes/calls';
 import { startOpsMonitor } from './lib/opsMonitor';
+import { startTemplateSync } from './lib/whatsappTemplates';
 import privacyRouter from './routes/privacy';
+import whatsappTemplatesRouter from './routes/whatsappTemplates';
 import stripeWebhookRouter from './routes/stripeWebhook';
 import teamRouter from './routes/team';
 import campaignsRouter from './routes/campaigns';
@@ -191,6 +193,7 @@ app.use(teamRouter);
 app.use(billingRouter);
 app.use(callsRouter);
 app.use(privacyRouter);
+app.use(whatsappTemplatesRouter);
 app.use(platformRouter);
 
 // Explicit 404 for /api/* (so unknown routes return JSON, not HTML).
@@ -216,6 +219,8 @@ server.listen(port, () => {
   startAccountHealth();
   // Checks and alerts: database, redis, cron / backup heartbeats (slice 6.3).
   startOpsMonitor();
+  // Follow WhatsApp templates that are waiting for Meta, so approved ones start sending by themselves (slice 9.1).
+  startTemplateSync();
 });
 
 // Graceful shutdown — drain HTTP, close WS, release Redis + DB.

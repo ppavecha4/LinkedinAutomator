@@ -306,11 +306,11 @@ async def main(args: argparse.Namespace) -> None:
                 if is_followup:
                     template_sid = account.followup_template_for(r["language"])
                     source = (f"no approved WhatsApp FOLLOW-UP template for language "
-                              f"{r['language'] or 'unknown'} (add one in Connected accounts)")
+                              f"{r['language'] or 'unknown'} (create it under WhatsApp messages)")
                 else:
                     template_sid = account.template_for(r["language"])
                     source = (f"no approved WhatsApp template for language "
-                              f"{r['language'] or 'unknown'} (add one in Connected accounts)")
+                              f"{r['language'] or 'unknown'} (create it under WhatsApp messages)")
             else:
                 template_sid, source = resolve_template_sid(r["pitch_type"])
             if not template_sid:

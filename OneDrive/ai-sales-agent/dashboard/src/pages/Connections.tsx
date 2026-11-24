@@ -15,6 +15,7 @@ import * as React from 'react';
 import { toast } from 'sonner';
 
 import { CountrySelect, Field } from '../components/profile/fields';
+import { WhatsAppMessages } from '../components/whatsapp/WhatsAppMessages';
 import {
   Dialog,
   DialogContent,
@@ -80,7 +81,11 @@ export default function Connections(): React.ReactElement {
               </p>
             )}
             {kinds.map((k) => (
-              <AccountCard key={k.id} kind={k} creds={creds.data ?? []} canManage={canManage} />
+              <React.Fragment key={k.id}>
+                <AccountCard kind={k} creds={creds.data ?? []} canManage={canManage} />
+                {/* The AI writes the WhatsApp templates and gets them approved (slice 9.1). */}
+                {k.id === 'whatsapp' && !org.data?.operator && <WhatsAppMessages canManage={canManage} />}
+              </React.Fragment>
             ))}
             {!canManage && (
               <p className="text-xs text-muted-foreground">Only owners and admins can connect or change accounts.</p>

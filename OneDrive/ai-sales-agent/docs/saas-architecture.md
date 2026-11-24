@@ -1427,6 +1427,51 @@ Details worth knowing:
 - A single lead can overshoot the budget by about one lead's cost (checked before each lead,
   not inside it). The AI-discovery path (`smoke_test_campaign.run`) checks once at the start.
 
+### WhatsApp templates written by the AI as built (slice 9.1, 2026-11-24)
+
+First step of "plug and play" connections. WhatsApp only lets a business START a chat with
+a template Meta approved; a company used to write those in Twilio, wait, and paste each
+Content SID per language into Connected accounts. Now:
+
+1. **Draft.** `POST /api/whatsapp/templates/draft`: the AI writes a FIRST message and a
+   FOLLOW-UP for each language (default: the languages the team answers in, else the
+   company default) from the business profile (`lib/whatsappTemplates.ts`). Every body is
+   checked against WhatsApp's rules (`templateIssues`: length, only `{{1}}` first name and
+   `{{2}}` prospect company, never first/last words or side by side, no tabs or blank-line
+   runs, and an opt-out containing STOP); failures get one rewrite, and what still fails is
+   reported, not stored. Refused when the profile says nothing about what is sold. Uses the
+   managed AI (`resolveAiKey`), so it counts toward the plan's AI budget (`whatsapp_templates`).
+2. **Edit.** `PATCH /api/whatsapp/templates/:id`: DRAFT or REJECTED only, same rules.
+3. **Submit.** `POST /api/whatsapp/templates/submit`: through the company's OWN Twilio account
+   (Content API: create content, then `ApprovalRequests/whatsapp`, category MARKETING). Each
+   submission gets a never-reused name `av_<org8>_<kind>_<lang>_v<n>`; a failure after the
+   content was created deletes it again (no orphans in their Twilio).
+4. **Follow.** `POST .../refresh` on demand and `startTemplateSync()` every 10 minutes
+   (`whatsapp_templates_pending()`, V34, then `runAsOrg`): PENDING becomes APPROVED, REJECTED
+   (Meta's reason kept), PAUSED or DISABLED. The dashboard also re-checks each minute while
+   anything waits.
+5. **Send.** The sender (`orchestrator db/accounts.py`, `with_approved_templates`) adds the
+   APPROVED templates to the Twilio account, so approved messages are used with no pasting.
+   A Content SID pasted by hand still wins for its language; PENDING, REJECTED, PAUSED and
+   DISABLED are never used. The old "(add one in Connected accounts)" reason now says to create
+   it under WhatsApp messages.
+
+- **V34** `whatsapp_templates` (RLS, one row per company x kind x language, `version`,
+  `content_sid`, `status`, `rejection_reason`) and the SECURITY DEFINER `whatsapp_templates_pending()`.
+- **Dashboard.** Connected accounts > a "WhatsApp messages" panel under the WhatsApp account:
+  write my messages, read or edit them, send for approval, status per language, rewrite a
+  rejected one, add a language. The Content SID fields in the Twilio form are now optional.
+- **What this does not do.** The company still connects its own Twilio account (Account SID and
+  token) once, and needs a WhatsApp sender there; removing that step is slice 9.2 (a guided
+  connect, or WhatsApp Embedded Signup, which needs the platform to become a Meta Tech Provider).
+  A first-message template can only carry the first name and the prospect's company: the
+  personalised pitch belongs in the reply inside WhatsApp's 24-hour window. WhatsApp's opt-in
+  rule is unchanged: the sender only messages people it may (customers / opted in).
+- **Not verified against the real services.** Twilio's Content API calls (paths, payload, the
+  approval status values) follow its documentation and are tested against a simulated Twilio;
+  the first real submission needs a Twilio account with a WhatsApp sender. Meta's decision time
+  and rejection reasons are Meta's.
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new
