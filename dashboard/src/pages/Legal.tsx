@@ -1,10 +1,8 @@
 /**
- * Terms of Service and Privacy Policy (public pages, /terms and /privacy).
+ * Terms of Service, Privacy Policy and Data Deletion (public pages: /terms, /privacy, /data-deletion).
  *
- * DRAFTS. They describe what the product actually does, in plain language,
- * but they have not been reviewed by a lawyer and carry placeholders
- * ([LEGAL NAME], [CONTACT EMAIL], [GOVERNING LAW]) that must be filled in
- * before real customers sign up. The page says so, on purpose.
+ * They describe what the product actually does, in plain language. They have NOT been reviewed by a
+ * lawyer yet (see docs/saas-architecture.md): have them reviewed before relying on them in a dispute.
  */
 
 import * as React from 'react';
@@ -41,13 +39,13 @@ const TERMS: Section[] = [
     'We work hard to keep the service reliable, but it is provided as is. We do not promise replies, meetings or sales, and we are not responsible for outcomes of campaigns you choose to run. To the extent the law allows, our liability is limited to the fees you paid us in the 12 months before the problem. Nothing here limits liability that cannot be limited by law.',
   ] },
   { title: 'Changes and contact', body: [
-    'We may update these terms; we will tell you about material changes. Governing law: [GOVERNING LAW]. Questions: [CONTACT EMAIL].',
+    'We may update these terms; we will tell you about material changes. Governing law: the laws of India. Questions: info@appsontechnologies.in.',
   ] },
 ];
 
 const PRIVACY: Section[] = [
   { title: 'Who we are', body: [
-    '[LEGAL NAME] ("we") runs AI Sales Agent. For your account and team (names, work emails, sign-in details) we decide how data is used. For the contact data you upload or have us find for you (people you want to reach), you decide and we process it for you, under your instructions.',
+    'Ritik Technologie Private Limited ("we") runs AI Sales Agent. For your account and team (names, work emails, sign-in details) we decide how data is used. For the contact data you upload or have us find for you (people you want to reach), you decide and we process it for you, under your instructions.',
   ] },
   { title: 'What we store', body: [
     'Account data: your name, work email, a salted password hash (never the password), your company profile, and sign-in activity.',
@@ -64,31 +62,48 @@ const PRIVACY: Section[] = [
     'When someone asks not to be contacted, in any language, their address and number are added to your suppression list and checked again before every send. Bounced email addresses are suppressed for email.',
   ] },
   { title: 'How long we keep it', body: [
-    'While your account is active. Uploaded rows from an import you cancel are deleted at once. When you close your account we delete or anonymise your data within [RETENTION PERIOD], except what we must keep by law.',
+    'While your account is active. Uploaded rows from an import you cancel are deleted at once. When you close your account we delete or anonymise your data within 30 days, except what we must keep by law.',
   ] },
   { title: 'Security', body: [
     'Each company\'s data is isolated at the database level, secrets are encrypted, sessions end when you leave a team or change your password, and access by our staff is limited and logged. No system is perfectly secure; tell us at once if you suspect a problem.',
   ] },
   { title: 'Your rights and contact', body: [
-    'You can access, correct, export and delete your account data, and people whose data is in a customer\'s campaign can ask that customer (or us, and we will pass it on) to access, correct or delete it, or stop contacting them. Contact: [CONTACT EMAIL]. If you are in the EU/UK/India or another region with specific rules, you may also have the right to complain to your data-protection authority.',
+    'You can access, correct, export and delete your account data, and people whose data is in a customer\'s campaign can ask that customer (or us, and we will pass it on) to access, correct or delete it, or stop contacting them. Contact: info@appsontechnologies.in. To have your data deleted, see our Data Deletion page. If you are in the EU/UK/India or another region with specific rules, you may also have the right to complain to your data-protection authority.',
   ] },
 ];
 
-export default function Legal({ doc }: { doc: 'terms' | 'privacy' }): React.ReactElement {
-  const sections = doc === 'terms' ? TERMS : PRIVACY;
-  const title = doc === 'terms' ? 'Terms of Service' : 'Privacy Policy';
+const DELETION: Section[] = [
+  { title: 'How to ask us to delete your data', body: [
+    'Email info@appsontechnologies.in from the address on your account with the subject "Delete my data". Tell us the email address (and WhatsApp number, if any) you want deleted. We may reply to confirm it is really you before we delete anything.',
+    'We confirm by email when it is done, and we complete the deletion within 30 days of confirming your identity.',
+  ] },
+  { title: 'If you have an AI Sales Agent account', body: [
+    'We delete your account, the sign-in details of your team members, your company profile, your campaigns, lists, messages and replies, and the connections you set up (the encrypted keys and tokens are destroyed). Anything you have connected to Meta or WhatsApp through us is disconnected, and you can also remove our access yourself from your Meta account settings.',
+    'We keep only what the law requires us to keep (for example invoices and tax records), and a minimal suppression entry if you also asked not to be contacted.',
+  ] },
+  { title: 'If you received a message from one of our customers', body: [
+    'Our customers (companies) send messages from their own email and WhatsApp accounts using our software. If you want your details removed, reply STOP to any WhatsApp message, or use the opt-out in any email, and you will not be contacted again.',
+    'To have your data deleted entirely, email info@appsontechnologies.in with the email address or WhatsApp number to remove. We pass the request to the company that holds the data, who is responsible for it, and we can delete it ourselves where we hold it. Your address or number stays on a do-not-contact list so nobody messages you again.',
+  ] },
+  { title: 'Contact', body: [
+    'Ritik Technologie Private Limited, info@appsontechnologies.in. Governing law: the laws of India.',
+  ] },
+];
+
+export default function Legal({ doc }: { doc: 'terms' | 'privacy' | 'data-deletion' }): React.ReactElement {
+  const sections = doc === 'terms' ? TERMS : doc === 'privacy' ? PRIVACY : DELETION;
+  const title = doc === 'terms' ? 'Terms of Service' : doc === 'privacy' ? 'Privacy Policy' : 'Data Deletion';
   return (
     <div className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-2xl">
         <p className="mb-6 text-sm">
           <Link to="/login" className="underline">Back to sign in</Link>
-          <span className="mx-2 text-muted-foreground">·</span>
-          <Link to={doc === 'terms' ? '/privacy' : '/terms'} className="underline">{doc === 'terms' ? 'Privacy Policy' : 'Terms of Service'}</Link>
+          {doc !== 'terms' && <><span className="mx-2 text-muted-foreground">·</span><Link to="/terms" className="underline">Terms of Service</Link></>}
+          {doc !== 'privacy' && <><span className="mx-2 text-muted-foreground">·</span><Link to="/privacy" className="underline">Privacy Policy</Link></>}
+          {doc !== 'data-deletion' && <><span className="mx-2 text-muted-foreground">·</span><Link to="/data-deletion" className="underline">Data Deletion</Link></>}
         </p>
         <h1 className="text-3xl font-semibold">{title}</h1>
-        <p role="note" className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          Draft for legal review. This text describes how the product works in plain language but has not been reviewed by a lawyer, and the items in [square brackets] are still to be filled in.
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground">Last updated: 25 November 2026</p>
         <div className="mt-8 space-y-7">
           {sections.map((s) => (
             <section key={s.title} aria-labelledby={`l-${s.title.replace(/\W+/g, '-')}`}>

@@ -82,6 +82,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/terms" element={<Legal doc="terms" />} />
             <Route path="/privacy" element={<Legal doc="privacy" />} />
+            <Route path="/data-deletion" element={<Legal doc="data-deletion" />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
