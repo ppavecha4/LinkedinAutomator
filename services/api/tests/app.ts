@@ -32,6 +32,7 @@ import stripeWebhookRouter from '../src/routes/stripeWebhook';
 import teamRouter from '../src/routes/team';
 import webhooksRouter from '../src/routes/webhooks';
 import setupRouter from '../src/routes/setup';
+import whatsappMetaRouter from '../src/routes/whatsappMeta';
 import whatsappTemplatesRouter from '../src/routes/whatsappTemplates';
 import { ApiError } from '../src/lib/errors';
 
@@ -81,6 +82,7 @@ export function buildApp(): express.Express {
   app.use(organizationRouter);
   app.use(importsRouter);
   app.use(offeringsRouter);
+  app.use(whatsappMetaRouter);
   app.use(whatsappTemplatesRouter);
   app.use(setupRouter);
   app.use(profileRouter);

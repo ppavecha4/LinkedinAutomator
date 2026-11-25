@@ -154,6 +154,14 @@ export const env = {
   unsubscribeSecret: str('UNSUBSCRIBE_SECRET', 'dev-unsubscribe-secret'),
   linkedinWebhookSecret: str('LINKEDIN_WEBHOOK_SECRET', ''),
 
+  // WhatsApp straight through Meta (slice 10.2, Embedded Signup). "Connect WhatsApp" stays off until all
+  // three are set. The app id and configuration id are public (the browser needs them); the secret never
+  // leaves the server. Check the Graph version against Meta's changelog now and then: old ones retire.
+  metaAppId: str('META_APP_ID', ''),
+  metaAppSecret: str('META_APP_SECRET', ''),
+  metaEmbeddedSignupConfigId: str('META_ES_CONFIG_ID', ''),
+  metaGraphVersion: str('META_GRAPH_VERSION', 'v23.0'),
+
   // CORS
   corsOrigins: list('CORS_ORIGINS', ['http://localhost:5173']),
 

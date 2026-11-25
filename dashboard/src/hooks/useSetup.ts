@@ -9,6 +9,7 @@
 
 import { useBilling } from './useBilling';
 import { useFirstCampaign } from './useFirstCampaign';
+import { useMetaSignupConfig } from './useMetaSignup';
 import { useProfile } from './useProfile';
 import { useCredentials, useOrganization } from './useWorkspace';
 import { useWhatsAppTemplates } from './useWhatsAppTemplates';
@@ -54,6 +55,7 @@ export function useSetup(): Setup {
   const wantsWhatsApp = !!org.data?.channels.includes('whatsapp');
   const templates = useWhatsAppTemplates(wantsWhatsApp && !org.data?.operator);
   const first = useFirstCampaign(!org.data?.operator);
+  const metaSignup = useMetaSignupConfig();
 
   const loading = org.isLoading || creds.isLoading || profile.isLoading || billing.isLoading || (wantsWhatsApp && templates.isLoading);
   if (loading || !org.data) return { loading: true, steps: [], done: 0, total: 0, complete: false, applicable: true };
@@ -100,16 +102,19 @@ export function useSetup(): Setup {
 
   // 4 + 5. WhatsApp: the account, then the messages WhatsApp has to approve.
   if (wantsWhatsApp) {
-    const twilioOk = !!verifiedFor(creds.data, ['twilio']);
+    // Connected either one-click through Meta (slice 10.2) or through the company's own Twilio account.
+    const twilioOk = !!verifiedFor(creds.data, ['twilio', 'whatsapp_meta']);
+    const oneClick = !!metaSignup.data?.enabled;
     const twilioBroken = connectedFor(creds.data, ['twilio']);
     steps.push({
       id: 'whatsapp',
       title: 'Connect WhatsApp',
       detail: twilioOk ? 'Your WhatsApp account is connected and checked.'
         : twilioBroken?.status === 'FAILED' && twilioBroken.last_error ? `It did not work: ${twilioBroken.last_error}`
+        : oneClick ? 'Sign in with Facebook and pick your WhatsApp number. It takes a couple of minutes: nothing to copy or paste.'
         : 'WhatsApp goes through your Twilio account. It takes about ten minutes the first time.',
       state: twilioOk ? 'done' : 'todo',
-      action: twilioOk ? undefined : { label: twilioBroken ? 'Fix it' : 'Connect WhatsApp', to: '/settings/connections?connect=twilio' },
+      action: twilioOk ? undefined : { label: twilioBroken ? 'Fix it' : 'Connect WhatsApp', to: oneClick && !twilioBroken ? '/settings/connections#whatsapp-connect' : '/settings/connections?connect=twilio' },
     });
 
     const rows = templates.data?.templates ?? [];

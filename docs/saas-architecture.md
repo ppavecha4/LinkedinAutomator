@@ -1565,6 +1565,47 @@ template status, signature check).
   credentials in `.env`. Development can use Meta's free test number and a test business account.
 - Tests: API `test_whatsapp_meta_db.ts` (7, live DB); orchestrator `test_whatsapp_meta_account.py` (11).
 
+### WhatsApp straight through Meta: Embedded Signup as built (slice 10.2, 2026-11-25)
+
+A company connects the WhatsApp number it owns with one button. Meta's own window handles the
+Facebook sign-in, the WhatsApp Business account and the number verification; the server finishes the job.
+Nothing sends through Meta yet (10.3 templates, 10.4 sending, 10.5 webhooks).
+
+- **Off until configured.** `META_APP_ID`, `META_APP_SECRET`, `META_ES_CONFIG_ID` (+ `META_GRAPH_VERSION`,
+  default v23.0) in `.env`. Until all three are set, `GET /api/whatsapp/meta/config` answers
+  `{enabled:false}`, the dashboard card is hidden and `POST .../connect` answers 409. The app id and
+  configuration id are public (the browser needs them); the app secret never leaves the server.
+- **Browser** (`components/whatsapp/ConnectWhatsApp.tsx`, Settings > Connected accounts, above the Twilio
+  card). Meta's SDK is loaded only when the button is pressed. `FB.login` with the configuration id returns a
+  one-time `code`; a `WA_EMBEDDED_SIGNUP` window message (from facebook.com only) returns the account and
+  number ids. The two arrive in either order; when both are there the page calls the server once.
+  Connected state shows the number and verified name, with Disconnect.
+- **Server** (`routes/whatsappMeta.ts`, `lib/metaGraph.ts`), owners and admins only, in this order:
+  swap the code for a token; list the account's numbers and require the chosen one to be among them (with
+  no number given, the account must have exactly one); check no OTHER company has the number
+  (`org_of_whatsapp_meta_number`, V36); register it for the Cloud API with a random 6-digit two-step PIN;
+  subscribe our app to the account's events; then store it in the vault (`whatsapp_meta`, VERIFIED, token and
+  PIN encrypted, never returned). Nothing is stored unless every step worked, so a failed attempt is simply
+  retried. Reconnecting the same number refreshes the connection.
+- **Errors are plain words.** Meta's message is shown after what we were doing ("Meta could not accept the
+  sign-up (the code may have expired: connect again): ..."); rate limits and outages say try again in a
+  minute. The token and the app secret are scrubbed from anything that could reach a log or a screen, and
+  the token travels as a bearer header, never in a URL.
+- **Checklist.** "Get ready to send" and the progress counter count a Meta connection like a Twilio one; the
+  WhatsApp step points at the one-click card when it is switched on.
+- **Known limit until 10.3-10.4.** A company connected this way is marked WhatsApp-ready, but the AI
+  templates still submit through Twilio and the sender still sends through Twilio, so do not switch the
+  settings on for real customers before those slices land. (Production: leave the three settings empty.)
+- **Why V36.** Registering a number again from here could disturb another company's sending, so the owner
+  lookup runs before any call to Meta. Slice 10.5 routes Meta's webhooks with the same function.
+- **Your side (Meta dashboard).** Add the WhatsApp product to the app; create an Embedded Signup
+  configuration (copy its id); add the dashboard's address (`https://sales.appsontechnologies.com`) to the
+  app's allowed domains / JavaScript SDK settings. Tech Provider enrollment and App Review are still needed
+  before other companies can connect.
+- Tests: API `test_whatsapp_meta_connect_db.ts` (15: the Graph client, off switch, happy path with the
+  exact Graph calls and the encrypted vault, ownership, errors, nothing stored on failure). The dashboard
+  card was checked in a browser in its states (off, ready, working, connected).
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new

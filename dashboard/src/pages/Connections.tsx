@@ -16,6 +16,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { CountrySelect, Field } from '../components/profile/fields';
+import { ConnectWhatsApp } from '../components/whatsapp/ConnectWhatsApp';
 import { WhatsAppMessages } from '../components/whatsapp/WhatsAppMessages';
 import {
   Dialog,
@@ -66,7 +67,8 @@ export default function Connections(): React.ReactElement {
 
   const kinds = ACCOUNT_KINDS.filter((k) => !k.channel || org.data?.channels.includes(k.channel));
   const countable = kinds.filter((k) => !k.comingSoon);
-  const done = countable.filter((k) => verifiedFor(creds.data, k.providers.map((p) => p.id))).length;
+  // WhatsApp also counts when it is connected one-click through Meta (slice 10.2).
+  const done = countable.filter((k) => verifiedFor(creds.data, [...k.providers.map((p) => p.id), ...(k.id === 'whatsapp' ? ['whatsapp_meta'] : [])])).length;
 
   return (
     <div className="space-y-8">
@@ -93,6 +95,8 @@ export default function Connections(): React.ReactElement {
             )}
             {kinds.map((k) => (
               <React.Fragment key={k.id}>
+                {/* One-click WhatsApp through Meta (slice 10.2): hidden until the server has Meta's app settings. */}
+                {k.id === 'whatsapp' && !org.data?.operator && <ConnectWhatsApp canManage={canManage} />}
                 <AccountCard
                   kind={k}
                   creds={creds.data ?? []}

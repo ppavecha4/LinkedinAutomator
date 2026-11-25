@@ -206,7 +206,7 @@ export const CHANNEL_LABEL: Record<OrgChannel, string> = {
 /** Providers that make each channel usable (API lib/channels.ts CHANNEL_PROVIDERS). */
 export const CHANNEL_PROVIDERS: Record<OrgChannel, string[]> = {
   email: ['google_workspace', 'smtp', 'ses'],
-  whatsapp: ['twilio'],
+  whatsapp: ['twilio', 'whatsapp_meta'],
   linkedin: ['heyreach'],
   voice: ['elevenlabs'],
 };
