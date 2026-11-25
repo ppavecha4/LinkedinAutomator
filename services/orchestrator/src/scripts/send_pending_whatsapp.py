@@ -32,14 +32,20 @@ Optional flags:
     --dry-run       preview what would send, don't actually send
     --to <e164>     override every recipient with this number (self-test)
 
-Customer campaigns (slice 3.4) send from the customer's own VERIFIED
-Twilio account in the vault, with the Meta-approved template they gave
+Customer campaigns send from the company's own WhatsApp: straight through Meta's Cloud API when it
+connected its number with Embedded Signup (slice 10.4; the template is the AI-written one Meta approved,
+named in whatsapp_templates, {{1}} first name, {{2}} company), otherwise (slice 3.4) from the customer's
+own VERIFIED Twilio account in the vault, with the Meta-approved template they gave
 for the message's language (meta.template_sid_<lang>, else
 meta.template_sid; variables {{1}} first name, {{2}} company). No
 verified account or no template → the message waits, nothing is sent.
 --customers-only (cron) skips the operator's campaigns ONLY while the operator's WhatsApp is not
 set up (the Twilio variables below and at least one WHATSAPP_TEMPLATE_SID_*). Once it is, the
 operator's campaigns send too: no one has to edit the cron job.
+
+Sending through Meta stays OFF until META_WHATSAPP_SENDING=true is set for the orchestrator: replies and
+STOP from Meta's numbers arrive through webhooks (slice 10.5), and nothing may go out before opt-outs can
+come back. Until then those messages wait, with a line in the log saying why.
 
 Env vars required (operator campaigns):
     TWILIO_ACCOUNT_SID
@@ -64,12 +70,20 @@ import asyncpg
 try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org
-    from db.accounts import AccountError, WhatsAppAccount, whatsapp_account
+    from db.accounts import (
+        AccountError, MetaTemplate, MetaWhatsAppAccount, WhatsAppAccount, meta_approved_templates,
+        whatsapp_account, whatsapp_meta_account, whatsapp_provider,
+    )
     from compliance.send_gate import block_send, check_send
+    from tools.whatsapp_meta import MetaCloud
 except ImportError:  # pragma: no cover
     from src.db.provider_keys import is_operator_org  # type: ignore
-    from src.db.accounts import AccountError, WhatsAppAccount, whatsapp_account  # type: ignore
+    from src.db.accounts import (  # type: ignore
+        AccountError, MetaTemplate, MetaWhatsAppAccount, WhatsAppAccount, meta_approved_templates,
+        whatsapp_account, whatsapp_meta_account, whatsapp_provider,
+    )
     from src.compliance.send_gate import block_send, check_send  # type: ignore
+    from src.tools.whatsapp_meta import MetaCloud  # type: ignore
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
@@ -96,6 +110,19 @@ def _wa(e164: str) -> str:
     if not had_plus and len(digits) == 10:
         digits = f"91{digits}"
     return f"whatsapp:+{digits}"
+
+
+# Tests replace the network for Meta; production leaves this as None.
+META_TRANSPORT = None
+
+
+def meta_sending_enabled(env: "os._Environ[str] | dict") -> bool:
+    """Sending through Meta is switched on explicitly (see the docstring: opt-outs must be able to come back)."""
+    return (env.get("META_WHATSAPP_SENDING") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _primary_language(language: Optional[str]) -> str:
+    return (language or "").split("-", 1)[0].split("_", 1)[0].lower()
 
 
 PITCH_TO_ENV = {
@@ -159,7 +186,7 @@ def send_text(
         return False, None, str(e)[:200]
 
 
-async def _record_result(pool, r, ok: bool, twilio_sid: Optional[str], error: Optional[str]) -> None:
+async def _record_result(pool, r, ok: bool, external_id: Optional[str], error: Optional[str], provider: str = "twilio") -> None:
     """Persist a confirmation send: SENT + timeline event, or FAILED."""
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -176,32 +203,78 @@ async def _record_result(pool, r, ok: bool, twilio_sid: Optional[str], error: Op
                        external_id = COALESCE($1, external_id)
                  WHERE id = $2
                 """,
-                twilio_sid, r["message_id"],
+                external_id, r["message_id"],
             )
+            payload = {"via": "whatsapp_script", "kind": "opt_out_confirmation"}
+            payload.update({"twilio_sid": external_id} if provider == "twilio" else {"provider": provider, "wa_message_id": external_id})
             await conn.execute(
                 """
                 INSERT INTO prospect_events (campaign_id, prospect_id, contact_id, message_id,
                                              channel, event_type, source, payload)
-                SELECT m.campaign_id, c.prospect_id, c.id, m.id, 'whatsapp', 'message_sent', 'system',
-                       jsonb_build_object('via', 'whatsapp_script', 'kind', 'opt_out_confirmation',
-                                          'twilio_sid', $1::text)
+                SELECT m.campaign_id, c.prospect_id, c.id, m.id, 'whatsapp', 'message_sent', 'system', $1::jsonb
                   FROM messages m JOIN contacts c ON c.id = m.contact_id
                  WHERE m.id = $2
                 """,
-                twilio_sid, r["message_id"],
+                json.dumps(payload), r["message_id"],
             )
+
+
+async def _record_sent(pool, message_id: str, external_id: Optional[str], payload: dict) -> None:
+    """A template went out: SENT + the prospect timeline event the dashboard shows."""
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE messages
+                   SET status      = 'SENT',
+                       sent_at     = COALESCE(sent_at, now()),
+                       external_id = COALESCE($1, external_id)
+                 WHERE id = $2
+                """,
+                external_id, message_id,
+            )
+            await conn.execute(
+                """
+                INSERT INTO prospect_events (
+                    campaign_id, prospect_id, contact_id,
+                    message_id, channel, event_type,
+                    source, payload
+                )
+                SELECT m.campaign_id, c.prospect_id, c.id, m.id,
+                       'whatsapp', 'message_sent', 'system', $1::jsonb
+                  FROM messages m
+                  JOIN contacts c ON c.id = m.contact_id
+                 WHERE m.id = $2
+                """,
+                json.dumps(payload), message_id,
+            )
+
+
+async def _mark_connection_failed(pool, label: str, error: Optional[str]) -> None:
+    """Meta will not take messages from this connection any more: show it as needing a fix."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE org_credentials
+               SET status = 'FAILED', last_error = $2, last_checked_at = now(), updated_at = now()
+             WHERE provider = 'whatsapp_meta' AND label = $1
+            """,
+            label, f"Meta stopped WhatsApp sending: {(error or 'no reason given')[:200]}. Connect WhatsApp again in Connected accounts.",
+        )
 
 
 async def main(args: argparse.Namespace) -> None:
     db_url = os.environ["DATABASE_URL"]
-    if TwilioClient is None:
-        raise SystemExit("twilio package not installed in this image")
 
     pool = await create_tenant_pool(db_url, min_size=1, max_size=2)
     try:
         # SaaS phase 1: everything below runs as this campaign's org.
         org = await use_campaign_org(pool, args.campaign_id)
         account: Optional[WhatsAppAccount] = None
+        meta_account: Optional[MetaWhatsAppAccount] = None
+        meta_templates: dict[tuple[str, str], MetaTemplate] = {}
+        cloud: Optional[MetaCloud] = None
+        twilio = None
         if is_operator_org(org):
             if args.customers_only and not operator_whatsapp_ready(os.environ):
                 print("Skipping: this is the operator's campaign and the operator's WhatsApp is not set up, "
@@ -218,21 +291,38 @@ async def main(args: argparse.Namespace) -> None:
                     "twilio not configured — set TWILIO_ACCOUNT_SID, "
                     "TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM in .env"
                 )
+            if TwilioClient is None:
+                raise SystemExit("twilio package not installed in this image")
             twilio = TwilioClient(account_sid, auth_token)
         else:
-            # A customer (slice 3.4): their own verified Twilio account.
+            # A customer: straight through Meta when they connected it (slice 10.4), else their own Twilio (3.4).
             try:
                 async with pool.acquire() as conn:
-                    account = await whatsapp_account(conn)
+                    provider = await whatsapp_provider(conn)
+                    if provider == "meta":
+                        meta_account = await whatsapp_meta_account(conn)
+                        meta_templates = await meta_approved_templates(conn)
+                    elif provider == "twilio":
+                        account = await whatsapp_account(conn)
             except AccountError as e:
                 print(f"Not sending: this company's WhatsApp account can't be used ({e}).")
                 return
-            if account is None:
+            if meta_account is not None:
+                if not meta_sending_enabled(os.environ):
+                    print("Not sending: this company is connected to WhatsApp through Meta, and sending through Meta is "
+                          "not switched on yet (META_WHATSAPP_SENDING). Its messages wait.")
+                    return
+                cloud = MetaCloud(meta_account.access_token, meta_account.phone_number_id, transport=META_TRANSPORT)
+                from_number = meta_account.display_phone or meta_account.phone_number_id
+            elif account is None:
                 print("Not sending: this company has no verified WhatsApp account. "
-                      "Connect Twilio and press Verify in Connected accounts.")
+                      "Connect WhatsApp (or Twilio) and, for Twilio, press Verify in Connected accounts.")
                 return
-            twilio = TwilioClient(account.account_sid, account.auth_token)
-            from_number = account.from_number
+            else:
+                if TwilioClient is None:
+                    raise SystemExit("twilio package not installed in this image")
+                twilio = TwilioClient(account.account_sid, account.auth_token)
+                from_number = account.from_number
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -264,7 +354,7 @@ async def main(args: argparse.Namespace) -> None:
 
         print(
             f"{'[DRY RUN] ' if args.dry_run else ''}sending "
-            f"{len(rows)} WhatsApp template(s) via Twilio "
+            f"{len(rows)} WhatsApp template(s) via {'Meta' if cloud is not None else 'Twilio'} "
             f"({from_number})"
         )
         sent = skipped = failed = 0
@@ -302,6 +392,20 @@ async def main(args: argparse.Namespace) -> None:
                 print(f"  {r['full_name']:24s} -> {to[:22]:22s} [opt-out confirmation]")
                 if args.dry_run:
                     continue
+                if cloud is not None:
+                    res = await cloud.send_text(to, r["body"])
+                    if res.fatal:
+                        print(f"    ✗ STOPPING: Meta no longer accepts this connection ({res.error}). The rest stays queued.")
+                        await _mark_connection_failed(pool, meta_account.label, res.error)
+                        break
+                    if res.transient:
+                        print(f"  waiting {r['full_name']:20s} — Meta is busy or limiting sends ({res.error}); will retry")
+                        skipped += 1
+                        continue
+                    await _record_result(pool, r, res.ok, res.message_id, res.error, provider="meta")
+                    sent += res.ok
+                    failed += not res.ok
+                    continue
                 ok, twilio_sid, error = send_text(
                     twilio, from_number=from_number, to_number=to, body=r["body"],
                 )
@@ -310,14 +414,20 @@ async def main(args: argparse.Namespace) -> None:
                 failed += not ok
                 continue
 
-            if account is not None:
+            tpl: Optional[MetaTemplate] = None
+            if account is not None or meta_account is not None:
                 # Customer: their approved template for this language: the
                 # first-message one, or the follow-up one for a follow-up.
                 meta = r["metadata"]
                 if isinstance(meta, str):
                     meta = json.loads(meta or "{}")
                 is_followup = (meta or {}).get("kind") == "follow_up" or (r["sequence_step"] or 1) > 1
-                if is_followup:
+                if meta_account is not None:
+                    tpl = meta_templates.get(("followup" if is_followup else "first", _primary_language(r["language"])))
+                    template_sid = tpl.name if tpl else None
+                    source = (f"no approved WhatsApp {'FOLLOW-UP ' if is_followup else ''}template for language "
+                              f"{r['language'] or 'unknown'} (create it under WhatsApp messages)")
+                elif is_followup:
                     template_sid = account.followup_template_for(r["language"])
                     source = (f"no approved WhatsApp FOLLOW-UP template for language "
                               f"{r['language'] or 'unknown'} (create it under WhatsApp messages)")
@@ -344,14 +454,28 @@ async def main(args: argparse.Namespace) -> None:
             if args.dry_run:
                 continue
 
-            ok, twilio_sid, error = send_one(
-                twilio,
-                from_number=from_number,
-                to_number=to,
-                template_sid=template_sid,
-                first_name=first_name,
-                company_name=r["company_name"] or "",
-            )
+            if cloud is not None:
+                res = await cloud.send_template(to, tpl.name, tpl.language, first_name, r["company_name"] or "")
+                if res.fatal:
+                    print(f"    ✗ STOPPING: Meta no longer accepts this connection ({res.error}). The rest stays queued.")
+                    await _mark_connection_failed(pool, meta_account.label, res.error)
+                    break
+                if res.transient:
+                    print(f"  waiting {r['full_name']:20s} — Meta is busy or limiting sends ({res.error}); will retry")
+                    skipped += 1
+                    continue
+                ok, external_id, error = res.ok, res.message_id, res.error
+                payload = {"via": "whatsapp_script", "provider": "meta", "wa_message_id": external_id, "template_name": tpl.name}
+            else:
+                ok, external_id, error = send_one(
+                    twilio,
+                    from_number=from_number,
+                    to_number=to,
+                    template_sid=template_sid,
+                    first_name=first_name,
+                    company_name=r["company_name"] or "",
+                )
+                payload = {"via": "whatsapp_script", "twilio_sid": external_id, "template_sid": template_sid}
             if not ok:
                 print(f"    ✗ FAILED: {error}")
                 async with pool.acquire() as conn:
@@ -368,39 +492,7 @@ async def main(args: argparse.Namespace) -> None:
                 failed += 1
                 continue
 
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    await conn.execute(
-                        """
-                        UPDATE messages
-                           SET status      = 'SENT',
-                               sent_at     = COALESCE(sent_at, now()),
-                               external_id = COALESCE($1, external_id)
-                         WHERE id = $2
-                        """,
-                        twilio_sid, r["message_id"],
-                    )
-                    # Prospect timeline event so the dashboard shows the
-                    # send in the per-prospect view.
-                    await conn.execute(
-                        """
-                        INSERT INTO prospect_events (
-                            campaign_id, prospect_id, contact_id,
-                            message_id, channel, event_type,
-                            source, payload
-                        )
-                        SELECT m.campaign_id, c.prospect_id, c.id, m.id,
-                               'whatsapp', 'message_sent', 'system',
-                               jsonb_build_object(
-                                 'via', 'whatsapp_script',
-                                 'twilio_sid', $1::text,
-                                 'template_sid', $2::text)
-                          FROM messages m
-                          JOIN contacts c ON c.id = m.contact_id
-                         WHERE m.id = $3
-                        """,
-                        twilio_sid, template_sid, r["message_id"],
-                    )
+            await _record_sent(pool, r["message_id"], external_id, payload)
             sent += 1
 
         print(

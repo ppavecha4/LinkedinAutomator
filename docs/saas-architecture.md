@@ -1641,6 +1641,44 @@ review screen and the status badges are the same code for both.
 - Tests: API `test_whatsapp_templates_meta_db.ts` (13) and the 9.1 suite (17) on the renamed fields;
   orchestrator `test_whatsapp_templates.py` checks the Twilio-only filter.
 
+### WhatsApp straight through Meta: sending as built (slice 10.4, 2026-11-25)
+
+A company connected with Embedded Signup now sends from its own number through Meta's Cloud API. The
+Twilio path is unchanged and still serves everyone else and the operator.
+
+- **Which way a company sends** (`scripts/send_pending_whatsapp.py`, per campaign's company):
+  `whatsapp_provider()`: a VERIFIED Meta connection wins, otherwise the company's own Twilio account, otherwise
+  the messages wait with a line in the log. The operator keeps using its `.env` Twilio and pitch templates.
+- **The client** (`tools/whatsapp_meta.py`, `MetaCloud`): `POST /{phone_number_id}/messages`, token as a bearer
+  header and scrubbed from every error. A *template* message starts the conversation (the AI-written template
+  Meta approved: its versioned name, Meta's language code, `{{1}}` first name, `{{2}}` company; variables are
+  cleaned of line breaks/tabs and never empty). Free-form *text* is used only for opt-out confirmations (inside
+  the 24-hour window), never for a pitch.
+- **Templates are looked up, not pasted.** `meta_approved_templates()` reads this company's APPROVED rows with
+  `provider = 'meta'`; the first message or the follow-up is chosen by the message's step and language.
+  No approved template for the language: the message waits (same rule as Twilio).
+- **Every failure says what to do** (`SendResult`):
+  - *ok*: SENT, `external_id` = Meta's `wamid`, a timeline event with `provider: meta`.
+  - *transient* (Meta busy, rate limit 130429/131056/131048/80007, a network blip): the message stays QUEUED and
+    is retried on the next run: nothing is lost or wrongly failed.
+  - *fatal* (token revoked 190, account locked, no payment method, permission removed): the run STOPS, the rest
+    stay queued, and the connection is marked FAILED with the reason, so the dashboard shows "Fix it". Nothing
+    is attempted again until the company connects WhatsApp again.
+  - otherwise the message FAILED for its own reason (not on WhatsApp, template paused), with Meta's wording.
+- **Compliance is unchanged.** The same `check_send` gate (suppression, opt-out, rate and hours rules) runs
+  before every send, for both ways of sending.
+- **Switched OFF until 10.5.** Sending through Meta needs `META_WHATSAPP_SENDING=true` for the orchestrator.
+  Replies and STOP from Meta's numbers arrive by webhook (slice 10.5); until that exists an opt-out could not
+  come back, so a Meta-connected company's messages wait ("not switched on yet") instead of going out. This
+  also protects the review videos and any testing: connecting a number cannot start real sending by itself.
+- **Not done:** delivery/read receipts (SENT stays SENT; webhooks in 10.5), inbound replies, and enforcing
+  daily send limits and a gentle ramp for new numbers (an existing gap, see slice 9.3 notes: Meta also limits
+  how many new people a number may message per day, by quality tier).
+- Tests: orchestrator `test_whatsapp_meta_send.py` (27: request shape and endpoint, language codes, number
+  format, every error class, token scrubbing, and eight live-database runs of the real sender against a
+  simulated Meta: switch off, send, follow-up, missing language, only Meta-approved templates, Meta beats
+  Twilio, transient vs failed, a revoked connection stops the run and marks it FAILED, dry run).
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new

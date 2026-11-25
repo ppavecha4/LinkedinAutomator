@@ -213,6 +213,27 @@ async def whatsapp_meta_account(conn: Any) -> Optional[MetaWhatsAppAccount]:
     return whatsapp_meta_account_from(found[1], cred.secret, cred.meta)
 
 
+@dataclass(frozen=True)
+class MetaTemplate:
+    name: str            # the versioned name registered with Meta (av_<org8>_<kind>_<lang>_v<n>)
+    language: str        # our primary language subtag; the sender maps it to Meta's code
+
+
+async def meta_approved_templates(conn: Any) -> dict[tuple[str, str], MetaTemplate]:
+    """The templates Meta approved for this company's own WhatsApp (slice 10.3), by (kind, language).
+
+    kind is 'first' or 'followup'. Only provider 'meta' rows count: a Twilio content id is useless to
+    the Cloud API and the other way round. Before V37 there is no such column: nothing to add.
+    """
+    try:
+        rows = await conn.fetch(
+            "SELECT kind, language, name FROM whatsapp_templates "
+            "WHERE status = 'APPROVED' AND provider = 'meta' AND name IS NOT NULL")
+    except Exception:  # noqa: BLE001
+        return {}
+    return {(str(r["kind"]), str(r["language"]).lower()): MetaTemplate(str(r["name"]), str(r["language"]).lower()) for r in rows}
+
+
 async def whatsapp_provider(conn: Any) -> Optional[str]:
     """How the current org sends WhatsApp: 'meta' (straight through Meta), 'twilio', or None.
 
