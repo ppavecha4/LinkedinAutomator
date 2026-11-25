@@ -63,16 +63,22 @@ interface OfferingRow {
   icp: { titles?: string[]; industries?: string[]; countries?: string[] } | null;
 }
 
-/** Both WhatsApp messages approved for at least one language, or the pasted-by-hand equivalents. */
+/** Both WhatsApp messages approved for at least one language (at the provider in use), or the pasted-by-hand equivalents. */
 async function whatsappReady(): Promise<boolean> {
-  const tw = await query<{ meta: Record<string, unknown> }>(
-    `SELECT meta FROM org_credentials WHERE provider = 'twilio' AND status = 'VERIFIED' AND secret_enc IS NOT NULL`);
-  const account = tw.rows.find((r) => String(r.meta?.whatsapp_from ?? '').trim() !== '');
-  if (!account) return false;
-  const manual = Object.keys(account.meta).some((k) => k === 'template_sid' || k.startsWith('template_sid_'))
-    && Object.keys(account.meta).some((k) => k === 'followup_template_sid' || k.startsWith('followup_template_sid_'));
-  if (manual) return true;
-  const approved = await query<{ language: string; kind: string }>(`SELECT language, kind FROM whatsapp_templates WHERE status = 'APPROVED'`);
+  // Straight through Meta (slice 10.2): only a VERIFIED connection counts, with approved messages of its own.
+  const viaMeta = await query(`SELECT 1 FROM org_credentials WHERE provider = 'whatsapp_meta' AND status = 'VERIFIED' AND secret_enc IS NOT NULL LIMIT 1`);
+  const meta = (viaMeta.rowCount ?? 0) > 0;
+  if (!meta) {
+    const tw = await query<{ meta: Record<string, unknown> }>(
+      `SELECT meta FROM org_credentials WHERE provider = 'twilio' AND status = 'VERIFIED' AND secret_enc IS NOT NULL`);
+    const account = tw.rows.find((r) => String(r.meta?.whatsapp_from ?? '').trim() !== '');
+    if (!account) return false;
+    const manual = Object.keys(account.meta).some((k) => k === 'template_sid' || k.startsWith('template_sid_'))
+      && Object.keys(account.meta).some((k) => k === 'followup_template_sid' || k.startsWith('followup_template_sid_'));
+    if (manual) return true;
+  }
+  const approved = await query<{ language: string; kind: string }>(
+    `SELECT language, kind FROM whatsapp_templates WHERE status = 'APPROVED' AND provider = $1`, [meta ? 'meta' : 'twilio']);
   const byLanguage = new Map<string, Set<string>>();
   for (const r of approved.rows) byLanguage.set(r.language, (byLanguage.get(r.language) ?? new Set()).add(r.kind));
   return [...byLanguage.values()].some((kinds) => kinds.has('first') && kinds.has('followup'));

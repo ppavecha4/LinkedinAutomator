@@ -166,10 +166,10 @@ describeIfDb('WhatsApp templates flow (live DB)', () => {
   }));
   const list = () => ana.get('/api/whatsapp/templates');
 
-  it('starts empty, and says Twilio is not connected yet', async () => {
+  it('starts empty, and says WhatsApp is not connected yet', async () => {
     const res = await list();
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ templates: [], twilio_connected: false, suggested_languages: ['en'] });
+    expect(res.body.data).toMatchObject({ templates: [], provider: null, connected: false, suggested_languages: ['en'] });
   });
 
   it('will not write messages before the business profile says what is sold', async () => {
@@ -190,10 +190,10 @@ describeIfDb('WhatsApp templates flow (live DB)', () => {
     expect(res.body.data.languages).toEqual([{ language: 'en', first: 'DRAFT', followup: 'DRAFT', ready: false }]);
   });
 
-  it('sending for approval needs the Twilio account, and changes nothing without it', async () => {
+  it('sending for approval needs WhatsApp connected, and changes nothing without it', async () => {
     const res = await ana.post('/api/whatsapp/templates/submit').send({});
     expect(res.status).toBe(409);
-    expect(res.body.error.details.missing).toEqual(['twilio']);
+    expect(res.body.error.details.missing).toEqual(['whatsapp']);
     expect(calls).toEqual([]);
   });
 

@@ -63,6 +63,9 @@ export async function graph(method: 'GET' | 'POST' | 'DELETE', path: string, opt
   if (r.ok) return data;
 
   const err = (data.error ?? {}) as { message?: string; code?: number; error_user_msg?: string };
+  if (err.code === 190 && opts.token) {
+    throw new MetaGraphError('Meta no longer accepts this WhatsApp connection: connect WhatsApp again in Connected accounts.', r.status, 190);
+  }
   const detail = scrub(String(err.error_user_msg ?? err.message ?? ''), opts.token, env.metaAppSecret);
   if (r.status === 429 || r.status >= 500 || err.code === 4 || err.code === 17 || err.code === 80007) {
     throw new MetaGraphError('Meta is busy right now: try again in a minute.', r.status, err.code, true);
@@ -104,4 +107,39 @@ export async function registerNumber(token: string, phoneNumberId: string, pin: 
 /** Subscribes our app to the account's events (replies, delivery, template status: slice 10.5). */
 export async function subscribeApp(token: string, wabaId: string): Promise<void> {
   await graph('POST', `/${wabaId}/subscribed_apps`, { token });
+}
+
+// ── Message templates (slice 10.3) ──
+
+export interface CreatedTemplate { id: string; status: string }
+
+/** Sends one text template to Meta for approval. The sample values are required for the two variables. */
+export async function createMessageTemplate(
+  token: string, wabaId: string,
+  t: { name: string; language: string; category: string; body: string },
+): Promise<CreatedTemplate> {
+  const d = await graph('POST', `/${wabaId}/message_templates`, {
+    token,
+    body: {
+      name: t.name,
+      language: t.language,
+      category: t.category,
+      // Let Meta file it under the category it thinks fits instead of rejecting a marketing/utility mismatch.
+      allow_category_change: true,
+      components: [{ type: 'BODY', text: t.body, example: { body_text: [['Ana', 'Acme']] } }],
+    },
+  });
+  const id = d.id === undefined || d.id === null ? '' : String(d.id);
+  if (!id) throw new MetaGraphError('Meta did not return a template id: try again.', 502, undefined, true);
+  return { id, status: typeof d.status === 'string' ? d.status : 'PENDING' };
+}
+
+export interface TemplateState { status: string; rejected_reason: string | null }
+
+export async function getMessageTemplate(token: string, templateId: string): Promise<TemplateState> {
+  const d = await graph('GET', `/${templateId}`, { token, query: { fields: 'status,rejected_reason' } });
+  return {
+    status: typeof d.status === 'string' ? d.status : 'PENDING',
+    rejected_reason: typeof d.rejected_reason === 'string' ? d.rejected_reason : null,
+  };
 }

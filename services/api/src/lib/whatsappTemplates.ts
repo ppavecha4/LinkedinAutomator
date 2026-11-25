@@ -8,8 +8,9 @@
  *
  *   1. draft:  the AI writes a FIRST message and a FOLLOW-UP per language from the
  *              business profile, inside WhatsApp's rules (checked here, not trusted).
- *   2. submit: the company's own Twilio account creates the content and asks Meta to
- *              approve it (Twilio Content API). Needs the connected Twilio account.
+ *   2. submit: sent to Meta for approval, either straight through Meta's Cloud API (a company
+ *              connected with Embedded Signup, slice 10.3) or through the company's own Twilio
+ *              account (Twilio Content API). Meta wins when it is connected.
  *   3. follow: statuses are checked on demand and every few minutes in the background;
  *              APPROVED templates are picked up by the sender by itself
  *              (orchestrator db/accounts.py), REJECTED ones keep Meta's reason, can be
@@ -33,10 +34,12 @@ import { ApiError } from './errors';
 import { profileDescription, type Profile } from './profile';
 import { runAsOrg } from './tenantLookup';
 import { currentTenant } from './tenantContext';
+import { createMessageTemplate, getMessageTemplate, MetaGraphError } from './metaGraph';
 import { aadFor, decryptSecret, vaultKey } from './vault';
 
 export const TEMPLATE_KINDS = ['first', 'followup'] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
+export type TemplateProvider = 'twilio' | 'meta';
 export type TemplateStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED';
 
 export interface TemplateRow {
@@ -49,6 +52,8 @@ export interface TemplateRow {
   version: number;
   name: string | null;
   content_sid: string | null;
+  provider: TemplateProvider;
+  meta_template_id: string | null;
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -57,7 +62,7 @@ export interface TemplateRow {
   last_checked_at: string | null;
 }
 
-const COLUMNS = `id, kind, language, body, category, status, version, name, content_sid, rejection_reason,
+const COLUMNS = `id, kind, language, body, category, status, version, name, content_sid, provider, meta_template_id, rejection_reason,
   created_at, updated_at, submitted_at, approved_at, last_checked_at`;
 
 // ── WhatsApp's rules, checked on every body (ours and anything the user edits) ──
@@ -237,6 +242,56 @@ export async function loadTwilioAuth(): Promise<TwilioAuth> {
   return { sid, token: secret.auth_token };
 }
 
+// ── Where this company's templates live: Meta directly, or its Twilio account ──
+
+export type Sender =
+  | { provider: 'twilio'; auth: TwilioAuth }
+  | { provider: 'meta'; token: string; wabaId: string };
+
+/** A verified Meta connection (Embedded Signup, V35) wins; otherwise a usable Twilio account; otherwise none. */
+export async function currentProvider(): Promise<TemplateProvider | null> {
+  const meta = await query(`SELECT 1 FROM org_credentials WHERE provider = 'whatsapp_meta' AND status = 'VERIFIED' AND secret_enc IS NOT NULL LIMIT 1`);
+  if ((meta.rowCount ?? 0) > 0) return 'meta';
+  const tw = await query(`SELECT 1 FROM org_credentials WHERE provider = 'twilio' AND secret_enc IS NOT NULL AND status NOT IN ('REVOKED', 'FAILED') LIMIT 1`);
+  return (tw.rowCount ?? 0) > 0 ? 'twilio' : null;
+}
+
+/** The company's verified Meta connection, decrypted. 409 when there is none. */
+export async function loadMetaSender(): Promise<Sender> {
+  const r = await query<{ secret_enc: Buffer; label: string; meta: Record<string, unknown> }>(
+    `SELECT secret_enc, label, meta FROM org_credentials
+      WHERE provider = 'whatsapp_meta' AND secret_enc IS NOT NULL AND status = 'VERIFIED'
+      ORDER BY (label = 'default') DESC, updated_at DESC LIMIT 1`);
+  const row = r.rows[0];
+  if (!row) throw ApiError.conflict('connect WhatsApp first (Connected accounts)', { missing: ['whatsapp'] });
+  const key = vaultKey();
+  const orgId = currentTenant()?.orgId;
+  if (!key || !orgId) throw ApiError.internal('credential vault not configured (CREDENTIALS_KEY)');
+  const secret = decryptSecret(row.secret_enc, aadFor(orgId, 'whatsapp_meta', row.label), key);
+  const wabaId = String(row.meta?.waba_id ?? '').trim();
+  if (!/^\d{5,25}$/.test(wabaId) || !secret.access_token) {
+    throw ApiError.conflict('your WhatsApp connection is incomplete: connect WhatsApp again (Connected accounts)', { missing: ['whatsapp'] });
+  }
+  return { provider: 'meta', token: secret.access_token, wabaId };
+}
+
+/** Where to send this company's templates now. 409 when WhatsApp is not connected at all. */
+export async function loadSender(): Promise<Sender> {
+  const provider = await currentProvider();
+  if (provider === 'meta') return loadMetaSender();
+  if (provider === 'twilio') return { provider: 'twilio', auth: await loadTwilioAuth() };
+  throw ApiError.conflict('connect WhatsApp first (Connected accounts)', { missing: ['whatsapp'] });
+}
+
+/**
+ * Templates that live at the OTHER provider than the one in use now (the company switched) count as
+ * not sent yet: they are shown as drafts and sending them again submits them to the current provider.
+ */
+export function effectiveRows(rows: TemplateRow[], current: TemplateProvider | null): TemplateRow[] {
+  if (!current) return rows;
+  return rows.map((r) => (r.provider !== current && r.status !== 'DRAFT' ? { ...r, status: 'DRAFT' as const, rejection_reason: null } : r));
+}
+
 // ── Twilio Content API ──
 
 const CONTENT_API = 'https://content.twilio.com/v1';
@@ -329,14 +384,35 @@ export const getApproval = async (auth: TwilioAuth, sid: string): Promise<Approv
   return mapApproval(d.whatsapp);
 };
 
+const META_REASONS: Record<string, string> = {
+  ABUSIVE_CONTENT: 'Meta says the message looks abusive or inappropriate. Rewrite it more plainly.',
+  INCORRECT_CATEGORY: 'Meta says the message does not fit its category. Rewrite it so it is clearly a business message.',
+  INVALID_FORMAT: 'Meta says the format is not allowed: check the {{ }} placeholders and the spacing.',
+  SCAM: 'Meta says the message looks like a scam. Rewrite it more plainly, with nothing that sounds like a prize or a threat.',
+  TAG_CONTENT_MISMATCH: 'Meta says the content does not match what was declared. Rewrite it.',
+};
+
+/** Meta's template status, in our words. Only an explicit APPROVED lets the sender use a template. */
+export function mapMetaApproval(state: { status?: string; rejected_reason?: string | null } | undefined): Approval {
+  const s = (state?.status ?? '').toUpperCase();
+  const raw = (state?.rejected_reason ?? '').toUpperCase();
+  const reason = raw && raw !== 'NONE' ? (META_REASONS[raw] ?? `Meta's reason: ${raw.toLowerCase().replace(/_/g, ' ')}.`) : null;
+  if (s === 'APPROVED') return { status: 'APPROVED', reason: null };
+  if (s === 'REJECTED') return { status: 'REJECTED', reason: reason ?? 'Meta did not say why.' };
+  if (s === 'PAUSED') return { status: 'PAUSED', reason };
+  if (s === 'DISABLED' || s === 'DELETED' || s === 'PENDING_DELETION') return { status: 'DISABLED', reason };
+  return { status: 'PENDING', reason: null };            // PENDING, IN_APPEAL, FLAGGED, anything new
+}
+
 // ── persistence (all inside the caller's tenant) ──
 
 export async function listTemplates(): Promise<TemplateRow[]> {
-  return (await query<TemplateRow>(`SELECT ${COLUMNS} FROM whatsapp_templates ORDER BY language, kind`)).rows;
+  const rows = (await query<TemplateRow>(`SELECT ${COLUMNS} FROM whatsapp_templates ORDER BY language, kind`)).rows;
+  return effectiveRows(rows, await currentProvider());
 }
 
 /** Store drafts. Anything already with Meta (PENDING / APPROVED / PAUSED / DISABLED) is left alone. */
-export async function saveDrafts(drafts: Draft[]): Promise<{ saved: number; kept: Array<{ kind: TemplateKind; language: string }> }> {
+export async function saveDrafts(drafts: Draft[], current: TemplateProvider | null = null): Promise<{ saved: number; kept: Array<{ kind: TemplateKind; language: string }> }> {
   let saved = 0;
   const kept: Array<{ kind: TemplateKind; language: string }> = [];
   for (const d of drafts) {
@@ -345,8 +421,9 @@ export async function saveDrafts(drafts: Draft[]): Promise<{ saved: number; kept
        ON CONFLICT (org_id, kind, language) DO UPDATE
           SET body = EXCLUDED.body, status = 'DRAFT', rejection_reason = NULL, updated_at = now()
         WHERE whatsapp_templates.status IN ('DRAFT', 'REJECTED')
+           OR ($4::text IS NOT NULL AND whatsapp_templates.provider <> $4::text)
        RETURNING id`,
-      [d.kind, d.language, d.body],
+      [d.kind, d.language, d.body, current],
     );
     if (r.rowCount) saved += 1; else kept.push({ kind: d.kind, language: d.language });
   }
@@ -356,7 +433,7 @@ export async function saveDrafts(drafts: Draft[]): Promise<{ saved: number; kept
 export async function getTemplate(id: string): Promise<TemplateRow> {
   const r = await query<TemplateRow>(`SELECT ${COLUMNS} FROM whatsapp_templates WHERE id = $1`, [id]);
   if (!r.rows[0]) throw ApiError.notFound('template not found');
-  return r.rows[0];
+  return effectiveRows(r.rows, await currentProvider())[0];
 }
 
 export async function editTemplate(id: string, body: string): Promise<TemplateRow> {
@@ -378,8 +455,8 @@ export async function removeTemplate(id: string): Promise<void> {
 
 export interface SubmitOutcome { id: string; kind: TemplateKind; language: string; ok: boolean; error?: string }
 
-/** Send one DRAFT / REJECTED template to Meta through the company's Twilio account. */
-export async function submitTemplate(id: string, auth: TwilioAuth): Promise<SubmitOutcome> {
+/** Send one DRAFT / REJECTED template to Meta for approval: straight through Meta, or through the company's Twilio. */
+export async function submitTemplate(id: string, sender: Sender): Promise<SubmitOutcome> {
   const row = await getTemplate(id);
   const base = { id, kind: row.kind, language: row.language };
   if (!isEditable(row.status)) return { ...base, ok: false, error: 'already with WhatsApp' };
@@ -388,6 +465,27 @@ export async function submitTemplate(id: string, auth: TwilioAuth): Promise<Subm
   const orgId = currentTenant()!.orgId;
   const version = row.version + 1;
   const name = templateName(orgId, row.kind, row.language, version);
+
+  if (sender.provider === 'meta') {
+    let created;
+    try {
+      created = await createMessageTemplate(sender.token, sender.wabaId, {
+        name, language: twilioLanguage(row.language), category: row.category, body: row.body,
+      });
+    } catch (e) {
+      return { ...base, ok: false, error: e instanceof MetaGraphError ? e.message : 'could not reach Meta: try again' };
+    }
+    const first = mapMetaApproval({ status: created.status });      // Meta sometimes approves at once
+    await query(
+      `UPDATE whatsapp_templates
+          SET status = $2::varchar, version = $3, name = $4, provider = 'meta', meta_template_id = $5, content_sid = NULL,
+              rejection_reason = $6::text, submitted_at = now(), last_checked_at = NULL, updated_at = now(),
+              approved_at = CASE WHEN $2::varchar = 'APPROVED' THEN now() ELSE NULL END
+        WHERE id = $1`, [id, first.status, version, name, created.id, first.reason]);
+    return { ...base, ok: true };
+  }
+
+  const auth = sender.auth;
   let sid: string | undefined;
   try {
     sid = await createContent(auth, name, row.language, row.body);
@@ -398,22 +496,43 @@ export async function submitTemplate(id: string, auth: TwilioAuth): Promise<Subm
   }
   await query(
     `UPDATE whatsapp_templates
-        SET status = 'PENDING', version = $2, name = $3, content_sid = $4, rejection_reason = NULL,
-            submitted_at = now(), last_checked_at = NULL, updated_at = now()
+        SET status = 'PENDING', version = $2, name = $3, provider = 'twilio', content_sid = $4, meta_template_id = NULL,
+            rejection_reason = NULL, submitted_at = now(), last_checked_at = NULL, updated_at = now(), approved_at = NULL
       WHERE id = $1`, [id, version, name, sid]);
   return { ...base, ok: true };
 }
 
-/** Ask Twilio where every pending template of the current company stands. Returns how many changed. */
-export async function syncPending(auth?: TwilioAuth): Promise<{ checked: number; changed: number }> {
+/**
+ * Ask where every pending template of the current company stands: each one at the provider it was sent to.
+ * A provider whose connection is gone is skipped (the template stays pending). Returns how many changed.
+ */
+export async function syncPending(twilioAuth?: TwilioAuth): Promise<{ checked: number; changed: number }> {
   const pending = (await query<TemplateRow>(
-    `SELECT ${COLUMNS} FROM whatsapp_templates WHERE status = 'PENDING' AND content_sid IS NOT NULL`)).rows;
+    `SELECT ${COLUMNS} FROM whatsapp_templates
+      WHERE status = 'PENDING' AND (content_sid IS NOT NULL OR meta_template_id IS NOT NULL)`)).rows;
   if (pending.length === 0) return { checked: 0, changed: 0 };
-  const creds = auth ?? await loadTwilioAuth();
+
+  const senders = new Map<TemplateProvider, Sender | null>();
+  const senderFor = async (p: TemplateProvider): Promise<Sender | null> => {
+    if (!senders.has(p)) {
+      try {
+        senders.set(p, p === 'meta' ? await loadMetaSender() : { provider: 'twilio', auth: twilioAuth ?? await loadTwilioAuth() });
+      } catch (e) {
+        if (!(e instanceof ApiError)) throw e;
+        senders.set(p, null);
+      }
+    }
+    return senders.get(p) ?? null;
+  };
+
   let changed = 0;
   for (const t of pending) {
     try {
-      const a = await getApproval(creds, t.content_sid!);
+      const sender = await senderFor(t.provider);
+      if (!sender) { await query(`UPDATE whatsapp_templates SET last_checked_at = now() WHERE id = $1`, [t.id]); continue; }
+      const a = sender.provider === 'meta'
+        ? mapMetaApproval(await getMessageTemplate(sender.token, t.meta_template_id!))
+        : await getApproval(sender.auth, t.content_sid!);
       const r = await query(
         `UPDATE whatsapp_templates
             SET status = $2::varchar, rejection_reason = $3::text, last_checked_at = now(), updated_at = now(),

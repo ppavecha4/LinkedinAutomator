@@ -231,11 +231,13 @@ async def with_approved_templates(conn: Any, account: WhatsAppAccount) -> WhatsA
 
     A template ID the company pasted by hand (Connected accounts) wins for its language;
     the approved ones fill the rest, so a non-technical company never has to paste anything.
-    PENDING, REJECTED, PAUSED and DISABLED templates are never used.
+    PENDING, REJECTED, PAUSED and DISABLED templates are never used, and neither are templates that live at
+    Meta directly (provider 'meta', slice 10.3): a Twilio content ID is only ever one made through Twilio.
     """
     try:
         rows = await conn.fetch(
-            "SELECT kind, language, content_sid FROM whatsapp_templates WHERE status = 'APPROVED' AND content_sid IS NOT NULL")
+            "SELECT kind, language, content_sid FROM whatsapp_templates "
+            "WHERE status = 'APPROVED' AND provider = 'twilio' AND content_sid IS NOT NULL")
     except Exception:  # noqa: BLE001 — before V34 there is no such table: nothing to add
         return account
     templates, followups = dict(account.templates), dict(account.followup_templates)

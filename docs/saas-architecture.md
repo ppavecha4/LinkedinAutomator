@@ -1606,6 +1606,41 @@ Nothing sends through Meta yet (10.3 templates, 10.4 sending, 10.5 webhooks).
   exact Graph calls and the encrypted vault, ownership, errors, nothing stored on failure). The dashboard
   card was checked in a browser in its states (off, ready, working, connected).
 
+### WhatsApp straight through Meta: templates as built (slice 10.3, 2026-11-25)
+
+The AI-written templates (slice 9.1) now go to Meta directly for a company connected with Embedded
+Signup, and through the company's Twilio account for everyone else. The writing, the rules check, the
+review screen and the status badges are the same code for both.
+
+- **Which one.** `currentProvider()` in `lib/whatsappTemplates.ts`: a VERIFIED `whatsapp_meta` connection
+  wins; otherwise a usable Twilio account; otherwise none (submit answers 409 "connect WhatsApp first").
+  `GET /api/whatsapp/templates` now returns `provider` (`'meta' | 'twilio' | null`) and `connected`
+  instead of `twilio_connected`.
+- **V37.** `whatsapp_templates.provider` ('twilio' default, 'meta') and `meta_template_id`; the
+  background-check function now also finds templates waiting at Meta.
+- **Submit.** `POST /{waba_id}/message_templates` with the versioned name (`av_<org8>_<kind>_<lang>_v<n>`),
+  Meta's language code (same mapping as Twilio: `pt` -> `pt_BR`, `zh` -> `zh_CN`), the category, the body, the
+  sample values for `{{1}}` and `{{2}}` Meta requires, and `allow_category_change: true` so a
+  marketing/utility mismatch is re-filed by Meta instead of rejected. Meta sometimes approves at once: that
+  is taken as it comes.
+- **Status.** `GET /{template_id}?fields=status,rejected_reason`, on demand and by the existing 10-minute
+  background check, each template at the provider it was sent to. `mapMetaApproval`: only an explicit
+  APPROVED is usable; REJECTED keeps Meta's reason in plain words; PAUSED, DISABLED (also DELETED) stop the
+  sender; PENDING, IN_APPEAL, FLAGGED and anything new stay pending. A provider whose connection is gone is
+  skipped, not failed.
+- **Switching provider.** A company that moves between Twilio and Meta keeps its written messages. Rows
+  that live at the other provider show as drafts and are not "ready"; sending them again submits to the
+  current provider under a fresh name. Writing new drafts replaces them too.
+- **The Twilio sender only uses Twilio's.** `with_approved_templates` (orchestrator) now requires
+  `provider = 'twilio'`, so a template Meta approved is never handed to Twilio as a content id. The
+  first-campaign proposal checks approved templates of the provider in use.
+- **A token Meta no longer accepts** (revoked, expired: Graph error 190) is shown as "connect WhatsApp
+  again", never echoing the token.
+- **Not done yet:** nothing sends through Meta (10.4), and Meta's template-status webhook (10.5) will make
+  approvals instant; until then the 10-minute check finds them.
+- Tests: API `test_whatsapp_templates_meta_db.ts` (13) and the 9.1 suite (17) on the renamed fields;
+  orchestrator `test_whatsapp_templates.py` checks the Twilio-only filter.
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new

@@ -40,6 +40,7 @@ async def test_approved_templates_fill_the_languages_the_company_has_no_template
     assert acct.followup_template_for("en") == SID_FOLLOWUP_EN
     assert acct.followup_template_for("es") is None                   # no approved Spanish follow-up: it waits
     assert "status = 'APPROVED'" in conn.sql                          # only approved ones are ever asked for
+    assert "provider = 'twilio'" in conn.sql                          # and only ones made through Twilio
 
 
 async def test_a_template_pasted_by_hand_wins_over_an_approved_one_for_its_language():

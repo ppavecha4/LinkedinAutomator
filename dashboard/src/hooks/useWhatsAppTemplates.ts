@@ -30,7 +30,9 @@ export interface LanguageReadiness {
 export interface TemplatesView {
   templates: WhatsAppTemplate[];
   languages: LanguageReadiness[];
-  twilio_connected: boolean;
+  /** How WhatsApp is connected: straight through Meta, through the company's Twilio, or not at all. */
+  provider: 'meta' | 'twilio' | null;
+  connected: boolean;
   suggested_languages: string[];
 }
 
@@ -61,7 +63,7 @@ function useView<I, O extends TemplatesView>(call: (input: I) => Promise<O>) {
   return useMutation({
     mutationFn: call,
     onSuccess: (data) => qc.setQueryData<TemplatesView>(KEY, {
-      templates: data.templates, languages: data.languages, twilio_connected: data.twilio_connected, suggested_languages: data.suggested_languages,
+      templates: data.templates, languages: data.languages, provider: data.provider, connected: data.connected, suggested_languages: data.suggested_languages,
     }),
   });
 }

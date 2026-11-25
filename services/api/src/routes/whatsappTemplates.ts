@@ -5,8 +5,8 @@
  *   GET    /api/whatsapp/templates          the templates, readiness per language, suggested languages
  *   POST   /api/whatsapp/templates/draft    the AI writes first message + follow-up per language {languages?}
  *   PATCH  /api/whatsapp/templates/:id      edit a draft or a rejected one {body}
- *   POST   /api/whatsapp/templates/submit   send drafts to Meta through the company's Twilio {ids?}
- *   POST   /api/whatsapp/templates/refresh  ask Twilio where pending ones stand
+ *   POST   /api/whatsapp/templates/submit   send drafts to Meta for approval, straight through Meta or via the company's Twilio {ids?}
+ *   POST   /api/whatsapp/templates/refresh  ask where pending ones stand
  *   DELETE /api/whatsapp/templates/:id      remove a draft or a rejected one
  *
  * Owners and admins write (it speaks for the company to Meta); everyone can read and refresh.
@@ -22,8 +22,8 @@ import { callAnthropic, type CallModel } from '../lib/offering';
 import { type Profile } from '../lib/profile';
 import { ok } from '../lib/response';
 import {
-  draftTemplates, editTemplate, listTemplates, loadTwilioAuth, primaryLanguage, readiness,
-  removeTemplate, saveDrafts, submitTemplate, syncPending, templateIssues, type TemplateRow,
+  currentProvider, draftTemplates, editTemplate, listTemplates, loadSender, primaryLanguage, readiness,
+  removeTemplate, saveDrafts, submitTemplate, syncPending, templateIssues, type TemplateProvider, type TemplateRow,
 } from '../lib/whatsappTemplates';
 import { requireRole } from '../middleware/requireRole';
 import { validate } from '../middleware/validate';
@@ -57,14 +57,10 @@ function suggestedLanguages(profile: Profile, defaultLanguage: string): string[]
   return list.slice(0, 5);
 }
 
-async function twilioConnected(): Promise<boolean> {
-  const r = await query(`SELECT 1 FROM org_credentials WHERE provider = 'twilio' AND secret_enc IS NOT NULL AND status NOT IN ('REVOKED', 'FAILED') LIMIT 1`);
-  return (r.rowCount ?? 0) > 0;
-}
-
-async function view(): Promise<{ templates: TemplateRow[]; languages: ReturnType<typeof readiness>; twilio_connected: boolean; suggested_languages: string[] }> {
-  const [templates, connected, { profile, defaultLanguage }] = await Promise.all([listTemplates(), twilioConnected(), loadProfile()]);
-  return { templates, languages: readiness(templates), twilio_connected: connected, suggested_languages: suggestedLanguages(profile, defaultLanguage) };
+/** `provider` is how WhatsApp is connected now ('meta' straight through Meta, 'twilio', or null: not connected). */
+async function view(): Promise<{ templates: TemplateRow[]; languages: ReturnType<typeof readiness>; provider: TemplateProvider | null; connected: boolean; suggested_languages: string[] }> {
+  const [templates, provider, { profile, defaultLanguage }] = await Promise.all([listTemplates(), currentProvider(), loadProfile()]);
+  return { templates, languages: readiness(templates), provider, connected: provider !== null, suggested_languages: suggestedLanguages(profile, defaultLanguage) };
 }
 
 router.get('/api/whatsapp/templates', async (_req: Request, res: Response, next: NextFunction) => {
@@ -92,7 +88,7 @@ router.post('/api/whatsapp/templates/draft', canWrite, validate({ body: draftBod
       { profile, companyName, senderName: profile.voice?.sender_name?.trim() || companyName, languages },
       (prompt) => call(apiKey, prompt, 'whatsapp_templates'),
     );
-    const saved = await saveDrafts(result.drafts);
+    const saved = await saveDrafts(result.drafts, await currentProvider());
     return ok(res, { ...(await view()), saved: saved.saved, kept: saved.kept, problems: result.problems });
   } catch (e) {
     next(e);
@@ -113,11 +109,11 @@ router.patch('/api/whatsapp/templates/:id', canWrite, validate({ params: idParam
 router.post('/api/whatsapp/templates/submit', canWrite, validate({ body: submitBody }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { ids } = req.validated!.body as z.infer<typeof submitBody>;
-    const auth = await loadTwilioAuth();
+    const sender = await loadSender();
     const targets = ids ?? (await listTemplates()).filter((t) => t.status === 'DRAFT' || t.status === 'REJECTED').map((t) => t.id);
     if (targets.length === 0) throw ApiError.conflict('there is nothing to send: write the messages first');
     const results = [];
-    for (const id of targets) results.push(await submitTemplate(id, auth));
+    for (const id of targets) results.push(await submitTemplate(id, sender));
     return ok(res, { results, ...(await view()) });
   } catch (e) {
     next(e);
@@ -127,7 +123,7 @@ router.post('/api/whatsapp/templates/submit', canWrite, validate({ body: submitB
 router.post('/api/whatsapp/templates/refresh', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     let checked = { checked: 0, changed: 0 };
-    if (await twilioConnected()) {
+    if (await currentProvider()) {
       try {
         checked = await syncPending();
       } catch (e) {

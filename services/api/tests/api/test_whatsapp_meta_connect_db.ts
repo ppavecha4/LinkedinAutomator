@@ -60,11 +60,18 @@ describe('the Graph client (pure)', () => {
 
   it('scrubs the token and the app secret out of Meta\'s error messages', async () => {
     env.metaAppSecret = 'app-secret-xyz';
-    setMetaGraphHooks({ fetch: async () => json(400, { error: { message: 'Invalid token EAAG-abc and secret app-secret-xyz', code: 190 } }) });
+    setMetaGraphHooks({ fetch: async () => json(400, { error: { message: 'Invalid parameter EAAG-abc and secret app-secret-xyz', code: 100 } }) });
     const err = await graph('GET', '/me', { token: 'EAAG-abc' }).catch((e) => e as MetaGraphError);
     expect(err).toBeInstanceOf(MetaGraphError);
     expect(err.message).not.toMatch(/EAAG-abc|app-secret-xyz/);
-    expect(err.message).toMatch(/Invalid token/);
+    expect(err.message).toMatch(/Invalid parameter/);
+  });
+
+  it('a token Meta no longer accepts is explained as "connect WhatsApp again", echoing nothing', async () => {
+    setMetaGraphHooks({ fetch: async () => json(401, { error: { message: 'Error validating access token EAAG-abc', code: 190 } }) });
+    const err = await graph('GET', '/me', { token: 'EAAG-abc' }).catch((e) => e as MetaGraphError);
+    expect(err).toMatchObject({ code: 190, transient: false, message: expect.stringMatching(/connect WhatsApp again/) });
+    expect(err.message).not.toContain('EAAG-abc');
   });
 
   it('treats rate limits, outages and a network failure as try-again-later', async () => {

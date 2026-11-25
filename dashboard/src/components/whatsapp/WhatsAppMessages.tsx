@@ -121,7 +121,7 @@ export function WhatsAppMessages({ canManage }: { canManage: boolean }): React.R
               {hasAny ? 'Rewrite my messages' : 'Write my messages'}
             </button>
             {toSend > 0 && (
-              <button type="button" className="btn-primary" onClick={send} disabled={busy || !data.twilio_connected}>
+              <button type="button" className="btn-primary" onClick={send} disabled={busy || !data.connected}>
                 {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
                 Send for approval
               </button>
@@ -133,9 +133,9 @@ export function WhatsAppMessages({ canManage }: { canManage: boolean }): React.R
       {view.isLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Loading" />}
       {view.error && <p role="alert" className="text-sm text-destructive">{errorMessage(view.error, 'Could not load your WhatsApp messages.')}</p>}
 
-      {data && !data.twilio_connected && (
+      {data && !data.connected && (
         <p role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-          Connect and verify your Twilio account above first: it is how the messages are sent to WhatsApp for approval.
+          Connect WhatsApp above first: it is how the messages are sent to WhatsApp for approval.
         </p>
       )}
       {data && !hasAny && (
@@ -143,7 +143,7 @@ export function WhatsAppMessages({ canManage }: { canManage: boolean }): React.R
           Nothing written yet. “Write my messages” creates a first message and a follow-up in {data.suggested_languages.map(languageName).join(', ')}.
         </p>
       )}
-      {drafts > 0 && data?.twilio_connected && (
+      {drafts > 0 && data?.connected && (
         <p className="text-xs text-muted-foreground">Read them first: you can change any wording. When you are happy, “Send for approval”.</p>
       )}
 
