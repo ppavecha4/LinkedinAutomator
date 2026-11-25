@@ -1,5 +1,9 @@
 # VPS cron scripts
 
+> **Deploying a new version of the code?** Use `deploy.sh` (this folder) from the repository on the
+> server, and read `docs/deploy.md`: it backs up, pulls `main`, migrates, rebuilds, updates these
+> scripts in `/usr/local/bin` and restores the crons.
+
 These live on the production Hetzner box at `/usr/local/bin/`. They
 replace the SQS-based outreach-worker path (which needs AWS) with a
 simple Postgres-driven scheduler.

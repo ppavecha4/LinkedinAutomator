@@ -44,3 +44,6 @@ htmlcov/
 # --- Claude Code (local worktrees + per-machine settings) ---
 .claude/worktrees/
 .claude/settings.local.json
+
+# pre-deploy database dumps made by scripts/vps/deploy.sh
+backups/
