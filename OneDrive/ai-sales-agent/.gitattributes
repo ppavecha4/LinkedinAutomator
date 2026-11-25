@@ -1,0 +1,9 @@
+# Normalize text files to LF in the repo; let Git pick by content.
+* text=auto
+
+# Always LF in the working tree too, even on Windows with core.autocrlf=true:
+# shell scripts run on the VPS / in Linux containers, migrations run in Flyway.
+*.sh  text eol=lf
+*.sql text eol=lf
+
+*.png binary
