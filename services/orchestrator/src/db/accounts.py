@@ -16,6 +16,8 @@ Field names are the contract with the dashboard's Connect form
   twilio            meta.account_id, meta.whatsapp_from,
                     meta.template_sid?, meta.template_sid_<lang>?;
                     secret.auth_token
+  whatsapp_meta     meta.waba_id, meta.phone_number_id, meta.display_phone_number?;
+                    secret.access_token   (created only by Embedded Signup, V35)
 
 A customer-entered mail server is resolved and must be public; the
 connection then goes to the address that was checked (`connect_ip`), with
@@ -104,6 +106,20 @@ class WhatsAppAccount:
         return self.followup_templates.get(lang) or self.followup_templates.get("") or None
 
 
+@dataclass(frozen=True)
+class MetaWhatsAppAccount:
+    """A company's WhatsApp number connected straight through Meta (Embedded Signup, V35).
+
+    Sending and templates through it arrive in slices 10.3-10.4; the chooser below already
+    tells the senders which way a company is set up.
+    """
+    label: str
+    waba_id: str                # the WhatsApp Business Account that owns the number and the templates
+    phone_number_id: str        # the number messages are sent FROM (Meta's id, not the phone number)
+    display_phone: str
+    access_token: str = field(repr=False)
+
+
 async def _verified_label(conn: Any, providers: tuple[str, ...]) -> Optional[tuple[str, str]]:
     row = await conn.fetchrow(
         """
@@ -175,6 +191,39 @@ def whatsapp_account_from(label: str, secret: dict, meta: dict) -> WhatsAppAccou
         elif k.startswith("followup_template_sid_"):
             followups[k[len("followup_template_sid_"):].lower()] = v.strip()
     return WhatsAppAccount(label, sid, token, from_number, templates, followups)
+
+
+def whatsapp_meta_account_from(label: str, secret: dict, meta: dict) -> MetaWhatsAppAccount:
+    waba = str(meta.get("waba_id") or "").strip()
+    number_id = str(meta.get("phone_number_id") or "").strip()
+    token = str(secret.get("access_token") or "")
+    if not re.fullmatch(r"\d{5,25}", waba) or not re.fullmatch(r"\d{5,25}", number_id) or not token:
+        raise AccountError("WhatsApp (Meta) connection is incomplete: reconnect it (Connect WhatsApp)")
+    return MetaWhatsAppAccount(label, waba, number_id, str(meta.get("display_phone_number") or "").strip(), token)
+
+
+async def whatsapp_meta_account(conn: Any) -> Optional[MetaWhatsAppAccount]:
+    """The current org's verified WhatsApp connection through Meta, or None."""
+    found = await _verified_label(conn, ("whatsapp_meta",))
+    if not found:
+        return None
+    cred = await load_credential(conn, "whatsapp_meta", found[1])
+    if cred is None:
+        return None
+    return whatsapp_meta_account_from(found[1], cred.secret, cred.meta)
+
+
+async def whatsapp_provider(conn: Any) -> Optional[str]:
+    """How the current org sends WhatsApp: 'meta' (straight through Meta), 'twilio', or None.
+
+    A verified Meta connection wins over Twilio: it is the simpler, cheaper path, and a company
+    that connected it means to use it. Only VERIFIED accounts count, like everywhere else.
+    """
+    if await _verified_label(conn, ("whatsapp_meta",)):
+        return "meta"
+    if await _verified_label(conn, ("twilio",)):
+        return "twilio"
+    return None
 
 
 async def with_approved_templates(conn: Any, account: WhatsAppAccount) -> WhatsAppAccount:

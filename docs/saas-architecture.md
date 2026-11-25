@@ -1533,6 +1533,38 @@ and one button creates it.
   sender enforces it, so a brand-new mailbox is not throttled by it. A gentle ramp for new senders is a
   separate, worthwhile deliverability slice.
 
+### WhatsApp straight through Meta: the connection as built (slice 10.1, 2026-11-25)
+
+The first of five slices that let a company connect the WhatsApp number it owns with one click (Meta's
+Embedded Signup) and send through Meta's Cloud API, with no Twilio account and nothing to paste. It also
+gives the Meta app review (`whatsapp_business_messaging` + `whatsapp_business_management`) a real
+product flow to record. This slice is the data model only; nothing sends through Meta yet.
+
+The five slices: **10.1** connection model (this one) · **10.2** Embedded Signup (dashboard button, code
+exchange, number registration, webhook subscription) · **10.3** templates through Meta's
+`message_templates` endpoint, reusing the AI writer and its rules · **10.4** sending through the Cloud API
+(same suppression, limits and one-per-prospect rules) · **10.5** webhooks (replies, STOP, delivery and
+template status, signature check).
+
+- **A new vault provider, `whatsapp_meta`** (V35). `meta`: `waba_id`, `phone_number_id`,
+  `display_phone_number`; `secret`: `access_token`. Same AES-256-GCM vault as every account, so there is no
+  new secrets table.
+- **Only Embedded Signup creates it.** The token must come from Meta's own code exchange, so
+  `PUT /api/credentials/whatsapp_meta` answers 400 ("use the Connect WhatsApp button"). Disconnecting
+  (`DELETE /api/credentials/:id`) wipes the token like any account.
+- **One number, one company.** A partial unique index on `meta->>'phone_number_id'` (connected rows only)
+  stops two companies connecting the same number; Meta's webhooks name the number and are routed by it.
+  Disconnecting frees it.
+- **Provider choice.** A verified Meta connection wins over Twilio (`whatsapp_provider()` in
+  `db/accounts.py`: `meta`, `twilio` or none); Twilio is used when Meta is not connected. Launch readiness
+  (`missingChannelCredentials`) accepts either. Because no code can create a Meta connection until 10.2, no
+  company can be in the "Meta connected but cannot send yet" state in production.
+- **Not done here:** the dashboard (the Connect WhatsApp button and the Meta card), the sender, the
+  templates and the webhooks: slices 10.2-10.5. `whatsapp_templates` gets its Meta columns in 10.3.
+- **On your side (open item 16):** Meta business verification, Tech Provider enrollment, and the app
+  credentials in `.env`. Development can use Meta's free test number and a test business account.
+- Tests: API `test_whatsapp_meta_db.ts` (7, live DB); orchestrator `test_whatsapp_meta_account.py` (11).
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new

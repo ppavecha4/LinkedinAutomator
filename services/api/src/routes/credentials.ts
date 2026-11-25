@@ -28,11 +28,17 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
-/** Mirrors the org_credentials.provider CHECK (V16, 'elevenlabs' added in V32). */
+/** Mirrors the org_credentials.provider CHECK (V16, 'elevenlabs' added in V32, 'whatsapp_meta' in V35). */
 export const PROVIDERS = [
   'anthropic', 'google_workspace', 'smtp', 'ses', 'twilio', 'heyreach',
   'apollo', 'fullenrich', 'prospeo', 'datagma', 'voice', 'calendly', 'elevenlabs',
+  'whatsapp_meta',
 ] as const;
+
+/** Providers that only a purpose-built flow may create (the secret must come from the provider itself). */
+const NOT_CONNECTABLE_BY_HAND: Record<string, string> = {
+  whatsapp_meta: 'use the "Connect WhatsApp" button: it links your WhatsApp number through Meta, so there is nothing to paste',
+};
 
 const PUBLIC_COLUMNS = `id, provider, label, meta, status, verified_at,
   last_checked_at, last_error, created_at, updated_at,
@@ -81,6 +87,7 @@ async function assertProviderAllowed(provider: string): Promise<void> {
 
 /** Provider-specific input rules on top of the generic shape (no DB). */
 function checkProviderRules(provider: string, meta: Record<string, unknown>): void {
+  if (NOT_CONNECTABLE_BY_HAND[provider]) throw ApiError.badRequest(NOT_CONNECTABLE_BY_HAND[provider]);
   if (provider === 'twilio') {
     // Inbound WhatsApp webhooks are routed to the org by AccountSid
     // (V17 org_of_provider_account), so it must be known up front.

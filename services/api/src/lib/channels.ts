@@ -29,7 +29,7 @@ export const CHANNEL_LABELS: Record<Channel, string> = {
 /** Which connected account(s) can serve each channel. */
 export const CHANNEL_PROVIDERS: Record<Channel, readonly string[]> = {
   email: ['google_workspace', 'smtp', 'ses'],
-  whatsapp: ['twilio'],
+  whatsapp: ['twilio', 'whatsapp_meta'],
   linkedin: ['heyreach'],
   voice: ['elevenlabs'],
 };
@@ -133,7 +133,8 @@ export async function missingChannelCredentials(channels: readonly Channel[]): P
   // channel needs ITS number. Calls also need the voice (ElevenLabs) and the AI that writes the words.
   const usable: Record<Channel, boolean> = {
     email: ['google_workspace', 'smtp', 'ses'].some((p) => has(p)),
-    whatsapp: has('twilio', 'whatsapp_from'),
+    // Straight through Meta (Embedded Signup, V35) or through the company's own Twilio account.
+    whatsapp: has('whatsapp_meta', 'phone_number_id') || has('twilio', 'whatsapp_from'),
     linkedin: has('heyreach'),
     voice: has('elevenlabs') && has('twilio', 'voice_from') && (has('anthropic') || platformAiConfigured()),
   };
