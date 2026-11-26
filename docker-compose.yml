@@ -1,3 +1,6 @@
+# DEVELOPMENT ONLY. Never run this file on a server (use docker-compose.prod.yml). As a second line of
+# defence every port is published to this computer only (127.0.0.1): Docker's published ports bypass the
+# usual host firewall, and these services have weak or no passwords.
 version: '3.8'
 
 services:
@@ -7,7 +10,7 @@ services:
       POSTGRES_DB: salesagent
       POSTGRES_USER: agent
       POSTGRES_PASSWORD: devpassword
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/migrations:/flyway/sql
@@ -19,7 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["127.0.0.1:6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -45,7 +48,7 @@ services:
       DATABASE_URL: postgresql://agent:devpassword@postgres:5432/salesagent
       REDIS_URL: redis://redis:6379
       NODE_ENV: development
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       flyway:
         condition: service_completed_successfully
@@ -83,7 +86,7 @@ services:
     environment:
       DATABASE_URL: postgresql://agent:devpassword@postgres:5432/salesagent
       REDIS_URL: redis://redis:6379
-    ports: ["3001:3001"]
+    ports: ["127.0.0.1:3001:3001"]
     depends_on: [postgres, redis]
     volumes:
       - ./services/reply-processor/src:/app/src
@@ -92,7 +95,7 @@ services:
     build: ./dashboard
     environment:
       VITE_API_URL: http://localhost:3000
-    ports: ["5173:5173"]
+    ports: ["127.0.0.1:5173:5173"]
     volumes:
       - ./dashboard/src:/app/src
 

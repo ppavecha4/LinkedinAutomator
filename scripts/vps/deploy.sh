@@ -20,7 +20,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 # The project name is pinned so volumes and container names never depend on this folder's name.
-COMPOSE=(docker compose -p ai-sales-agent -f docker-compose.prod.yml)
+# --profile edge is Caddy, the only thing that publishes ports (80, 443). Without it the site stays down.
+COMPOSE=(docker compose -p ai-sales-agent -f docker-compose.prod.yml --profile edge)
 POSTGRES=ai-sales-agent-postgres-1
 API=ai-sales-agent-api-1
 
@@ -41,8 +42,9 @@ run() { if [ "$DRY" = 1 ]; then printf '   [dry run] %s\n' "$*"; else "$@"; fi; 
 
 # ── 0. checks: nothing is changed until these pass ─────────────────────────────
 say "Checking this server"
-[ -f .env ] || die ".env is missing in $ROOT. It is not in git: copy it from the old folder (docs/deploy.md)."
+[ -f .env ] || die ".env is missing in $ROOT. It is not in git: see docs/new-server.md."
 command -v docker >/dev/null || die "docker is not installed or not on the PATH"
+bash scripts/server/check_ports.sh config || die "the compose file would expose a port other than 80/443. Nothing was changed."
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ "$BRANCH" = main ] || die "this server must be on the main branch (it is on '$BRANCH'): git checkout main"
 [ -z "$(git status --porcelain --untracked-files=no)" ] || die "files tracked by git were changed on this server (git status). Commit or discard them first."
@@ -108,6 +110,11 @@ run "${COMPOSE[@]}" run --rm flyway migrate
 # ── 5. rebuild and start ───────────────────────────────────────────────────────
 say "5/7 Rebuilding and starting the stack"
 run "${COMPOSE[@]}" up -d --build
+
+# Nothing but the web server may be reachable from outside: check what is really published now.
+if [ "$DRY" = 0 ]; then
+  bash scripts/server/check_ports.sh running || die "a container publishes a port other than 80/443 (listed above). Fix this now: docker ps"
+fi
 
 # ── 6. the cron scripts live in /usr/local/bin, outside the repository ─────────
 say "6/7 Updating the cron scripts in /usr/local/bin"

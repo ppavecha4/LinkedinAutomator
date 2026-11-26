@@ -8,6 +8,8 @@ work on a branch  ->  push the branch  ->  pull request on GitHub  ->  merge int
 
 `main` is what production runs. Nothing goes to the server except what was merged into `main`.
 
+**A new server?** Start with `docs/new-server.md`.
+
 ## 1. Day to day (your computer)
 
 ```bash
