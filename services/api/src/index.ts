@@ -35,6 +35,7 @@ import { startOpsMonitor } from './lib/opsMonitor';
 import { startTemplateSync } from './lib/whatsappTemplates';
 import privacyRouter from './routes/privacy';
 import setupRouter from './routes/setup';
+import metaWebhookRouter from './routes/metaWebhook';
 import whatsappMetaRouter from './routes/whatsappMeta';
 import whatsappTemplatesRouter from './routes/whatsappTemplates';
 import stripeWebhookRouter from './routes/stripeWebhook';
@@ -87,6 +88,8 @@ app.use(
 
 // Stripe signs the raw body: this router reads it itself, so it comes BEFORE express.json().
 app.use(stripeWebhookRouter);
+// Meta signs the raw body too (WhatsApp webhooks, slice 10.5).
+app.use(metaWebhookRouter);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));

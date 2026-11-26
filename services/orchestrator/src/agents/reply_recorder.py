@@ -251,6 +251,41 @@ async def record_opt_out(
             )
 
 
+async def suppress_phone(conn, phone: str, contact_id=None) -> None:
+    """Block a number that asked to stop in EVERY form we hold it, and in its plain +E.164 form.
+
+    The send gate compares the stored text exactly, so "+51 987 111 222" and "+51987111222" must both be
+    listed. Works for a sender we cannot match to a contact too: their number is still blocked.
+    """
+    digits = re.sub(r"\D", "", phone or "")
+    if not digits:
+        return
+    await conn.execute(
+        """
+        INSERT INTO suppression_list (whatsapp_number, reason, contact_id)
+        SELECT n, 'OPT_OUT', $3::uuid
+          FROM (SELECT whatsapp_number AS n FROM contacts
+                 WHERE whatsapp_number IS NOT NULL
+                   AND right(regexp_replace(whatsapp_number, '\\D', '', 'g'), 10) = $1
+                UNION
+                SELECT $2::text) AS forms
+        ON CONFLICT DO NOTHING
+        """,
+        normalise_phone(digits), f"+{digits}", contact_id,
+    )
+
+
+async def log_unmatched_opt_out(conn, *, matched: str, via: str, phone: str) -> None:
+    """Compliance record for a stop request from a number that matches no contact (last digits only)."""
+    await conn.execute(
+        """
+        INSERT INTO compliance_log (action, channel, data)
+        VALUES ('opt_out', 'whatsapp', jsonb_build_object('via', $1::text, 'matched', $2::text, 'number_ends', $3::text))
+        """,
+        via, matched, re.sub(r"\D", "", phone)[-4:],
+    )
+
+
 async def queue_opt_out_confirmation(conn, *, contact_id, campaign_id, channel: str,
                                      reply_language: str | None) -> bool:
     """Queue the fixed, translated "you're unsubscribed" message once per

@@ -161,6 +161,9 @@ export const env = {
   metaAppSecret: str('META_APP_SECRET', ''),
   metaEmbeddedSignupConfigId: str('META_ES_CONFIG_ID', ''),
   metaGraphVersion: str('META_GRAPH_VERSION', 'v23.0'),
+  // Any long random string you choose; typed once into Meta's webhook settings (slice 10.5). Incoming
+  // events are authenticated by their signature (META_APP_SECRET), this only proves the address is ours.
+  metaWebhookVerifyToken: str('META_WEBHOOK_VERIFY_TOKEN', ''),
 
   // CORS
   corsOrigins: list('CORS_ORIGINS', ['http://localhost:5173']),

@@ -29,6 +29,7 @@ import billingRouter from '../src/routes/billing';
 import callsRouter from '../src/routes/calls';
 import privacyRouter from '../src/routes/privacy';
 import stripeWebhookRouter from '../src/routes/stripeWebhook';
+import metaWebhookRouter from '../src/routes/metaWebhook';
 import teamRouter from '../src/routes/team';
 import webhooksRouter from '../src/routes/webhooks';
 import setupRouter from '../src/routes/setup';
@@ -57,6 +58,7 @@ export function buildApp(): express.Express {
   );
 
   app.use(stripeWebhookRouter);
+  app.use(metaWebhookRouter);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));

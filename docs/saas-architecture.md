@@ -1679,6 +1679,51 @@ Twilio path is unchanged and still serves everyone else and the operator.
   simulated Meta: switch off, send, follow-up, missing language, only Meta-approved templates, Meta beats
   Twilio, transient vs failed, a revoked connection stops the run and marks it FAILED, dry run).
 
+### WhatsApp straight through Meta: webhooks as built (slice 10.5, 2026-11-26)
+
+The last of the five slices. Replies, opt-outs, delivery receipts and template decisions now come back from
+Meta, so sending through Meta can be switched on.
+
+- **One address** (`routes/metaWebhook.ts`): `GET /webhooks/meta/whatsapp` echoes Meta's `hub.challenge` when
+  the verify token matches `META_WEBHOOK_VERIFY_TOKEN`; `POST` accepts events only with a valid
+  `X-Hub-Signature-256` (HMAC of the raw body with `META_APP_SECRET`), in every environment. Caddy already
+  proxies `/webhooks/*`.
+- **Routing** (V38): by the number (`org_of_whatsapp_meta_inbound`) or the template id
+  (`org_of_whatsapp_meta_template`). A company that has the number connected wins; otherwise the one that
+  last had it, so a late "STOP" after a disconnect is still recorded. An event nobody owns is dropped with a
+  log line, never filed under another company.
+- **Storing** (`lib/metaWebhook.ts`): replies, receipts and the "stop marketing messages" choice go into
+  `inbound_events` under the owning company (idempotent: Meta redelivers until it gets a 200). If storing
+  fails the answer is 500 so Meta tries again. Template decisions update `whatsapp_templates` at once
+  (PAUSED/DISABLED stop the sender; "flagged" changes nothing; a rewritten draft ignores old news).
+  Reactions and "sent" receipts are ignored.
+- **Processing** (`scripts/process_inbound_events.py`, the existing 5-minute job):
+  - a reply is recorded in the inbox and stops the follow-ups;
+  - **opt-outs**: "STOP" in any language, Meta's "Stop promotions" button, the stop-marketing preference and
+    error 131050 all suppress the number. One confirmation is sent for a written STOP; none for Meta's own
+    controls. "Resume" never lifts a suppression by itself;
+  - receipts only move a message forward (SENT -> DELIVERED -> OPENED); failures keep Meta's reason.
+- **Three opt-out gaps closed, for Twilio too:** a STOP from a number matching no contact is now honoured
+  (it was dropped); every stored format of the number is suppressed ("+51 987..." and "+51987..."), because the
+  send gate compares text exactly; and an event that can carry a stop is processed in one transaction and
+  retried if it fails, instead of being marked done.
+- **Timing.** A STOP takes effect when the processor next runs (up to about 5 minutes), as with Twilio.
+
+**Go-live checklist (production)**
+1. Deploy 10.2-10.5 (migrations V36-V38).
+2. In `.env`: `META_APP_ID`, `META_APP_SECRET`, `META_ES_CONFIG_ID`, `META_WEBHOOK_VERIFY_TOKEN`; restart
+   api and orchestrator. Leave `META_WHATSAPP_SENDING` empty.
+3. In Meta's dashboard: App > WhatsApp > Configuration: callback `https://sales.appsontechnologies.com/webhooks/meta/whatsapp`,
+   the verify token, and subscribe to `messages`, `message_template_status_update` and `user_preferences`.
+4. Connect a test number with the button, write and submit templates, then message the number from your phone
+   and check the reply appears in the inbox; send STOP and check the number is suppressed.
+5. Only then set `META_WHATSAPP_SENDING=true` and restart the orchestrator.
+6. Record the two Meta App Review videos from this flow.
+
+- Tests: API `test_whatsapp_meta_webhook_db.ts` (13); orchestrator `test_whatsapp_meta_inbound.py` (9,
+  including "after a STOP only the confirmation goes out through Meta"). All against simulated Meta events:
+  nothing here has talked to the real Meta yet.
+
 ## Schema still to come
 
 V16 is committed and is not edited (CLAUDE.md principle 7). The new
