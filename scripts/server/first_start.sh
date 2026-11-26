@@ -104,7 +104,9 @@ if [ -n "$RESTORE" ]; then
 fi
 PG_CONTAINER="$PROJECT-postgres-1" SALES_APP_DB_PASSWORD="$(setting SALES_APP_DB_PASSWORD)" bash scripts/db/create_app_login.sh < /dev/null
 
-say "6/7 Starting the app"
+say "6/7 Building the website and starting the app"
+SITE="$(setting WEBSITE_DOMAIN)"
+python3 website/build.py ${SITE:+--site-url "https://$SITE"}
 "${COMPOSE[@]}" up -d < /dev/null
 bash scripts/server/check_ports.sh running
 OK=0

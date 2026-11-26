@@ -42,3 +42,84 @@
 		format console
 	}
 }
+
+# The public website (website/, built by website/build.py) on its own address. Visitors to "/" are sent
+# to their language: 1. the one they picked before, 2. their country (the Cf-Ipcountry header Cloudflare
+# adds), 3. their browser language, otherwise English. Keep the country lists equal to website/site.json
+# (website/test_site.py checks).
+{$WEBSITE_DOMAIN:http://website.localhost} {
+	encode gzip zstd
+	root * /srv/website
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		-Server
+	}
+
+	@root path /
+	handle @root {
+		header Cache-Control "private, no-store"
+		route {
+			# 1. the language they picked
+			@saved_en header_regexp Cookie (?:^|;\s*)lang=en(?:;|$)
+			redir @saved_en /en/ 302
+			@saved_es header_regexp Cookie (?:^|;\s*)lang=es(?:;|$)
+			redir @saved_es /es/ 302
+			@saved_pt header_regexp Cookie (?:^|;\s*)lang=pt(?:;|$)
+			redir @saved_pt /pt/ 302
+			@saved_de header_regexp Cookie (?:^|;\s*)lang=de(?:;|$)
+			redir @saved_de /de/ 302
+			@saved_nl header_regexp Cookie (?:^|;\s*)lang=nl(?:;|$)
+			redir @saved_nl /nl/ 302
+			# 2. countries with several languages: the browser decides among that country's languages
+			@be_nl {
+				header Cf-Ipcountry BE
+				header_regexp Accept-Language (?i)^\s*nl\b
+			}
+			redir @be_nl /nl/ 302
+			@be_de {
+				header Cf-Ipcountry BE
+				header_regexp Accept-Language (?i)^\s*de\b
+			}
+			redir @be_de /de/ 302
+			@ch_de {
+				header Cf-Ipcountry CH
+				header_regexp Accept-Language (?i)^\s*de\b
+			}
+			redir @ch_de /de/ 302
+			# 2. the country
+			@country_es header_regexp Cf-Ipcountry ^(ES|MX|AR|CO|CL|PE|VE|EC|GT|CU|BO|DO|HN|PY|SV|NI|CR|PA|UY|PR|GQ)$
+			redir @country_es /es/ 302
+			@country_pt header_regexp Cf-Ipcountry ^(PT|BR|AO|MZ|CV|GW|ST|TL)$
+			redir @country_pt /pt/ 302
+			@country_de header_regexp Cf-Ipcountry ^(DE|AT|LI)$
+			redir @country_de /de/ 302
+			@country_nl header_regexp Cf-Ipcountry ^(NL|SR)$
+			redir @country_nl /nl/ 302
+			# any other known country: English ("XX" means unknown)
+			@country_other {
+				header_regexp Cf-Ipcountry ^[A-Z]{2}$
+				not header Cf-Ipcountry XX
+			}
+			redir @country_other /en/ 302
+			# 3. the browser language
+			@browser_es header_regexp Accept-Language (?i)^\s*es\b
+			redir @browser_es /es/ 302
+			@browser_pt header_regexp Accept-Language (?i)^\s*pt\b
+			redir @browser_pt /pt/ 302
+			@browser_de header_regexp Accept-Language (?i)^\s*de\b
+			redir @browser_de /de/ 302
+			@browser_nl header_regexp Accept-Language (?i)^\s*nl\b
+			redir @browser_nl /nl/ 302
+			redir * /en/ 302
+		}
+	}
+
+	handle {
+		file_server
+	}
+}

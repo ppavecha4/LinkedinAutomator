@@ -1,0 +1,59 @@
+{
+  "lang_name": "Español",
+  "meta_title": "{brand}: contacto personalizado en el idioma de tu cliente",
+  "meta_description": "{brand} escribe un mensaje personal a cada cliente potencial y lo envía desde tu propio correo y WhatsApp. Pensado para empresas sin equipo técnico.",
+  "skip": "Saltar al contenido",
+  "nav_how": "Cómo funciona",
+  "nav_features": "Funciones",
+  "nav_pricing": "Precios",
+  "nav_faq": "Preguntas",
+  "nav_signin": "Iniciar sesión",
+  "nav_language": "Idioma",
+  "hero_title": "Encuentra nuevos clientes, en su idioma",
+  "hero_text": "{brand} escribe un mensaje personal a cada cliente potencial y lo envía desde tu propio correo y WhatsApp. No necesitas conocimientos técnicos.",
+  "cta_access": "Solicitar acceso anticipado",
+  "cta_how": "Ver cómo funciona",
+  "mail_subject": "Solicitud de acceso anticipado",
+  "example_label": "Mensaje de ejemplo",
+  "example_to": "Para: María, responsable de compras",
+  "example_body": "Hola María, he visto que vuestro equipo exporta productos frescos. Fabricamos cajas de exportación pensadas para que lleguen intactos. ¿Te vendría bien una llamada breve la semana que viene? Responde STOP si prefieres no recibir más mensajes.",
+  "how_title": "Cómo funciona",
+  "steps": [
+    {"title": "Cuéntanos sobre tu empresa", "text": "Responde unas preguntas sencillas: qué vendes y a quién quieres llegar. Sube tu lista de contactos o conecta un proveedor de búsqueda de clientes."},
+    {"title": "Revisa el plan y los mensajes", "text": "La IA prepara tu primera campaña y redacta los mensajes. Tú los lees, cambias lo que quieras y no se envía nada hasta que la lanzas."},
+    {"title": "Lanza y lee las respuestas", "text": "Los mensajes salen desde tus cuentas y los recordatorios se envían por ti. Las respuestas llegan a una sola bandeja y los recordatorios paran cuando alguien contesta."}
+  ],
+  "features_title": "Qué obtienes",
+  "features": [
+    {"title": "Personal, no masivo", "text": "Cada mensaje se escribe para la persona y la empresa que lo reciben, con los datos que das sobre tu negocio."},
+    {"title": "En su idioma", "text": "Los mensajes se escriben en el idioma del destinatario, entre ellos español, inglés, portugués, alemán y neerlandés."},
+    {"title": "Desde tus propias cuentas", "text": "El correo sale de tu buzón y el WhatsApp de tu número de empresa, para que sepan quién escribe."},
+    {"title": "Recordatorios que saben parar", "text": "Los recordatorios amables se envían según un calendario y se detienen en cuanto la persona responde."},
+    {"title": "Respeto a las bajas", "text": "Cuando alguien pide que no le escriban más, en muchos idiomas, pasa a tu lista de exclusión, que se comprueba antes de cada envío."},
+    {"title": "Tú tienes el control", "text": "Revisa las campañas antes de lanzarlas, páusalas cuando quieras y consulta qué se envió y a quién."}
+  ],
+  "audience_title": "Pensado para empresas sin equipo técnico",
+  "audience": ["Fabricantes", "Finanzas y servicios profesionales", "Exportadores y distribuidores", "Otras empresas que venden a empresas"],
+  "trust_title": "Envía con responsabilidad",
+  "trust": [
+    "Contacta solo con personas a las que tengas permiso para escribir. WhatsApp exige su consentimiento antes de enviarles mensajes.",
+    "Los datos de cada empresa se mantienen separados de los de las demás.",
+    "Las claves de tus cuentas conectadas se guardan cifradas."
+  ],
+  "pricing_title": "Precios",
+  "pricing_text": "Estamos ultimando nuestros planes. Los precios se mostrarán en tu moneda local, con los impuestos que correspondan. Cuéntanos sobre tu empresa y te enviaremos los detalles.",
+  "faq_title": "Preguntas frecuentes",
+  "faq": [
+    {"q": "¿Necesito conocimientos técnicos?", "a": "No. La configuración es una breve lista guiada y la IA prepara por ti la primera campaña."},
+    {"q": "¿En qué idiomas pueden ir los mensajes?", "a": "La IA escribe en el idioma del destinatario. Por ahora, las pantallas del producto están en inglés."},
+    {"q": "¿Desde dónde se envían los mensajes?", "a": "Desde ti: tu buzón de correo y tu número de WhatsApp de empresa."},
+    {"q": "¿Pueden decir que no?", "a": "Sí. Cada mensaje de contacto ofrece una forma de darse de baja, y la petición se respeta antes de cualquier otro envío."}
+  ],
+  "final_title": "¿Listo para llegar a nuevos clientes?",
+  "final_text": "Cuéntanos qué vendes y dónde. Te responderemos por correo.",
+  "footer_privacy": "Política de privacidad",
+  "footer_terms": "Condiciones",
+  "footer_deletion": "Eliminación de datos",
+  "footer_legal_note": "Los documentos legales están disponibles en inglés.",
+  "footer_contact": "Contacto"
+}

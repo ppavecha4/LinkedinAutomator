@@ -1,0 +1,18 @@
+{
+  "brand": "AmiReach",
+  "company": "Ritik Technologie Private Limited",
+  "contact_email": "info@appsontechnologies.in",
+  "app_url": "https://sales.appsontechnologies.com",
+  "default_language": "en",
+  "languages": ["en", "es", "pt", "de", "nl"],
+  "countries": {
+    "es": ["ES", "MX", "AR", "CO", "CL", "PE", "VE", "EC", "GT", "CU", "BO", "DO", "HN", "PY", "SV", "NI", "CR", "PA", "UY", "PR", "GQ"],
+    "pt": ["PT", "BR", "AO", "MZ", "CV", "GW", "ST", "TL"],
+    "de": ["DE", "AT", "LI"],
+    "nl": ["NL", "SR"]
+  },
+  "multilingual_countries": {
+    "BE": ["nl", "de"],
+    "CH": ["de"]
+  }
+}

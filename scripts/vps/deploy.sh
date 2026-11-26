@@ -109,6 +109,8 @@ run "${COMPOSE[@]}" run --rm flyway migrate
 
 # ── 5. rebuild and start ───────────────────────────────────────────────────────
 say "5/7 Rebuilding and starting the stack"
+SITE="$(sed -n 's/^WEBSITE_DOMAIN=//p' .env | tail -1 | tr -d "'\r")"
+run python3 website/build.py ${SITE:+--site-url "https://$SITE"}
 run "${COMPOSE[@]}" up -d --build
 
 # Nothing but the web server may be reachable from outside: check what is really published now.

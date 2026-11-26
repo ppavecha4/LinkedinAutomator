@@ -175,9 +175,13 @@ services:
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      # The public website's address (website/). Empty = not published.
+      WEBSITE_DOMAIN: ${WEBSITE_DOMAIN:-http://website.localhost}
     ports: ["80:80", "443:443"]
     volumes:
       - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Built by `python3 website/build.py` (first_start.sh and deploy.sh run it).
+      - ./website/dist:/srv/website:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [api, dashboard]
