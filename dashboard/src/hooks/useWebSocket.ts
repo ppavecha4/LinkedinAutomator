@@ -18,9 +18,9 @@ interface UseWebSocketOptions {
 }
 
 function wsUrl(campaignId?: string): string {
-  const httpUrl = API_BASE.startsWith('http')
-    ? API_BASE
-    : `http://${window.location.host}`;
+  // No API address in the build means "same address as this page": keep its https, so the socket is wss.
+  // A browser refuses (throws on) an insecure ws:// socket from an https page.
+  const httpUrl = API_BASE.startsWith('http') ? API_BASE : window.location.origin;
   const wsBase = httpUrl.replace(/^http/, 'ws');
   const suffix = campaignId ? `?campaign_id=${encodeURIComponent(campaignId)}` : '';
   return `${wsBase}/ws${suffix}`;
@@ -43,7 +43,14 @@ export function useWebSocket({
 
     function connect() {
       if (cancelled) return;
-      const socket = new WebSocket(wsUrl(campaignId));
+      let socket: WebSocket;
+      try {
+        socket = new WebSocket(wsUrl(campaignId));
+      } catch (err) {
+        // Live updates are an extra: failing to open them must never take the page down.
+        console.warn('live updates unavailable', err);
+        return;
+      }
       socketRef.current = socket;
 
       socket.addEventListener('open', () => {
