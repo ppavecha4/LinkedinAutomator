@@ -1,12 +1,12 @@
 /**
  * Overview — the new home page.
  *
- * Hero KPI strip (4 StatCards with sparklines) + Tabs for
+ * Hero KPI strip (4 StatCards, real totals only) + Tabs for
  *   Snapshot · Live feed · Top performers
  *
  * Design choices (senior UI/UX rationale):
  *   - One hero area, one tab strip — no side panel, no visual clutter
- *   - KPIs are sparkline-enriched so trends are readable at a glance
+ *   - No trend lines or growth figures until the API returns real history
  *   - Live feed tab shows the WebSocket stream as a timeline
  *   - Top performers tab shows ranked campaign table with progress rings
  *   - Skeleton loaders instead of shimmer blocks on async boundaries
@@ -38,7 +38,6 @@ import { PageHeader } from '../components/ui/page-header';
 import { ProgressRing } from '../components/ui/progress';
 import { EmptyState } from '../components/ui/empty-state';
 import { Skeleton } from '../components/ui/skeleton';
-import { Sparkline } from '../components/ui/sparkline';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { AnimatedNumber } from '../components/ui/animated-number';
@@ -49,15 +48,13 @@ import { formatNumber } from '../lib/format';
 import type { Campaign, WsEvent } from '../lib/types';
 
 /* ────────────────────────────────────────────────────────────────
- *  StatCard with sparkline — the hero tiles.
+ *  The hero tiles.
  * ──────────────────────────────────────────────────────────────── */
 interface HeroStatProps {
   label: string;
   value: number;
   tone: 'primary' | 'emerald' | 'violet' | 'sky';
   icon: React.ComponentType<{ className?: string }>;
-  sparkData: number[];
-  delta?: number;
 }
 
 const TONE_STYLE = {
@@ -76,16 +73,8 @@ const TONE_STYLE = {
   },
 } as const;
 
-function HeroStat({
-  label,
-  value,
-  tone,
-  icon: Icon,
-  sparkData,
-  delta,
-}: HeroStatProps) {
+function HeroStat({ label, value, tone, icon: Icon }: HeroStatProps) {
   const t = TONE_STYLE[tone];
-  const deltaPositive = (delta ?? 0) >= 0;
   return (
     <div
       onMouseMove={(e) => {
@@ -99,7 +88,7 @@ function HeroStat({
         t.glow,
       )}
     >
-      <div className="flex items-start justify-between mb-4">
+      <div className="mb-4">
         <div
           className={cn(
             'flex h-10 w-10 items-center justify-center rounded-xl',
@@ -108,51 +97,15 @@ function HeroStat({
         >
           <Icon className="h-4 w-4" />
         </div>
-        <Sparkline data={sparkData} tone={tone} />
       </div>
       <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
-          <AnimatedNumber value={value} />
-        </div>
-        {typeof delta === 'number' && (
-          <span
-            className={cn(
-              'text-xs font-medium',
-              deltaPositive
-                ? 'text-emerald-500 dark:text-emerald-400'
-                : 'text-rose-500',
-            )}
-          >
-            {deltaPositive ? '+' : ''}
-            {delta.toFixed(1)}%
-          </span>
-        )}
+      <div className="mt-1 text-3xl font-bold tracking-tight text-foreground tabular-nums">
+        <AnimatedNumber value={value} />
       </div>
     </div>
   );
-}
-
-/* ────────────────────────────────────────────────────────────────
- *  Deterministic sparkline data from a seed number.
- *
- *  Until the backend exposes a time-series endpoint, we synthesise a
- *  plausible 12-point trend from the current total so the sparkline
- *  looks representative and stays stable between renders.
- * ──────────────────────────────────────────────────────────────── */
-function synthSparkline(total: number, seed: number): number[] {
-  const out: number[] = [];
-  let running = 0;
-  for (let i = 0; i < 12; i++) {
-    const pseudo = Math.sin((seed + i) * 1.7) * 0.5 + 0.5;
-    running += pseudo * (total / 10 + 1);
-    out.push(Math.round(running));
-  }
-  // Anchor the last point to the real total.
-  out[out.length - 1] = total;
-  return out;
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -292,32 +245,24 @@ export default function Overview(): React.ReactElement {
             value={totals.prospects}
             tone="primary"
             icon={Users}
-            sparkData={synthSparkline(totals.prospects, 1)}
-            delta={12.4}
           />
           <HeroStat
             label="Contacted"
             value={totals.contacted}
             tone="sky"
             icon={Mail}
-            sparkData={synthSparkline(totals.contacted, 3)}
-            delta={8.1}
           />
           <HeroStat
             label="Replies"
             value={totals.replied}
             tone="emerald"
             icon={MessageSquare}
-            sparkData={synthSparkline(totals.replied, 5)}
-            delta={18.7}
           />
           <HeroStat
             label="Meetings booked"
             value={totals.meetings}
             tone="violet"
             icon={CalendarCheck}
-            sparkData={synthSparkline(totals.meetings, 7)}
-            delta={24.3}
           />
         </div>
       )}
