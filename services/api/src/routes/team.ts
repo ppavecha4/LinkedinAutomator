@@ -132,7 +132,7 @@ router.post('/api/team/invites', manage, validate({ body: inviteBody }), async (
         const org = await query<{ name: string }>(`SELECT name FROM organizations`);
         await sendMail({
           to: email,
-          subject: `You're invited to ${org.rows[0]?.name ?? 'a team'} on AI Sales Agent`,
+          subject: `You're invited to ${org.rows[0]?.name ?? 'a team'} on AmiReach`,
           text: `You've been invited to join ${org.rows[0]?.name ?? 'a team'} as ${role}.\n\nAccept here:\n\n${link}\n\nThe link works once, for ${env.inviteTtlDays} days.\n`,
         });
         emailed = true;

@@ -38,8 +38,18 @@ A new language: add `locales/<code>.json`, list it in `site.json`, add its routi
 - **On the app's server:** set `WEBSITE_DOMAIN=your-website-domain` in `.env`, point the domain at the
   server, and run `scripts/vps/deploy.sh` (or `scripts/server/first_start.sh` the first time). Both build
   the site.
+- **On Netlify:** publish the folder `website/dist/`. The generated `_redirects` file picks the language by
+  country (no Cloudflare needed) and `_headers` sets the security headers. Point the domain at Netlify in
+  your DNS settings. Check the country rules on the live site, especially Belgium and Switzerland.
+- **On ordinary web hosting (Apache, cPanel):** run
+  `python3 website/build.py --zip website/amireach-website.zip`, upload the zip into the domain's web
+  folder (usually `public_html`) and extract it there. It includes a hidden `.htaccess` file that picks the
+  language (by browser; by country if Cloudflare is in front), forces HTTPS and sets security headers.
 - **On other static hosting:** upload the contents of `website/dist/`. The front page then picks the
-  language from the browser (country detection needs the server configuration above).
+  language from the browser.
+
+The legal pages (`/privacy/`, `/terms/`, `/data-deletion/`) are built from the app's
+`dashboard/src/pages/Legal.tsx`: change the text there and rebuild. The sharing picture is `src/social.png`.
 
 ## Before launch
 

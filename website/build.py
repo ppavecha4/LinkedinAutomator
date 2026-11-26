@@ -3,9 +3,19 @@
 
     python3 website/build.py [--site-url https://example.com]
 
-Writes website/dist/ (not committed): /<lang>/index.html, a root page that picks a language, the
-stylesheet, the small script, and, when the site's address is given, sitemap.xml, robots.txt and the
-canonical / hreflang links search engines use to show each visitor their own language.
+Writes website/dist/ (not committed): /<lang>/index.html, a root page that picks a language, the legal
+pages (/privacy, /terms, /data-deletion, taken from the app's own text so the two never differ), the
+stylesheet, script and images, the _redirects and _headers files static hosts such as Netlify read, and,
+when the site has an address, sitemap.xml, robots.txt and the canonical / hreflang links search engines
+use to show each visitor their own language.
+
+    python3 website/build.py --zip website/amireach-website.zip
+
+also writes a zip to upload to ordinary web hosting (Apache / cPanel), with an .htaccess that picks the
+language the same way.
+
+The address and the app's address come from website/site.json. While "app_url" is empty there is no
+"Sign in" button.
 
 Only the standard library is used, so it runs on any server. To change the brand name, the contact
 address or which countries get which language, edit website/site.json. To change words, edit the
@@ -16,13 +26,23 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import re
 import shutil
+import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
 DIST = HERE / "dist"
 ICON = HERE.parent / "assets" / "brand" / "app-icon-1024.png"
+LEGAL_SOURCE = HERE.parent / "dashboard" / "src" / "pages" / "Legal.tsx"
+# address on the website -> (name of the list in Legal.tsx, page title)
+LEGAL_PAGES = {"privacy": ("PRIVACY", "Privacy Policy"), "terms": ("TERMS", "Terms of Service"),
+               "data-deletion": ("DELETION", "Data Deletion")}
+# Only true of this website, so it is added here and not to the app's pages.
+WEBSITE_PRIVACY = ("This website", ["This website uses no tracking and no advertising cookies. If you choose a language, "
+                                    "a cookie remembers your choice. Our hosting provider processes technical data such "
+                                    "as your IP address to deliver the pages."])
 
 
 def load_config() -> dict:
@@ -47,6 +67,79 @@ def e(text: str) -> str:
     return html.escape(text, quote=True)
 
 
+def legal_sections(name: str, source: Path = LEGAL_SOURCE) -> list[tuple[str, list[str]]]:
+    """The (title, paragraphs) of one document in the app's Legal.tsx."""
+    text = source.read_text(encoding="utf-8").replace("\r\n", "\n")
+    block = re.search(rf"const {name}: Section\[\] = \[\n(.*?)\n\];", text, re.S)
+    if not block:
+        raise SystemExit(f"{source.name}: cannot find the {name} document")
+    literal = r"'((?:\\.|[^'\\])*)'"
+
+    def plain(value: str) -> str:
+        return re.sub(r"\\(.)", r"\1", value)
+
+    sections = []
+    for title, body in re.findall(r"\{ title: " + literal + r", body: \[(.*?)\n  \] \}", block.group(1), re.S):
+        sections.append((plain(title), [plain(p) for p in re.findall(literal, body)]))
+    if len(sections) != block.group(1).count("{ title:"):
+        raise SystemExit(f"{source.name}: could not read every section of {name}")
+    return sections
+
+
+def legal_page(slug: str, cfg: dict, site_url: str) -> str:
+    name, title = LEGAL_PAGES[slug]
+    sections = legal_sections(name) + ([WEBSITE_PRIVACY] if slug == "privacy" else [])
+    body = "".join(f"<section><h2>{e(h)}</h2>{''.join(f'<p>{e(p)}</p>' for p in ps)}</section>" for h, ps in sections)
+    others = " ".join(f'<a href="../{s}/">{e(t)}</a>' for s, (_, t) in LEGAL_PAGES.items() if s != slug)
+    canonical = f'  <link rel="canonical" href="{e(site_url)}/{slug}/">\n' if site_url else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{e(title)} - {e(cfg["brand"])}</title>
+{canonical}  <link rel="icon" href="../icon.png" type="image/png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="top"><div class="wrap bar"><a class="logo" href="../"><img src="../icon.png" alt="" width="32" height="32"><span>{e(cfg["brand"])}</span></a></div></header>
+  <main class="wrap narrow legal">
+    <h1>{e(title)}</h1>
+    {body}
+    <p class="links">{others}</p>
+  </main>
+  <footer><div class="wrap"><p>&copy; 2026 {e(cfg["company"])}</p></div></footer>
+</body>
+</html>
+"""
+
+
+def netlify_redirects(cfg: dict, site_url: str) -> str:
+    """The same language choice as the Caddyfile, for static hosting that reads a _redirects file.
+    The first matching rule wins. "!" makes the rule apply although index.html exists."""
+    default = cfg["default_language"]
+    rules = []
+    if site_url.startswith("https://"):
+        host = site_url[len("https://"):]
+        rules.append(f"https://www.{host}/* https://{host}/:splat 301!")
+    rules += [f"/ /{code}/ 302! Cookie=pref_{code}" for code in cfg["languages"]]
+    for country, langs in cfg["multilingual_countries"].items():
+        rules += [f"/ /{code}/ 302! Country={country.lower()} Language={code}" for code in langs]
+        rules.append(f"/ /{default}/ 302! Country={country.lower()}")
+    rules += [f"/ /{code}/ 302! Country={','.join(c.lower() for c in countries)}" for code, countries in cfg["countries"].items()]
+    rules.append(f"/ /{default}/ 302!")
+    return "\n".join(rules) + "\n"
+
+
+HEADERS = """/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: default-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+"""
+
+
 def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str) -> str:
     brand, app = cfg["brand"], cfg["app_url"].rstrip("/")
     mail = f"mailto:{cfg['contact_email']}?subject={quote(t['mail_subject'] + ' - ' + brand)}"
@@ -57,7 +150,8 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str) -> str:
         seo += "".join(f'  <link rel="alternate" hreflang="{code}" href="{e(site_url)}/{code}/">\n' for code in cfg["languages"])
         seo += f'  <link rel="alternate" hreflang="x-default" href="{e(site_url)}/{cfg["default_language"]}/">\n'
         seo += f'  <meta property="og:url" content="{e(site_url)}/{lang}/">\n'
-        seo += f'  <meta property="og:image" content="{e(site_url)}/icon.png">\n'
+        seo += f'  <meta property="og:image" content="{e(site_url)}/social.png">\n'
+        seo += '  <meta name="twitter:card" content="summary_large_image">\n'
 
     current = ' aria-current="true"'
     switcher = "".join(
@@ -68,6 +162,9 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str) -> str:
     audience = "".join(f"<li>{e(a)}</li>" for a in t["audience"])
     trust = "".join(f"<li>{e(x)}</li>" for x in t["trust"])
     faq = "".join(f'<details><summary>{e(q["q"])}</summary><p>{e(q["a"])}</p></details>' for q in t["faq"])
+    signin = f'<a class="button ghost" href="{e(app)}/login">{e(t["nav_signin"])}</a>' if app else ""
+    badges = "".join(f"<li>{e(b)}</li>" for b in t["hero_badges"])
+    cases = "".join(f'<li class="card"><h3>{e(c["title"])}</h3><p>{e(c["text"])}</p></li>' for c in t["cases"])
     legal_note = f'<p class="muted">{e(t["footer_legal_note"])}</p>' if t["footer_legal_note"] else ""
 
     return f"""<!doctype html>
@@ -97,7 +194,7 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str) -> str:
       </nav>
       <div class="actions">
         <details class="lang"><summary aria-label="{e(t["nav_language"])}">{e(names[lang])}</summary><ul>{switcher}</ul></details>
-        <a class="button ghost" href="{e(app)}/login">{e(t["nav_signin"])}</a>
+        {signin}<a class="button" href="{e(mail)}">{e(t["cta_access"])}</a>
       </div>
     </div>
   </header>
@@ -108,6 +205,7 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str) -> str:
           <h1>{e(t["hero_title"])}</h1>
           <p class="lead">{e(t["hero_text"])}</p>
           <p class="buttons"><a class="button" href="{e(mail)}">{e(t["cta_access"])}</a><a class="button ghost" href="#how">{e(t["cta_how"])}</a></p>
+          <ul class="badges">{badges}</ul>
         </div>
         <figure class="message">
           <figcaption>{e(t["example_label"])}</figcaption>
@@ -116,23 +214,29 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str) -> str:
         </figure>
       </div>
     </section>
+    <section class="tint"><div class="wrap"><h2>{e(t["compare_title"])}</h2><p class="lead">{e(t["compare_text"])}</p>
+      <div class="two compare">
+        <figure class="message plain"><figcaption>{e(t["generic_label"])}</figcaption><blockquote>{e(t["generic_body"])}</blockquote></figure>
+        <figure class="message"><figcaption>{e(t["personal_label"])}</figcaption><blockquote>{e(t["example_body"])}</blockquote></figure>
+      </div></div></section>
     <section id="how"><div class="wrap"><h2>{e(t["how_title"])}</h2><ol class="steps">{steps}</ol></div></section>
     <section id="features" class="tint"><div class="wrap"><h2>{e(t["features_title"])}</h2><ul class="grid">{features}</ul></div></section>
-    <section><div class="wrap two">
+    <section><div class="wrap"><h2>{e(t["cases_title"])}</h2><ul class="grid">{cases}</ul></div></section>
+    <section class="tint"><div class="wrap two">
       <div><h2>{e(t["audience_title"])}</h2><ul class="ticks">{audience}</ul></div>
       <div><h2>{e(t["trust_title"])}</h2><ul class="ticks">{trust}</ul></div>
     </div></section>
-    <section id="pricing" class="tint"><div class="wrap narrow"><h2>{e(t["pricing_title"])}</h2><p>{e(t["pricing_text"])}</p><p class="buttons"><a class="button" href="{e(mail)}">{e(t["cta_access"])}</a></p></div></section>
-    <section id="faq"><div class="wrap narrow"><h2>{e(t["faq_title"])}</h2>{faq}</div></section>
+    <section id="pricing"><div class="wrap narrow"><h2>{e(t["pricing_title"])}</h2><p>{e(t["pricing_text"])}</p><p class="buttons"><a class="button" href="{e(mail)}">{e(t["cta_access"])}</a></p></div></section>
+    <section id="faq" class="tint"><div class="wrap narrow"><h2>{e(t["faq_title"])}</h2>{faq}</div></section>
     <section class="final"><div class="wrap narrow"><h2>{e(t["final_title"])}</h2><p>{e(t["final_text"])}</p><p class="buttons"><a class="button light" href="{e(mail)}">{e(t["cta_access"])}</a></p></div></section>
   </main>
   <footer>
     <div class="wrap">
       <p>&copy; 2026 {e(cfg["company"])}</p>
       <p class="links">
-        <a href="{e(app)}/privacy">{e(t["footer_privacy"])}</a>
-        <a href="{e(app)}/terms">{e(t["footer_terms"])}</a>
-        <a href="{e(app)}/data-deletion">{e(t["footer_deletion"])}</a>
+        <a href="../privacy/">{e(t["footer_privacy"])}</a>
+        <a href="../terms/">{e(t["footer_terms"])}</a>
+        <a href="../data-deletion/">{e(t["footer_deletion"])}</a>
         <a href="mailto:{e(cfg["contact_email"])}">{e(t["footer_contact"])}: {e(cfg["contact_email"])}</a>
       </p>
       {legal_note}
@@ -163,9 +267,65 @@ def root_page(cfg: dict, names: dict) -> str:
 """
 
 
-def build(site_url: str = "", out: Path = DIST) -> list[str]:
+def htaccess(cfg: dict, site_url: str) -> str:
+    """Apache settings: HTTPS, one address, the language choice (as in the Caddyfile) and security headers.
+    The country comes from Cloudflare's Cf-Ipcountry header when present, else the browser language decides."""
+    default = cfg["default_language"]
+    lines = ["# Written by website/build.py. Needs mod_rewrite (standard on cPanel hosting).",
+             "DirectoryIndex index.html", "", "<IfModule mod_rewrite.c>", "RewriteEngine On", ""]
+    if site_url.startswith("https://"):
+        host = site_url[len("https://"):]
+        pattern = host.replace(".", "\\.")
+        lines += ["# Always https (switch the free SSL certificate on in your hosting first)",
+                  "RewriteCond %{HTTPS} !=on", "RewriteCond %{HTTP:X-Forwarded-Proto} !https",
+                  f"RewriteRule ^ https://{host}%{{REQUEST_URI}} [R=301,L]", "# www to the plain address",
+                  f"RewriteCond %{{HTTP_HOST}} ^www\\.{pattern}$ [NC]",
+                  f"RewriteRule ^ https://{host}%{{REQUEST_URI}} [R=301,L]", ""]
+
+    def rule(target: str, *conditions: str) -> None:
+        lines.extend([*conditions, f"RewriteRule ^$ /{target}/ [R=302,L]"])
+
+    lines.append("# The front page only. 1. the language the visitor picked before")
+    for code in cfg["languages"]:
+        rule(code, f"RewriteCond %{{HTTP_COOKIE}} (^|;\\s*)lang={code}(;|$)")
+    lines.append("# 2. countries with several languages: the browser decides among them")
+    for country, langs in cfg["multilingual_countries"].items():
+        for code in langs:
+            rule(code, f"RewriteCond %{{HTTP:Cf-Ipcountry}} ^{country}$", f"RewriteCond %{{HTTP:Accept-Language}} ^\\s*{code}\\b [NC]")
+    lines.append("# 2. the country")
+    for code, countries in cfg["countries"].items():
+        rule(code, f"RewriteCond %{{HTTP:Cf-Ipcountry}} ^({'|'.join(countries)})$")
+    lines.append('# any other known country ("XX" means unknown)')
+    rule(default, "RewriteCond %{HTTP:Cf-Ipcountry} ^[A-Z]{2}$", "RewriteCond %{HTTP:Cf-Ipcountry} !^XX$")
+    lines.append("# 3. the browser language")
+    for code in cfg["languages"]:
+        if code != default:
+            rule(code, f"RewriteCond %{{HTTP:Accept-Language}} ^\\s*{code}\\b [NC]")
+    rule(default)
+    lines += ["</IfModule>", "", "<IfModule mod_headers.c>"]
+    for header in HEADERS.strip().splitlines()[1:]:
+        name, value = header.strip().split(": ", 1)
+        lines.append(f'Header always set {name} "{value}"')
+    lines += ["</IfModule>", ""]
+    return "\n".join(lines)
+
+
+def package(target: Path, site_url: str | None = None, out: Path = DIST) -> list[str]:
+    """Build the site and zip it for upload to ordinary web hosting."""
     cfg = load_config()
-    site_url = site_url.rstrip("/")
+    url = (cfg.get("site_url", "") if site_url is None else site_url).rstrip("/")
+    names = [n for n in build(site_url, out) if n not in ("_redirects", "_headers")]
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in names:
+            z.write(out / name, name)
+        z.writestr(".htaccess", htaccess(cfg, url))
+    return sorted([*names, ".htaccess"])
+
+
+def build(site_url: str | None = None, out: Path = DIST) -> list[str]:
+    """site_url None: the address in site.json; "": build without an address."""
+    cfg = load_config()
+    site_url = (cfg.get("site_url", "") if site_url is None else site_url).rstrip("/")
     locales = {lang: load_locale(lang, cfg["brand"]) for lang in cfg["languages"]}
     names = {lang: t["lang_name"] for lang, t in locales.items()}
 
@@ -173,10 +333,13 @@ def build(site_url: str = "", out: Path = DIST) -> list[str]:
     out.mkdir(parents=True, exist_ok=True)
     files = {f"{lang}/index.html": page(lang, t, cfg, names, site_url) for lang, t in locales.items()}
     files["index.html"] = root_page(cfg, names)
+    files.update({f"{slug}/index.html": legal_page(slug, cfg, site_url) for slug in LEGAL_PAGES})
+    files["_redirects"] = netlify_redirects(cfg, site_url)
+    files["_headers"] = HEADERS
     for asset in ("styles.css", "site.js"):
         files[asset] = (HERE / "src" / asset).read_text(encoding="utf-8")
     if site_url:
-        urls = "".join(f"  <url><loc>{e(site_url)}/{lang}/</loc></url>\n" for lang in cfg["languages"])
+        urls = "".join(f"  <url><loc>{e(site_url)}/{path}/</loc></url>\n" for path in [*cfg["languages"], *LEGAL_PAGES])
         files["sitemap.xml"] = f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n'
         files["robots.txt"] = f"User-agent: *\nAllow: /\nSitemap: {site_url}/sitemap.xml\n"
     else:
@@ -188,12 +351,18 @@ def build(site_url: str = "", out: Path = DIST) -> list[str]:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8", newline="\n")
     shutil.copyfile(ICON, out / "icon.png")
-    return sorted([*files, "icon.png"])
+    shutil.copyfile(HERE / "src" / "social.png", out / "social.png")
+    return sorted([*files, "icon.png", "social.png"])
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--site-url", default="", help="public address of the website, e.g. https://example.com")
+    parser.add_argument("--site-url", default=None, help="public address of the website (default: site.json)")
+    parser.add_argument("--zip", type=Path, help="also write this zip for upload to ordinary web hosting")
     args = parser.parse_args()
-    written = build(args.site_url)
-    print(f"website built: {len(written)} files in {DIST}")
+    if args.zip:
+        packed = package(args.zip, args.site_url)
+        print(f"upload package: {args.zip} ({len(packed)} files)")
+    else:
+        written = build(args.site_url)
+        print(f"website built: {len(written)} files in {DIST}")

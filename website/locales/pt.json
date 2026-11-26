@@ -19,21 +19,53 @@
   "example_body": "Olá Maria, reparei que a sua equipa exporta produtos frescos. Fabricamos caixas de exportação pensadas para que cheguem intactos. Seria útil uma chamada breve na próxima semana? Responda STOP se preferir não receber mais mensagens.",
   "how_title": "Como funciona",
   "steps": [
-    {"title": "Fale-nos da sua empresa", "text": "Responda a algumas perguntas simples: o que vende e a quem quer chegar. Carregue a sua lista de contactos ou ligue um fornecedor de pesquisa de clientes."},
-    {"title": "Reveja o plano e as mensagens", "text": "A IA prepara a sua primeira campanha e escreve as mensagens. Lê, altera o que quiser, e nada é enviado até a lançar."},
-    {"title": "Lance e leia as respostas", "text": "As mensagens saem das suas contas e os lembretes são enviados por si. As respostas chegam a uma única caixa de entrada e os lembretes param quando alguém responde."}
+    {
+      "title": "Fale-nos da sua empresa",
+      "text": "Responda a algumas perguntas simples: o que vende e a quem quer chegar. Carregue a sua lista de contactos ou ligue um fornecedor de pesquisa de clientes."
+    },
+    {
+      "title": "Reveja o plano e as mensagens",
+      "text": "A IA prepara a sua primeira campanha e escreve as mensagens. Lê, altera o que quiser, e nada é enviado até a lançar."
+    },
+    {
+      "title": "Lance e leia as respostas",
+      "text": "As mensagens saem das suas contas e os lembretes são enviados por si. As respostas chegam a uma única caixa de entrada e os lembretes param quando alguém responde."
+    }
   ],
   "features_title": "O que recebe",
   "features": [
-    {"title": "Pessoal, não em massa", "text": "Cada mensagem é escrita para a pessoa e a empresa que a recebem, com os factos que indica sobre o seu negócio."},
-    {"title": "Na língua deles", "text": "As mensagens são escritas na língua do destinatário, incluindo português, inglês, espanhol, alemão e neerlandês."},
-    {"title": "A partir das suas contas", "text": "O e-mail sai da sua caixa de correio e o WhatsApp do seu número de empresa, para que saibam quem escreve."},
-    {"title": "Lembretes que sabem parar", "text": "Os lembretes cordiais seguem um calendário e param assim que a pessoa responde."},
-    {"title": "Pedidos de remoção respeitados", "text": "Quando alguém pede para não ser contactado, em muitas línguas, passa para a sua lista de exclusão, verificada antes de cada envio."},
-    {"title": "O controlo é seu", "text": "Reveja as campanhas antes de as lançar, coloque-as em pausa quando quiser e veja o que foi enviado e a quem."}
+    {
+      "title": "Pessoal, não em massa",
+      "text": "Cada mensagem é escrita para a pessoa e a empresa que a recebem, com os factos que indica sobre o seu negócio."
+    },
+    {
+      "title": "Na língua deles",
+      "text": "As mensagens são escritas na língua do destinatário, incluindo português, inglês, espanhol, alemão e neerlandês."
+    },
+    {
+      "title": "A partir das suas contas",
+      "text": "O e-mail sai da sua caixa de correio e o WhatsApp do seu número de empresa, para que saibam quem escreve."
+    },
+    {
+      "title": "Lembretes que sabem parar",
+      "text": "Os lembretes cordiais seguem um calendário e param assim que a pessoa responde."
+    },
+    {
+      "title": "Pedidos de remoção respeitados",
+      "text": "Quando alguém pede para não ser contactado, em muitas línguas, passa para a sua lista de exclusão, verificada antes de cada envio."
+    },
+    {
+      "title": "O controlo é seu",
+      "text": "Reveja as campanhas antes de as lançar, coloque-as em pausa quando quiser e veja o que foi enviado e a quem."
+    }
   ],
   "audience_title": "Feita para empresas sem equipa técnica",
-  "audience": ["Fabricantes", "Finanças e serviços profissionais", "Exportadores e distribuidores", "Outras empresas que vendem a empresas"],
+  "audience": [
+    "Fabricantes",
+    "Finanças e serviços profissionais",
+    "Exportadores e distribuidores",
+    "Outras empresas que vendem a empresas"
+  ],
   "trust_title": "Envie com responsabilidade",
   "trust": [
     "Contacte apenas pessoas que tem autorização para contactar. O WhatsApp exige o consentimento delas antes de lhes enviar mensagens.",
@@ -44,10 +76,22 @@
   "pricing_text": "Estamos a finalizar os nossos planos. Os preços serão apresentados na sua moeda local, com os impostos aplicáveis. Fale-nos da sua empresa e enviamos-lhe os detalhes.",
   "faq_title": "Perguntas frequentes",
   "faq": [
-    {"q": "Preciso de conhecimentos técnicos?", "a": "Não. A configuração é uma pequena lista guiada e a IA prepara a primeira campanha por si."},
-    {"q": "Em que línguas podem ser as mensagens?", "a": "A IA escreve na língua do destinatário. Para já, os ecrãs do produto estão em inglês."},
-    {"q": "De onde são enviadas as mensagens?", "a": "De si: da sua caixa de correio e do seu número de WhatsApp de empresa."},
-    {"q": "As pessoas podem dizer que não?", "a": "Sim. Cada mensagem de contacto oferece uma forma de parar, e o pedido é respeitado antes de qualquer novo envio."}
+    {
+      "q": "Preciso de conhecimentos técnicos?",
+      "a": "Não. A configuração é uma pequena lista guiada e a IA prepara a primeira campanha por si."
+    },
+    {
+      "q": "Em que línguas podem ser as mensagens?",
+      "a": "A IA escreve na língua do destinatário. Para já, os ecrãs do produto estão em inglês."
+    },
+    {
+      "q": "De onde são enviadas as mensagens?",
+      "a": "De si: da sua caixa de correio e do seu número de WhatsApp de empresa."
+    },
+    {
+      "q": "As pessoas podem dizer que não?",
+      "a": "Sim. Cada mensagem de contacto oferece uma forma de parar, e o pedido é respeitado antes de qualquer novo envio."
+    }
   ],
   "final_title": "Pronto para chegar a novos clientes?",
   "final_text": "Diga-nos o que vende e onde. Respondemos por e-mail.",
@@ -55,5 +99,30 @@
   "footer_terms": "Termos",
   "footer_deletion": "Eliminação de dados",
   "footer_legal_note": "Os documentos legais estão disponíveis em inglês.",
-  "footer_contact": "Contacto"
+  "footer_contact": "Contacto",
+  "hero_badges": [
+    "E-mail e WhatsApp",
+    "Escrito na língua do seu cliente",
+    "Sem conhecimentos técnicos"
+  ],
+  "compare_title": "Uma mensagem escrita para aquela pessoa é lida",
+  "compare_text": "Os envios em massa soam todos ao mesmo. A {brand} parte do que vende e de quem vai receber a mensagem.",
+  "generic_label": "Um envio em massa típico",
+  "generic_body": "Exmo./a Senhor/a, somos um fornecedor líder de produtos de qualidade ao melhor preço. Contacte-nos para as suas necessidades.",
+  "personal_label": "Com a {brand}",
+  "cases_title": "Como diferentes empresas a utilizam",
+  "cases": [
+    {
+      "title": "Fabricantes",
+      "text": "Apresente os seus produtos a compradores e equipas de compras de novas regiões, a cada um na sua língua."
+    },
+    {
+      "title": "Exportadores e distribuidores",
+      "text": "Chegue a importadores e revendedores no estrangeiro sem contratar alguém para cada mercado."
+    },
+    {
+      "title": "Finanças e serviços profissionais",
+      "text": "Inicie conversas com empresários e equipas financeiras, com um motivo claro para falar."
+    }
+  ]
 }

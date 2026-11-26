@@ -243,7 +243,7 @@ def build_message(
     msg["Date"] = email.utils.format_datetime(dt.datetime.now(dt.timezone.utc))
     msg["Message-ID"] = email.utils.make_msgid(domain=from_email.split("@", 1)[-1])
     msg["MIME-Version"] = "1.0"
-    msg["X-Mailer"] = "AiSalesAgent/0.1"
+    msg["X-Mailer"] = "AmiReach/0.1"
 
     # Signed unsubscribe URL (HMAC-SHA256). The /unsubscribe API route
     # validates the signature server-side.

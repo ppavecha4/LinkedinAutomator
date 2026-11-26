@@ -259,7 +259,7 @@ export default function Layout(): React.ReactElement {
               {!collapsed && (
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold leading-tight truncate">
-                    AI Sales Agent
+                    AmiReach
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-0.5">
                     Autonomous outbound

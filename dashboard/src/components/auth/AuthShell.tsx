@@ -23,7 +23,7 @@ export function AuthShell({
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Sparkles className="h-5 w-5" aria-hidden="true" />
           </span>
-          AI Sales Agent
+          AmiReach
         </div>
         <h1 className="text-2xl font-semibold">{title}</h1>
         {intro && <p className="mt-2 mb-6 text-sm text-muted-foreground">{intro}</p>}

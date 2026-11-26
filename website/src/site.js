@@ -2,8 +2,14 @@
 // sends the root page to the visitor's language. No tracking, no third-party code.
 (function () {
   'use strict';
+  var all = ['en', 'es', 'pt', 'de', 'nl'];
   function remember(lang) {
-    document.cookie = 'lang=' + lang + '; path=/; max-age=31536000; SameSite=Lax';
+    var keep = '; path=/; max-age=31536000; SameSite=Lax';
+    document.cookie = 'lang=' + lang + keep;
+    // Static hosts such as Netlify can only test whether a cookie exists, so there is one per language.
+    all.forEach(function (code) {
+      document.cookie = code === lang ? 'pref_' + code + '=1' + keep : 'pref_' + code + '=; path=/; max-age=0';
+    });
   }
   document.addEventListener('click', function (event) {
     var link = event.target.closest && event.target.closest('a[data-lang]');

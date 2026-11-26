@@ -19,21 +19,53 @@
   "example_body": "Hallo Maria, ik zag dat jullie team verse producten exporteert. Wij maken exportdozen waarin ze heel aankomen. Is een kort gesprek volgende week nuttig? Antwoord STOP als je liever geen berichten meer ontvangt.",
   "how_title": "Zo werkt het",
   "steps": [
-    {"title": "Vertel over je bedrijf", "text": "Beantwoord een paar eenvoudige vragen: wat verkoop je en wie wil je bereiken? Upload je contactenlijst of koppel een dienst voor het zoeken van klanten."},
-    {"title": "Controleer het plan en de berichten", "text": "De AI maakt je eerste campagne klaar en schrijft de berichten. Je leest ze, past aan wat je wilt, en er wordt niets verstuurd tot je start."},
-    {"title": "Start en lees de reacties", "text": "De berichten gaan vanaf je eigen accounts en herinneringen worden voor je verstuurd. Reacties komen in één inbox en herinneringen stoppen zodra iemand antwoordt."}
+    {
+      "title": "Vertel over je bedrijf",
+      "text": "Beantwoord een paar eenvoudige vragen: wat verkoop je en wie wil je bereiken? Upload je contactenlijst of koppel een dienst voor het zoeken van klanten."
+    },
+    {
+      "title": "Controleer het plan en de berichten",
+      "text": "De AI maakt je eerste campagne klaar en schrijft de berichten. Je leest ze, past aan wat je wilt, en er wordt niets verstuurd tot je start."
+    },
+    {
+      "title": "Start en lees de reacties",
+      "text": "De berichten gaan vanaf je eigen accounts en herinneringen worden voor je verstuurd. Reacties komen in één inbox en herinneringen stoppen zodra iemand antwoordt."
+    }
   ],
   "features_title": "Wat je krijgt",
   "features": [
-    {"title": "Persoonlijk, geen bulk", "text": "Elk bericht wordt geschreven voor de persoon en het bedrijf die het ontvangen, met de feiten die je over je bedrijf geeft."},
-    {"title": "In hun taal", "text": "Berichten worden geschreven in de taal van de ontvanger, waaronder Nederlands, Engels, Spaans, Portugees en Duits."},
-    {"title": "Vanaf je eigen accounts", "text": "E-mail komt uit je eigen mailbox en WhatsApp van je zakelijke nummer, zodat duidelijk is wie er schrijft."},
-    {"title": "Herinneringen die op tijd stoppen", "text": "Vriendelijke herinneringen volgen een schema en stoppen zodra de ontvanger reageert."},
-    {"title": "Afmeldingen worden gerespecteerd", "text": "Wie wil stoppen, in veel talen, komt op je niet-benaderlijst, die vóór elke verzending wordt gecontroleerd."},
-    {"title": "Jij houdt de regie", "text": "Controleer campagnes vóór de start, pauzeer ze wanneer je wilt en zie wat naar wie is gestuurd."}
+    {
+      "title": "Persoonlijk, geen bulk",
+      "text": "Elk bericht wordt geschreven voor de persoon en het bedrijf die het ontvangen, met de feiten die je over je bedrijf geeft."
+    },
+    {
+      "title": "In hun taal",
+      "text": "Berichten worden geschreven in de taal van de ontvanger, waaronder Nederlands, Engels, Spaans, Portugees en Duits."
+    },
+    {
+      "title": "Vanaf je eigen accounts",
+      "text": "E-mail komt uit je eigen mailbox en WhatsApp van je zakelijke nummer, zodat duidelijk is wie er schrijft."
+    },
+    {
+      "title": "Herinneringen die op tijd stoppen",
+      "text": "Vriendelijke herinneringen volgen een schema en stoppen zodra de ontvanger reageert."
+    },
+    {
+      "title": "Afmeldingen worden gerespecteerd",
+      "text": "Wie wil stoppen, in veel talen, komt op je niet-benaderlijst, die vóór elke verzending wordt gecontroleerd."
+    },
+    {
+      "title": "Jij houdt de regie",
+      "text": "Controleer campagnes vóór de start, pauzeer ze wanneer je wilt en zie wat naar wie is gestuurd."
+    }
   ],
   "audience_title": "Gemaakt voor bedrijven zonder IT-team",
-  "audience": ["Fabrikanten", "Financiële en zakelijke dienstverleners", "Exporteurs en distributeurs", "Andere bedrijven die aan bedrijven verkopen"],
+  "audience": [
+    "Fabrikanten",
+    "Financiële en zakelijke dienstverleners",
+    "Exporteurs en distributeurs",
+    "Andere bedrijven die aan bedrijven verkopen"
+  ],
   "trust_title": "Verstuur verantwoord",
   "trust": [
     "Benader alleen mensen die je mag benaderen. Voor WhatsApp is vooraf hun toestemming nodig.",
@@ -44,10 +76,22 @@
   "pricing_text": "We leggen de laatste hand aan onze abonnementen. Prijzen worden in je eigen valuta getoond, met de belastingen die van toepassing zijn. Vertel over je bedrijf en we sturen je de details.",
   "faq_title": "Veelgestelde vragen",
   "faq": [
-    {"q": "Heb ik technische kennis nodig?", "a": "Nee. Het instellen is een korte lijst met begeleiding en de AI bereidt de eerste campagne voor je voor."},
-    {"q": "In welke talen kunnen de berichten zijn?", "a": "De AI schrijft in de taal van de ontvanger. De schermen van het product zijn op dit moment in het Engels."},
-    {"q": "Van wie komen de berichten?", "a": "Van jou: uit je mailbox en van je zakelijke WhatsApp-nummer."},
-    {"q": "Kunnen ontvangers nee zeggen?", "a": "Ja. Elk contactbericht biedt een manier om te stoppen, en dat verzoek wordt vóór elke volgende verzending nageleefd."}
+    {
+      "q": "Heb ik technische kennis nodig?",
+      "a": "Nee. Het instellen is een korte lijst met begeleiding en de AI bereidt de eerste campagne voor je voor."
+    },
+    {
+      "q": "In welke talen kunnen de berichten zijn?",
+      "a": "De AI schrijft in de taal van de ontvanger. De schermen van het product zijn op dit moment in het Engels."
+    },
+    {
+      "q": "Van wie komen de berichten?",
+      "a": "Van jou: uit je mailbox en van je zakelijke WhatsApp-nummer."
+    },
+    {
+      "q": "Kunnen ontvangers nee zeggen?",
+      "a": "Ja. Elk contactbericht biedt een manier om te stoppen, en dat verzoek wordt vóór elke volgende verzending nageleefd."
+    }
   ],
   "final_title": "Klaar om nieuwe klanten te bereiken?",
   "final_text": "Vertel ons wat je verkoopt en waar. We antwoorden per e-mail.",
@@ -55,5 +99,30 @@
   "footer_terms": "Voorwaarden",
   "footer_deletion": "Gegevens verwijderen",
   "footer_legal_note": "De juridische documenten zijn beschikbaar in het Engels.",
-  "footer_contact": "Contact"
+  "footer_contact": "Contact",
+  "hero_badges": [
+    "E-mail en WhatsApp",
+    "Geschreven in de taal van je klant",
+    "Geen technische kennis nodig"
+  ],
+  "compare_title": "Een bericht dat voor hen is geschreven, wordt gelezen",
+  "compare_text": "Bulkberichten klinken allemaal hetzelfde. {brand} gaat uit van wat je verkoopt en aan wie je schrijft.",
+  "generic_label": "Een typisch bulkbericht",
+  "generic_body": "Geachte heer/mevrouw, wij zijn een toonaangevende leverancier van kwaliteitsproducten tegen de beste prijzen. Neem contact met ons op voor uw wensen.",
+  "personal_label": "Met {brand}",
+  "cases_title": "Zo gebruiken verschillende bedrijven het",
+  "cases": [
+    {
+      "title": "Fabrikanten",
+      "text": "Stel je producten voor aan inkopers in nieuwe regio's, ieder in de eigen taal."
+    },
+    {
+      "title": "Exporteurs en distributeurs",
+      "text": "Bereik importeurs en wederverkopers in het buitenland zonder voor elke markt iemand aan te nemen."
+    },
+    {
+      "title": "Financiële en zakelijke dienstverleners",
+      "text": "Open gesprekken met ondernemers en financiële teams, met een duidelijke aanleiding."
+    }
+  ]
 }

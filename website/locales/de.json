@@ -19,21 +19,53 @@
   "example_body": "Guten Tag Maria, ich habe gesehen, dass Ihr Team frische Ware exportiert. Wir fertigen Exportkartons, damit sie unbeschädigt ankommt. Wäre nächste Woche ein kurzes Telefonat hilfreich? Antworten Sie mit STOP, wenn Sie keine Nachrichten mehr möchten.",
   "how_title": "So funktioniert es",
   "steps": [
-    {"title": "Beschreiben Sie Ihr Unternehmen", "text": "Beantworten Sie ein paar einfache Fragen: Was verkaufen Sie und wen möchten Sie erreichen? Laden Sie Ihre Kontaktliste hoch oder verbinden Sie einen Anbieter für die Kundensuche."},
-    {"title": "Plan und Nachrichten prüfen", "text": "Die KI bereitet Ihre erste Kampagne vor und formuliert die Nachrichten. Sie lesen sie, ändern, was Sie möchten, und nichts wird versendet, bevor Sie starten."},
-    {"title": "Starten und Antworten lesen", "text": "Die Nachrichten gehen von Ihren Konten aus, Erinnerungen werden für Sie versendet. Antworten landen in einem Posteingang, und Erinnerungen enden, sobald jemand antwortet."}
+    {
+      "title": "Beschreiben Sie Ihr Unternehmen",
+      "text": "Beantworten Sie ein paar einfache Fragen: Was verkaufen Sie und wen möchten Sie erreichen? Laden Sie Ihre Kontaktliste hoch oder verbinden Sie einen Anbieter für die Kundensuche."
+    },
+    {
+      "title": "Plan und Nachrichten prüfen",
+      "text": "Die KI bereitet Ihre erste Kampagne vor und formuliert die Nachrichten. Sie lesen sie, ändern, was Sie möchten, und nichts wird versendet, bevor Sie starten."
+    },
+    {
+      "title": "Starten und Antworten lesen",
+      "text": "Die Nachrichten gehen von Ihren Konten aus, Erinnerungen werden für Sie versendet. Antworten landen in einem Posteingang, und Erinnerungen enden, sobald jemand antwortet."
+    }
   ],
   "features_title": "Das bekommen Sie",
   "features": [
-    {"title": "Persönlich statt Massenversand", "text": "Jede Nachricht wird für die Person und das Unternehmen geschrieben, die sie erhalten, auf Basis Ihrer Angaben zum eigenen Geschäft."},
-    {"title": "In ihrer Sprache", "text": "Nachrichten werden in der Sprache der Empfänger verfasst, darunter Deutsch, Englisch, Spanisch, Portugiesisch und Niederländisch."},
-    {"title": "Von Ihren eigenen Konten", "text": "E-Mails kommen aus Ihrem Postfach und WhatsApp-Nachrichten von Ihrer Geschäftsnummer, damit klar ist, wer schreibt."},
-    {"title": "Erinnerungen mit Augenmaß", "text": "Freundliche Erinnerungen folgen einem Zeitplan und enden, sobald die Person antwortet."},
-    {"title": "Abmeldungen werden beachtet", "text": "Wer keine Nachrichten mehr möchte, in vielen Sprachen, kommt auf Ihre Sperrliste, die vor jedem Versand geprüft wird."},
-    {"title": "Sie behalten die Kontrolle", "text": "Prüfen Sie Kampagnen vor dem Start, pausieren Sie sie jederzeit und sehen Sie, was an wen gesendet wurde."}
+    {
+      "title": "Persönlich statt Massenversand",
+      "text": "Jede Nachricht wird für die Person und das Unternehmen geschrieben, die sie erhalten, auf Basis Ihrer Angaben zum eigenen Geschäft."
+    },
+    {
+      "title": "In ihrer Sprache",
+      "text": "Nachrichten werden in der Sprache der Empfänger verfasst, darunter Deutsch, Englisch, Spanisch, Portugiesisch und Niederländisch."
+    },
+    {
+      "title": "Von Ihren eigenen Konten",
+      "text": "E-Mails kommen aus Ihrem Postfach und WhatsApp-Nachrichten von Ihrer Geschäftsnummer, damit klar ist, wer schreibt."
+    },
+    {
+      "title": "Erinnerungen mit Augenmaß",
+      "text": "Freundliche Erinnerungen folgen einem Zeitplan und enden, sobald die Person antwortet."
+    },
+    {
+      "title": "Abmeldungen werden beachtet",
+      "text": "Wer keine Nachrichten mehr möchte, in vielen Sprachen, kommt auf Ihre Sperrliste, die vor jedem Versand geprüft wird."
+    },
+    {
+      "title": "Sie behalten die Kontrolle",
+      "text": "Prüfen Sie Kampagnen vor dem Start, pausieren Sie sie jederzeit und sehen Sie, was an wen gesendet wurde."
+    }
   ],
   "audience_title": "Für Unternehmen ohne IT-Team",
-  "audience": ["Hersteller", "Finanz- und professionelle Dienstleister", "Exporteure und Händler", "Weitere Unternehmen mit Geschäftskunden"],
+  "audience": [
+    "Hersteller",
+    "Finanz- und professionelle Dienstleister",
+    "Exporteure und Händler",
+    "Weitere Unternehmen mit Geschäftskunden"
+  ],
   "trust_title": "Verantwortungsvoll versenden",
   "trust": [
     "Kontaktieren Sie nur Personen, die Sie rechtmäßig anschreiben dürfen. Für E-Mail-Werbung und WhatsApp ist in der Regel deren vorherige Einwilligung erforderlich.",
@@ -44,10 +76,22 @@
   "pricing_text": "Wir stellen unsere Tarife gerade fertig. Die Preise werden in Ihrer Landeswährung angezeigt, zuzüglich anfallender Steuern. Beschreiben Sie uns Ihr Unternehmen und wir schicken Ihnen die Details.",
   "faq_title": "Häufige Fragen",
   "faq": [
-    {"q": "Brauche ich technisches Wissen?", "a": "Nein. Die Einrichtung ist eine kurze geführte Liste, und die KI bereitet die erste Kampagne für Sie vor."},
-    {"q": "In welchen Sprachen können die Nachrichten sein?", "a": "Die KI schreibt in der Sprache der Empfänger. Die Oberfläche des Produkts ist derzeit auf Englisch."},
-    {"q": "Von wem werden die Nachrichten versendet?", "a": "Von Ihnen: aus Ihrem Postfach und von Ihrer WhatsApp-Geschäftsnummer."},
-    {"q": "Können Empfänger ablehnen?", "a": "Ja. Jede Kontaktnachricht bietet eine Möglichkeit zur Abmeldung, und diese wird vor jedem weiteren Versand beachtet."}
+    {
+      "q": "Brauche ich technisches Wissen?",
+      "a": "Nein. Die Einrichtung ist eine kurze geführte Liste, und die KI bereitet die erste Kampagne für Sie vor."
+    },
+    {
+      "q": "In welchen Sprachen können die Nachrichten sein?",
+      "a": "Die KI schreibt in der Sprache der Empfänger. Die Oberfläche des Produkts ist derzeit auf Englisch."
+    },
+    {
+      "q": "Von wem werden die Nachrichten versendet?",
+      "a": "Von Ihnen: aus Ihrem Postfach und von Ihrer WhatsApp-Geschäftsnummer."
+    },
+    {
+      "q": "Können Empfänger ablehnen?",
+      "a": "Ja. Jede Kontaktnachricht bietet eine Möglichkeit zur Abmeldung, und diese wird vor jedem weiteren Versand beachtet."
+    }
   ],
   "final_title": "Bereit, neue Kunden zu erreichen?",
   "final_text": "Sagen Sie uns, was Sie wo verkaufen. Wir antworten per E-Mail.",
@@ -55,5 +99,30 @@
   "footer_terms": "Nutzungsbedingungen",
   "footer_deletion": "Datenlöschung",
   "footer_legal_note": "Die Rechtstexte sind auf Englisch verfügbar.",
-  "footer_contact": "Kontakt"
+  "footer_contact": "Kontakt",
+  "hero_badges": [
+    "E-Mail und WhatsApp",
+    "In der Sprache Ihrer Kunden",
+    "Kein technisches Wissen nötig"
+  ],
+  "compare_title": "Eine persönliche Nachricht wird gelesen",
+  "compare_text": "Massennachrichten klingen alle gleich. {brand} geht davon aus, was Sie verkaufen und wem Sie schreiben.",
+  "generic_label": "Eine typische Massennachricht",
+  "generic_body": "Sehr geehrte Damen und Herren, wir sind ein führender Anbieter von Qualitätsprodukten zu besten Preisen. Bitte kontaktieren Sie uns bei Bedarf.",
+  "personal_label": "Mit {brand}",
+  "cases_title": "So nutzen es verschiedene Unternehmen",
+  "cases": [
+    {
+      "title": "Hersteller",
+      "text": "Stellen Sie Ihre Produkte Einkäufern in neuen Regionen vor, jedem in seiner Sprache."
+    },
+    {
+      "title": "Exporteure und Händler",
+      "text": "Erreichen Sie Importeure und Wiederverkäufer im Ausland, ohne für jeden Markt jemanden einzustellen."
+    },
+    {
+      "title": "Finanz- und professionelle Dienstleister",
+      "text": "Kommen Sie mit Unternehmern und Finanzteams ins Gespräch, mit einem klaren Anlass."
+    }
+  ]
 }

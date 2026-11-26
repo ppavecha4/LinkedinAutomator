@@ -2,7 +2,8 @@
   "brand": "AmiReach",
   "company": "Ritik Technologie Private Limited",
   "contact_email": "info@appsontechnologies.in",
-  "app_url": "https://sales.appsontechnologies.com",
+  "site_url": "https://amireach.com",
+  "app_url": "",
   "default_language": "en",
   "languages": ["en", "es", "pt", "de", "nl"],
   "countries": {

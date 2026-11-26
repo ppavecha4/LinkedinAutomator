@@ -87,3 +87,15 @@ footer { padding: 2rem 0 3rem; border-top: 1px solid var(--line); color: var(--m
   .hero { padding-top: 2.5rem; }
   section { padding: 3rem 0; }
 }
+
+.badges { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }
+.badges li { font-size: .9rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: .3rem .8rem; background: var(--surface); }
+.compare { gap: 1.5rem; align-items: stretch; margin-top: 1.5rem; }
+.message.plain { box-shadow: none; }
+.message.plain figcaption { color: var(--muted); }
+.message.plain blockquote { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.message blockquote { margin-top: .75rem; }
+.actions .button { padding: .45rem .9rem; font-size: .95rem; }
+.legal { padding: 3rem 0; }
+.legal section { padding: .75rem 0; }
+@media (max-width: 40rem) { .actions .button:not(.ghost) { display: none; } }

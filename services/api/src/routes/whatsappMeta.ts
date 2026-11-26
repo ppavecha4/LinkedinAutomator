@@ -109,7 +109,7 @@ router.post(
       // One number, one company: do not register a number another company already sends from.
       const owner = await query<{ org: string | null }>(`SELECT org_of_whatsapp_meta_number($1) AS org`, [chosen.id]);
       if (owner.rows[0]?.org && owner.rows[0].org !== orgId) {
-        throw ApiError.conflict('This WhatsApp number is already connected to another AI Sales Agent account. Disconnect it there first, or connect a different number.');
+        throw ApiError.conflict('This WhatsApp number is already connected to another AmiReach account. Disconnect it there first, or connect a different number.');
       }
 
       const pin = String(randomInt(0, 1_000_000)).padStart(6, '0');

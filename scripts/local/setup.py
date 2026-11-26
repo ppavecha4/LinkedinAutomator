@@ -66,7 +66,7 @@ CORS_ORIGINS=http://localhost:5180
 PLATFORM_SMTP_HOST=mailpit
 PLATFORM_SMTP_PORT=1025
 PLATFORM_SMTP_PLAIN=true
-PLATFORM_MAIL_FROM=AI Sales Agent <no-reply@localhost>
+PLATFORM_MAIL_FROM=AmiReach <no-reply@localhost>
 REQUIRE_VERIFIED_EMAIL=true
 PLATFORM_ADMIN_EMAILS={admin_email}
 

@@ -19,21 +19,53 @@
   "example_body": "Hi Maria, I noticed your team ships fresh produce abroad. We make export boxes built to arrive in one piece. Would a short call next week be useful? Reply STOP if you would rather not hear from us.",
   "how_title": "How it works",
   "steps": [
-    {"title": "Tell us about your business", "text": "Answer a few plain questions: what you sell and who you want to reach. Upload your contact list, or connect a lead-search provider."},
-    {"title": "Check the plan and the messages", "text": "The AI prepares your first campaign and writes the messages. You read them, change what you like, and nothing is sent until you launch."},
-    {"title": "Launch and read the replies", "text": "Messages go out from your accounts and follow-ups are sent for you. Replies arrive in one inbox, and follow-ups stop when someone answers."}
+    {
+      "title": "Tell us about your business",
+      "text": "Answer a few plain questions: what you sell and who you want to reach. Upload your contact list, or connect a lead-search provider."
+    },
+    {
+      "title": "Check the plan and the messages",
+      "text": "The AI prepares your first campaign and writes the messages. You read them, change what you like, and nothing is sent until you launch."
+    },
+    {
+      "title": "Launch and read the replies",
+      "text": "Messages go out from your accounts and follow-ups are sent for you. Replies arrive in one inbox, and follow-ups stop when someone answers."
+    }
   ],
   "features_title": "What you get",
   "features": [
-    {"title": "Personal, not bulk", "text": "Each message is written for the person and the company receiving it, using the facts you give about your business."},
-    {"title": "In their language", "text": "Messages are written in the recipient's language, including English, Spanish, Portuguese, German and Dutch."},
-    {"title": "From your own accounts", "text": "Email goes from your mailbox and WhatsApp from your business number, so people recognise who is writing."},
-    {"title": "Follow-ups that know when to stop", "text": "Polite reminders go out on a schedule and stop as soon as the person replies."},
-    {"title": "Opt-outs respected", "text": "When someone asks to stop, in many languages, they are added to your do-not-contact list and checked before every send."},
-    {"title": "You stay in control", "text": "Review campaigns before launch, pause them at any time, and see what was sent and to whom."}
+    {
+      "title": "Personal, not bulk",
+      "text": "Each message is written for the person and the company receiving it, using the facts you give about your business."
+    },
+    {
+      "title": "In their language",
+      "text": "Messages are written in the recipient's language, including English, Spanish, Portuguese, German and Dutch."
+    },
+    {
+      "title": "From your own accounts",
+      "text": "Email goes from your mailbox and WhatsApp from your business number, so people recognise who is writing."
+    },
+    {
+      "title": "Follow-ups that know when to stop",
+      "text": "Polite reminders go out on a schedule and stop as soon as the person replies."
+    },
+    {
+      "title": "Opt-outs respected",
+      "text": "When someone asks to stop, in many languages, they are added to your do-not-contact list and checked before every send."
+    },
+    {
+      "title": "You stay in control",
+      "text": "Review campaigns before launch, pause them at any time, and see what was sent and to whom."
+    }
   ],
   "audience_title": "Made for businesses without a tech team",
-  "audience": ["Manufacturers", "Finance and professional services", "Exporters and distributors", "Other companies that sell to businesses"],
+  "audience": [
+    "Manufacturers",
+    "Finance and professional services",
+    "Exporters and distributors",
+    "Other companies that sell to businesses"
+  ],
   "trust_title": "Send responsibly",
   "trust": [
     "Contact only people you are allowed to contact. WhatsApp requires their agreement before you message them.",
@@ -44,10 +76,22 @@
   "pricing_text": "We are finalising our plans. Prices will be shown in your local currency, with any taxes that apply. Tell us about your business and we will send you the details.",
   "faq_title": "Common questions",
   "faq": [
-    {"q": "Do I need technical skills?", "a": "No. Setup is a short guided list, and the AI prepares the first campaign for you."},
-    {"q": "Which languages can the messages be in?", "a": "The AI writes messages in the recipient's language. The product's own screens are currently in English."},
-    {"q": "Who are the messages sent from?", "a": "From you: your mailbox and your WhatsApp business number."},
-    {"q": "Can people say no?", "a": "Yes. Every outreach message offers a way to stop, and stop requests are honoured before any further send."}
+    {
+      "q": "Do I need technical skills?",
+      "a": "No. Setup is a short guided list, and the AI prepares the first campaign for you."
+    },
+    {
+      "q": "Which languages can the messages be in?",
+      "a": "The AI writes messages in the recipient's language. The product's own screens are currently in English."
+    },
+    {
+      "q": "Who are the messages sent from?",
+      "a": "From you: your mailbox and your WhatsApp business number."
+    },
+    {
+      "q": "Can people say no?",
+      "a": "Yes. Every outreach message offers a way to stop, and stop requests are honoured before any further send."
+    }
   ],
   "final_title": "Ready to reach new customers?",
   "final_text": "Tell us what you sell and where. We will reply by email.",
@@ -55,5 +99,30 @@
   "footer_terms": "Terms",
   "footer_deletion": "Data deletion",
   "footer_legal_note": "",
-  "footer_contact": "Contact"
+  "footer_contact": "Contact",
+  "hero_badges": [
+    "Email and WhatsApp",
+    "Written in your customer's language",
+    "No technical skills needed"
+  ],
+  "compare_title": "A message written for them gets read",
+  "compare_text": "Bulk messages sound like everyone else. {brand} starts from what you sell and who you are writing to.",
+  "generic_label": "A typical bulk message",
+  "generic_body": "Dear Sir/Madam, we are a leading supplier of quality products at the best prices. Kindly contact us for your requirements.",
+  "personal_label": "With {brand}",
+  "cases_title": "How different businesses use it",
+  "cases": [
+    {
+      "title": "Manufacturers",
+      "text": "Introduce your products to buyers and purchasing teams in new regions, each in their own language."
+    },
+    {
+      "title": "Exporters and distributors",
+      "text": "Reach importers and resellers abroad without hiring someone for every market."
+    },
+    {
+      "title": "Finance and professional services",
+      "text": "Open conversations with business owners and finance teams, with a clear reason to talk."
+    }
+  ]
 }

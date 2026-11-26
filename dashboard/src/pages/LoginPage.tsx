@@ -63,7 +63,7 @@ export default function LoginPage(): React.ReactElement {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15">
             <Sparkles className="h-5 w-5" aria-hidden="true" />
           </span>
-          AI Sales Agent
+          AmiReach
         </div>
         <div className="max-w-md">
           <h1 className="text-3xl font-semibold leading-tight">
@@ -96,7 +96,7 @@ export default function LoginPage(): React.ReactElement {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
               <Sparkles className="h-5 w-5" aria-hidden="true" />
             </span>
-            AI Sales Agent
+            AmiReach
           </div>
 
           {signupEnabled ? (

@@ -16,7 +16,7 @@ interface Section {
 
 const TERMS: Section[] = [
   { title: 'What this is', body: [
-    'AI Sales Agent helps your company find potential customers, write personalised messages in their language, and send them from your own email and WhatsApp accounts. By creating an account or accepting an invitation you agree to these terms on behalf of yourself and your company.',
+    'AmiReach helps your company find potential customers, write personalised messages in their language, and send them from your own email and WhatsApp accounts. By creating an account or accepting an invitation you agree to these terms on behalf of yourself and your company.',
   ] },
   { title: 'Your account', body: [
     'Keep your password safe and tell us if you think someone else has your session ("Sign out everywhere" ends every session). The company owner is responsible for who is on the team and what they can do.',
@@ -45,7 +45,7 @@ const TERMS: Section[] = [
 
 const PRIVACY: Section[] = [
   { title: 'Who we are', body: [
-    'Ritik Technologie Private Limited ("we") runs AI Sales Agent. For your account and team (names, work emails, sign-in details) we decide how data is used. For the contact data you upload or have us find for you (people you want to reach), you decide and we process it for you, under your instructions.',
+    'Ritik Technologie Private Limited ("we") runs AmiReach. For your account and team (names, work emails, sign-in details) we decide how data is used. For the contact data you upload or have us find for you (people you want to reach), you decide and we process it for you, under your instructions.',
   ] },
   { title: 'What we store', body: [
     'Account data: your name, work email, a salted password hash (never the password), your company profile, and sign-in activity.',
@@ -77,7 +77,7 @@ const DELETION: Section[] = [
     'Email info@appsontechnologies.in from the address on your account with the subject "Delete my data". Tell us the email address (and WhatsApp number, if any) you want deleted. We may reply to confirm it is really you before we delete anything.',
     'We confirm by email when it is done, and we complete the deletion within 30 days of confirming your identity.',
   ] },
-  { title: 'If you have an AI Sales Agent account', body: [
+  { title: 'If you have an AmiReach account', body: [
     'We delete your account, the sign-in details of your team members, your company profile, your campaigns, lists, messages and replies, and the connections you set up (the encrypted keys and tokens are destroyed). Anything you have connected to Meta or WhatsApp through us is disconnected, and you can also remove our access yourself from your Meta account settings.',
     'We keep only what the law requires us to keep (for example invoices and tax records), and a minimal suppression entry if you also asked not to be contacted.',
   ] },

@@ -1,3 +1,6 @@
+# Upload packages made by website/build.py --zip
+website/*.zip
+
 # --- Secrets ---
 .env
 .env.*
