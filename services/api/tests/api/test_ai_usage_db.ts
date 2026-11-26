@@ -130,7 +130,7 @@ describeIfDb('AI usage ledger (live DB)', () => {
       await recordAiUsage('write_message', 'claude-sonnet-4-6', { input_tokens: 10_000, output_tokens: 2_000 }, { apiKey: 'their-own-key' });
     });
     const b = await getAiUsageMonth(orgB);
-    expect(b).toMatchObject({ platform_cost_usd: 0.06, own_key_cost_usd: 0.06, calls: 2, budget_usd: 1.5 });   // free plan placeholder
+    expect(b).toMatchObject({ platform_cost_usd: 0.06, own_key_cost_usd: 0.06, calls: 2, budget_usd: 1 });     // free plan: once, not monthly (V39)
     const a = await getAiUsageMonth(orgA);
     expect(a.platform_cost_usd).toBeGreaterThan(0.1);
     expect(a.budget_usd).toBe(50);                                                                       // growth plan placeholder
@@ -155,6 +155,6 @@ describeIfDb('AI usage ledger (live DB)', () => {
   it('GET /api/billing includes this month\'s AI usage', async () => {
     const res = await ben.get('/api/billing');
     expect(res.status).toBe(200);
-    expect(res.body.data.ai).toMatchObject({ platform_cost_usd: 0.06, own_key_cost_usd: 0.06, calls: 2, budget_usd: 1.5 });
+    expect(res.body.data.ai).toMatchObject({ platform_cost_usd: 0.06, own_key_cost_usd: 0.06, calls: 2, budget_usd: 1 });
   });
 });

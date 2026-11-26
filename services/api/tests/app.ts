@@ -29,6 +29,9 @@ import billingRouter from '../src/routes/billing';
 import callsRouter from '../src/routes/calls';
 import privacyRouter from '../src/routes/privacy';
 import stripeWebhookRouter from '../src/routes/stripeWebhook';
+import razorpayWebhookRouter from '../src/routes/razorpayWebhook';
+import signupPaymentRouter from '../src/routes/signupPayment';
+import { requireSignupPaid } from '../src/middleware/signupFee';
 import metaWebhookRouter from '../src/routes/metaWebhook';
 import teamRouter from '../src/routes/team';
 import webhooksRouter from '../src/routes/webhooks';
@@ -58,6 +61,7 @@ export function buildApp(): express.Express {
   );
 
   app.use(stripeWebhookRouter);
+  app.use(razorpayWebhookRouter);
   app.use(metaWebhookRouter);
 
   app.use(express.json({ limit: '1mb' }));
@@ -75,7 +79,8 @@ export function buildApp(): express.Express {
   app.use(authRouter);
   app.use(googleAuthRouter);
   app.use(recoveryRouter);
-  app.use('/api', auth);
+  app.use('/api', auth, requireSignupPaid);
+  app.use(signupPaymentRouter);
   app.use(campaignsRouter);
   app.use(prospectsRouter);
   app.use(analyticsRouter);

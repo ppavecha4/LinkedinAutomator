@@ -114,6 +114,17 @@ export const env = {
     growth: str('STRIPE_PRICE_GROWTH', ''),
     scale: str('STRIPE_PRICE_SCALE', ''),
   } as Record<string, string>,
+  // One-time fee to open a company account through public sign-up. With it on, sign-up stays CLOSED
+  // until at least one payment provider below is configured, and a new company can do nothing but pay.
+  // India pays in rupees plus GST through Razorpay (UPI incl. BHIM, cards, netbanking); elsewhere pays
+  // in US dollars through Stripe, or through Razorpay (international payments enabled) if Stripe is not set.
+  signupFeeRequired: str('SIGNUP_FEE_REQUIRED', 'false').toLowerCase() === 'true',
+  signupFeeUsdCents: int('SIGNUP_FEE_USD_CENTS', 200),
+  signupFeeInrPaise: int('SIGNUP_FEE_INR_PAISE', 18500),        // before GST: about US$2
+  signupFeeGstPercent: int('SIGNUP_FEE_GST_PERCENT', 18),
+  razorpayKeyId: str('RAZORPAY_KEY_ID', ''),
+  razorpayKeySecret: str('RAZORPAY_KEY_SECRET', ''),
+  razorpayWebhookSecret: str('RAZORPAY_WEBHOOK_SECRET', ''),     // webhook: POST /webhooks/razorpay, event payment_link.paid
   googleClientId: str('GOOGLE_CLIENT_ID', ''),
   googleClientSecret: str('GOOGLE_CLIENT_SECRET', ''),
   googleRedirectUri: str('GOOGLE_REDIRECT_URI', ''),

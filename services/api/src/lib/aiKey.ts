@@ -6,9 +6,9 @@
  * 2. A company that connected its OWN Anthropic account uses it: it pays for
  *    itself, nothing counts against its plan, and it needs nothing from us.
  * 3. Everyone else is on managed AI: the platform's key (ANTHROPIC_API_KEY),
- *    until this month's platform-paid AI reaches the plan's budget
- *    (plans.monthly_ai_budget_micros; NULL is unlimited). Then 402 PLAN_LIMIT:
- *    upgrade, wait for the new month, or connect your own account.
+ *    until platform-paid AI reaches the plan's budget (plans.monthly_ai_budget_micros;
+ *    NULL is unlimited): per month on paid plans, once in total on the free plan (V39).
+ *    Then 402 PLAN_LIMIT: upgrade, (paid plans) wait, or connect your own account.
  * 4. No platform key configured and no own key: 409 "connect your account".
  *
  * Onboarding's setup helpers (lib/onboardingAi.ts) keep their own earlier rule:
@@ -49,7 +49,9 @@ export async function resolveAiKey(): Promise<AiKey> {
   if (usage.exhausted) {
     const q = await getQuota(orgId);
     throw ApiError.planLimit(
-      `You have used all the AI included in your ${q.plan_label} plan this month. Upgrade your plan, wait for the new month, or connect your own Anthropic account to keep going.`,
+      q.plan === 'free'
+        ? 'You have used all the AI included with your free plan. Upgrade your plan, or connect your own Anthropic account to keep going.'
+        : `You have used all the AI included in your ${q.plan_label} plan this month. Upgrade your plan, wait for the new month, or connect your own Anthropic account to keep going.`,
       { kind: 'ai', plan: q.plan, used_usd: usage.platform_cost_usd, budget_usd: usage.budget_usd },
     );
   }

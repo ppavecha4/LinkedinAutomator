@@ -39,6 +39,9 @@ import metaWebhookRouter from './routes/metaWebhook';
 import whatsappMetaRouter from './routes/whatsappMeta';
 import whatsappTemplatesRouter from './routes/whatsappTemplates';
 import stripeWebhookRouter from './routes/stripeWebhook';
+import razorpayWebhookRouter from './routes/razorpayWebhook';
+import signupPaymentRouter from './routes/signupPayment';
+import { requireSignupPaid } from './middleware/signupFee';
 import teamRouter from './routes/team';
 import campaignsRouter from './routes/campaigns';
 import inboxRouter from './routes/inbox';
@@ -88,6 +91,7 @@ app.use(
 
 // Stripe signs the raw body: this router reads it itself, so it comes BEFORE express.json().
 app.use(stripeWebhookRouter);
+app.use(razorpayWebhookRouter);
 // Meta signs the raw body too (WhatsApp webhooks, slice 10.5).
 app.use(metaWebhookRouter);
 
@@ -181,7 +185,8 @@ app.use(googleAuthRouter);
 app.use(recoveryRouter);
 
 // Authenticated API routes.
-app.use('/api', auth);
+app.use('/api', auth, requireSignupPaid);
+app.use(signupPaymentRouter);
 app.use(campaignsRouter);
 app.use(prospectsRouter);
 app.use(messagesRouter);

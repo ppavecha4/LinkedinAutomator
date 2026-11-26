@@ -34,6 +34,17 @@ export interface User {
 export interface OrgSummary {
   name: string;
   onboarding_completed_at: string | null;
+  /** The one-time sign-up fee has not been paid: only the payment page is open. */
+  signup_fee_due?: boolean;
+}
+
+/** One way to pay the sign-up fee (GET /api/auth/config, /api/signup-payment). */
+export interface SignupFeeOffer {
+  id: 'india' | 'international';
+  currency: 'INR' | 'USD';
+  /** Total in paise / cents; `tax_minor` is the GST inside it. */
+  amount_minor: number;
+  tax_minor: number;
 }
 
 export interface Membership {
@@ -69,6 +80,8 @@ interface AuthState {
   emailEnabled: boolean;
   /** Is "Continue with Google" set up on the server? */
   googleEnabled: boolean;
+  /** What signing up costs; null = free. */
+  signupFee: SignupFeeOffer[] | null;
 }
 
 interface AuthContextValue extends AuthState {
@@ -81,6 +94,8 @@ interface AuthContextValue extends AuthState {
   switchOrg: (orgId: string) => Promise<void>;
   /** True when a signed-in org still has onboarding to finish. */
   needsOnboarding: boolean;
+  /** True when the signed-in org still owes the sign-up fee (comes before onboarding). */
+  needsPayment: boolean;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -94,14 +109,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     signupEnabled: false,
     emailEnabled: false,
     googleEnabled: false,
+    signupFee: null,
   });
 
   const refresh = React.useCallback(async () => {
     let signupEnabled = false;
     let emailEnabled = false;
     let googleEnabled = false;
+    let signupFee: SignupFeeOffer[] | null = null;
     try {
-      const { data } = await api.get<{ signup_enabled: boolean; email_enabled?: boolean; google_enabled?: boolean }>('/api/auth/config');
+      const { data } = await api.get<{ signup_enabled: boolean; email_enabled?: boolean; google_enabled?: boolean; signup_fee?: SignupFeeOffer[] | null }>('/api/auth/config');
+      signupFee = data.signup_fee ?? null;
       signupEnabled = !!data.signup_enabled;
       emailEnabled = !!data.email_enabled;
       googleEnabled = !!data.google_enabled;
@@ -110,16 +128,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
     try {
       const { data } = await api.get<{ user: User; org: OrgSummary | null }>('/api/auth/me');
-      setState({ user: data.user, org: data.org, loading: false, bypassMode: false, signupEnabled, emailEnabled, googleEnabled });
+      setState({ user: data.user, org: data.org, loading: false, bypassMode: false, signupEnabled, emailEnabled, googleEnabled, signupFee });
     } catch (e) {
       // 404 on /api/auth/me means the backend isn't running local auth
       // (AUTH_MODE=bypass or cognito): treat as signed in and let the
       // backend's auth middleware enforce things its own way.
       if (e instanceof ApiClientError && e.status === 404) {
-        setState({ user: { email: 'bypass@local' }, org: null, loading: false, bypassMode: true, signupEnabled, emailEnabled, googleEnabled });
+        setState({ user: { email: 'bypass@local' }, org: null, loading: false, bypassMode: true, signupEnabled, emailEnabled, googleEnabled, signupFee });
         return;
       }
-      setState({ user: null, org: null, loading: false, bypassMode: false, signupEnabled, emailEnabled, googleEnabled });
+      setState({ user: null, org: null, loading: false, bypassMode: false, signupEnabled, emailEnabled, googleEnabled, signupFee });
     }
   }, []);
 
@@ -178,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       refresh,
       switchOrg,
       needsOnboarding: !!state.user && !state.bypassMode && !!state.org && !state.org.onboarding_completed_at,
+      needsPayment: !!state.user && !state.bypassMode && !!state.org?.signup_fee_due,
     }),
     [state, login, signup, acceptInvite, logout, refresh, switchOrg],
   );

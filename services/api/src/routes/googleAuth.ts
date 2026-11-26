@@ -23,6 +23,7 @@ import {
   authorizationUrl, GoogleAuthError, googleConfigured, identityForCode, newFlow, type Flow,
 } from '../lib/googleOidc';
 import { forgetSession } from '../lib/sessionState';
+import { signupOpen } from '../lib/signupFee';
 import { logger } from '../logger';
 import { loginLimitByIp } from '../middleware/authRateLimit';
 import { issueSession, orgsFor, requireLocalMode } from './auth';
@@ -104,11 +105,11 @@ router.get('/api/auth/google/callback', loginLimitByIp, async (req: Request, res
       await query(`SELECT google_adopt_account($1)`, [userId]);
       forgetSession(userId);
     } else {
-      if (!env.signupEnabled) return back(res, 'closed');
+      if (!signupOpen()) return back(res, 'closed');
       const label = who.name ?? who.email.split('@')[0];
       try {
         userId = (await query<{ org_id: string; user_id: string }>(
-          `SELECT * FROM signup_org($1, $2, $3, $4, NULL, NULL)`,
+          `SELECT * FROM ${env.signupFeeRequired ? 'signup_org_unpaid' : 'signup_org'}($1, $2, $3, $4, NULL, NULL)`,
           [`${label}'s company`, slugFor(label), who.email, who.name ?? label],
         )).rows[0].user_id;
       } catch (e) {

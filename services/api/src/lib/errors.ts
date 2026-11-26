@@ -31,6 +31,10 @@ export class ApiError extends Error {
   static planLimit(message: string, details?: unknown): ApiError {
     return new ApiError(402, 'PLAN_LIMIT', message, details);
   }
+  /** The company has not paid the sign-up fee yet (HTTP 402); the dashboard shows the payment page. */
+  static paymentRequired(message: string): ApiError {
+    return new ApiError(402, 'PAYMENT_REQUIRED', message);
+  }
   static forbidden(message = 'forbidden', details?: unknown): ApiError {
     return new ApiError(403, 'FORBIDDEN', message, details);
   }

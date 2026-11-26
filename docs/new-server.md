@@ -92,6 +92,28 @@ sudo bash scripts/server/check_ports.sh running
 - **Alerts**: set `ALERT_EMAIL` (with the `PLATFORM_SMTP_*` mailbox) or `ALERT_WEBHOOK_URL`.
 - **WhatsApp through Meta**: follow the slice 10.5 go-live list in `docs/saas-architecture.md`.
 
+## Public sign-up with a one-time fee
+
+Everything below goes in `.env`; apply with `sudo bash scripts/vps/deploy.sh`.
+
+1. **Mailbox** (password reset, email verification, invitations): `PLATFORM_SMTP_HOST`, `_PORT`,
+   `_USER`, `_PASS` and `PLATFORM_MAIL_FROM`. For Google Workspace: `smtp.gmail.com`, port `587`, the
+   mailbox address, and an app password.
+2. **Fee**: `SIGNUP_FEE_REQUIRED=true`, `SIGNUP_FEE_USD_CENTS=200`, `SIGNUP_FEE_INR_PAISE=18500`
+   (before 18% GST).
+3. **Razorpay** (India: UPI incl. BHIM, cards, netbanking): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`.
+   In the Razorpay dashboard add the webhook `https://<app address>/webhooks/razorpay`, event
+   `payment_link.paid`, and put its secret in `RAZORPAY_WEBHOOK_SECRET`. Without Stripe, ask Razorpay
+   to enable international payments so people outside India can pay in US dollars.
+4. **Stripe** (optional, outside India): `STRIPE_SECRET_KEY`; webhook
+   `https://<app address>/webhooks/stripe` with the events `checkout.session.completed` and
+   `checkout.session.async_payment_succeeded`; its secret in `STRIPE_WEBHOOK_SECRET`.
+5. Pay once with the providers' **test** keys, then swap in the live keys.
+6. **Open it**: `SIGNUP_ENABLED=true`. With the fee on and no provider set, sign-up stays closed.
+
+Refunds are made in the provider's dashboard; the app keeps the account open after a refund.
+GST invoices are not produced by the app: issue them from your accounting tool.
+
 ## Later releases
 
 ```bash

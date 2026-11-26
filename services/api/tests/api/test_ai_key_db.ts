@@ -1,5 +1,5 @@
 /**
- * Slice 8.2: which Anthropic key pays, and the plan's monthly AI budget.
+ * Slice 8.2: which Anthropic key pays, and the plan's AI budget (monthly on paid plans, once on free: V39).
  * Live database, as the non-superuser app role. Nothing reaches Anthropic.
  */
 
@@ -62,14 +62,14 @@ describeIfDb('which key pays, and the monthly AI budget (live DB)', () => {
     await closePool();
   });
 
-  // $1.50 = the Free plan's AI budget: 100,000 output tokens of Sonnet 4.6 ($15 per million).
+  // $1.50 is 100,000 output tokens of Sonnet 4.6 ($15 per million): past the free plan's $1.00.
   const spend = (tokens: number) => inTenant(() => recordAiUsage('write_message', 'claude-sonnet-4-6', { output_tokens: tokens }, { keySource: 'platform' }));
 
   it('with no account of its own, a company is on the platform\'s AI while budget is left', async () => {
     const key = await inTenant(() => resolveAiKey());
     expect(key).toEqual({ apiKey: 'platform-key', source: 'platform' });
     const billing = await ana.get('/api/billing');
-    expect(billing.body.data.ai).toMatchObject({ managed: true, exhausted: false, budget_usd: 1.5, platform_cost_usd: 0 });
+    expect(billing.body.data.ai).toMatchObject({ managed: true, exhausted: false, budget_usd: 1, platform_cost_usd: 0 });
   });
 
   it('once the plan\'s AI is used up it is refused with an upgrade message, not silently continued', async () => {
@@ -77,6 +77,17 @@ describeIfDb('which key pays, and the monthly AI budget (live DB)', () => {
     await expect(inTenant(() => resolveAiKey())).rejects.toMatchObject({ status: 402 });
     const billing = await ana.get('/api/billing');
     expect(billing.body.data.ai).toMatchObject({ exhausted: true, platform_cost_usd: 1.5 });
+  });
+
+  it('on the free plan last month\'s AI still counts; a paid plan starts each month afresh', async () => {
+    // One extra call dated last month, next to what was spent just now.
+    const used = async () => (await query<{ platform_cost_micros: string }>(`SELECT * FROM org_ai_usage($1)`, [org])).rows[0].platform_cost_micros;
+    await inTenant(() => query(
+      `INSERT INTO ai_usage (feature, model, output_tokens, occurred_at) VALUES ('write_message', 'claude-sonnet-4-6', 10000, now() - interval '40 days')`));
+    expect(Number(await used())).toBe(1_650_000);                  // free: everything ever
+    await setPlan('growth');
+    expect(Number(await used())).toBe(1_500_000);                  // paid: this month only
+    await setPlan('free');
   });
 
   it('upgrading the plan raises the budget at once', async () => {
@@ -94,7 +105,7 @@ describeIfDb('which key pays, and the monthly AI budget (live DB)', () => {
   });
 
   it('a company that connected its own Anthropic account uses it, even with the plan\'s AI used up', async () => {
-    await setPlan('free');                                          // $1.50 budget, far past it now
+    await setPlan('free');                                          // $1.00 budget, far past it now
     await expect(inTenant(() => resolveAiKey())).rejects.toMatchObject({ status: 402 });
     const put = await ana.put('/api/credentials/anthropic').send({ secret: { api_key: 'acme-own-key' } });
     expect(put.status).toBeLessThan(300);

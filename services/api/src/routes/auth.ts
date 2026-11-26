@@ -8,7 +8,8 @@
  *     member of one or more orgs through `memberships`.
  *
  * Endpoints:
- *   POST /api/auth/signup      create user + org (only if SIGNUP_ENABLED)
+ *   POST /api/auth/signup      create user + org (only if SIGNUP_ENABLED; with a
+ *                              sign-up fee, the new company must pay before anything else)
  *   POST /api/auth/login       { email, password } → session cookie
  *   POST /api/auth/logout
  *   GET  /api/auth/me          current session (+ org, onboarding state)
@@ -35,6 +36,7 @@ import { googleConfigured } from '../lib/googleOidc';
 import { mailerConfigured } from '../lib/mailer';
 import { isPlatformAdmin } from '../lib/platformAdmin';
 import { endedSession, forgetSession, sessionState } from '../lib/sessionState';
+import { offers, signupOpen } from '../lib/signupFee';
 import { ok } from '../lib/response';
 import { isOrgRole, isUuid, runWithTenant, type OrgRole } from '../lib/tenantContext';
 import { logger } from '../logger';
@@ -189,7 +191,7 @@ router.post(
   async (req: Request, res: Response, next): Promise<void> => {
     try {
       requireLocalMode();
-      if (!env.signupEnabled) throw ApiError.notFound('signup is not open');
+      if (!signupOpen()) throw ApiError.notFound('signup is not open');
       const b = req.validated!.body as z.infer<typeof signupSchema>;
       const email = b.email.toLowerCase();
       if (env.authUserEmail && email === env.authUserEmail.trim().toLowerCase()) {
@@ -200,7 +202,7 @@ router.post(
       try {
         created = (
           await query<{ org_id: string; user_id: string }>(
-            `SELECT * FROM signup_org($1, $2, $3, $4, $5, $6)`,
+            `SELECT * FROM ${env.signupFeeRequired ? 'signup_org_unpaid' : 'signup_org'}($1, $2, $3, $4, $5, $6)`,
             [b.company, slugFor(b.company), email, b.full_name, hash, b.country ?? null],
           )
         ).rows[0];
@@ -218,7 +220,7 @@ router.post(
         logger.warn('verification email failed', { error: (e as Error).message }));
       ok(res, {
         user: { email, full_name: b.full_name, org_id: created.org_id, role: 'owner' },
-        org: { org_id: created.org_id, name: b.company, onboarding_completed_at: null },
+        org: { org_id: created.org_id, name: b.company, onboarding_completed_at: null, signup_fee_due: env.signupFeeRequired },
       }, 201);
     } catch (e) {
       next(e);
@@ -232,7 +234,9 @@ router.post(
 router.get('/api/auth/config', (_req, res) => {
   ok(res, {
     mode: env.authMode,
-    signup_enabled: env.authMode === 'local' && env.signupEnabled,
+    signup_enabled: env.authMode === 'local' && signupOpen(),
+    // What the sign-up page should say it costs; null = free.
+    signup_fee: env.signupFeeRequired ? offers().map(({ id, currency, amount_minor, tax_minor }) => ({ id, currency, amount_minor, tax_minor })) : null,
     // Can the server email people? (password reset, invitations, verification)
     email_enabled: env.authMode === 'local' && mailerConfigured(),
     // Is "Continue with Google" set up?
@@ -277,11 +281,12 @@ router.get('/api/auth/me', async (req, res, next) => {
     // The dashboard routes new orgs to onboarding with this.
     const org = isUuid(orgId)
       ? await runWithTenant({ orgId, userId, role }, () =>
-          query<{ name: string; onboarding_completed_at: string | null }>(
-            `SELECT name, onboarding_completed_at FROM organizations`,
+          query<{ name: string; onboarding_completed_at: string | null; signup_fee_due: boolean }>(
+            `SELECT name, onboarding_completed_at, signup_fee_due FROM organizations`,
           ),
         )
       : null;
+    const orgRow = org?.rows[0];
     // Verified email: the env operator and anyone who signed up before
     // verification existed count as verified.
     const isEnvOperator = !!env.authUserEmail && decoded.email?.trim().toLowerCase() === env.authUserEmail.trim().toLowerCase();
@@ -297,7 +302,7 @@ router.get('/api/auth/me', async (req, res, next) => {
         email_verified: state ? !!state.email_verified_at : true,
         platform_admin: await isPlatformAdmin({ id: userId, orgId, email: decoded.email }),
       },
-      org: org?.rows[0] ?? null,
+      org: orgRow ? { ...orgRow, signup_fee_due: env.signupFeeRequired && orgRow.signup_fee_due } : null,
     });
   } catch (e) {
     next(e);

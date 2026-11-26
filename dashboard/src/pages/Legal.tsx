@@ -29,6 +29,10 @@ const TERMS: Section[] = [
   { title: 'Your own accounts and keys', body: [
     'Messages go out from the accounts you connect (your mailbox, your Twilio account, your AI provider key, your lead-search key). You pay those providers directly and you must follow their rules; they can suspend you independently of us. Keys you give us are stored encrypted and are used only to run your campaigns. If an account stops working we pause what depends on it.',
   ] },
+  { title: 'Sign-up fee and refunds', body: [
+    'Where a sign-up fee is shown, it is charged once, when you create a company account and before the account can be used. The amount is shown before you pay; in India it includes GST. It is not a subscription.',
+    'If you were charged more than once, or paid and could not get into your account, email info@appsontechnologies.in within 7 days and we will refund the extra or the full amount to the same payment method. Otherwise the fee is not refundable once your account is open. Nothing here limits a refund the law requires.',
+  ] },
   { title: 'Your data', body: [
     'You own your data, including your lists and messages. We use it only to provide the service to you. See the Privacy Policy for how we handle it, including our role for the contact data you upload.',
   ] },
@@ -56,6 +60,7 @@ const PRIVACY: Section[] = [
     'From your uploads, and, if you use AI discovery, from a lead-search provider you connect (for example Apollo) using your own key. You must have a lawful basis to contact these people, and you confirm that when you import a list.',
   ] },
   { title: 'Who else handles data (our service providers)', body: [
+    'If you pay us, the payment provider (Razorpay or Stripe), which takes your card or UPI details directly; we never see or store them.',
     'Our cloud hosting and database provider; the AI provider that writes and understands messages (Anthropic), which receives the facts about your business and the prospect needed for each message; Twilio, for WhatsApp, and your own email provider, which carry the messages you send; and, if you use it, your lead-search provider. We choose providers carefully and they act only to deliver the service. Customers\' own accounts are governed by their own agreements with those providers.',
   ] },
   { title: 'Opt-outs and suppression', body: [
@@ -103,7 +108,7 @@ export default function Legal({ doc }: { doc: 'terms' | 'privacy' | 'data-deleti
           {doc !== 'data-deletion' && <><span className="mx-2 text-muted-foreground">·</span><Link to="/data-deletion" className="underline">Data Deletion</Link></>}
         </p>
         <h1 className="text-3xl font-semibold">{title}</h1>
-        <p className="mt-2 text-xs text-muted-foreground">Last updated: 25 November 2026</p>
+        <p className="mt-2 text-xs text-muted-foreground">Last updated: 26 November 2026</p>
         <div className="mt-8 space-y-7">
           {sections.map((s) => (
             <section key={s.title} aria-labelledby={`l-${s.title.replace(/\W+/g, '-')}`}>

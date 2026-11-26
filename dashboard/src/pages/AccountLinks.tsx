@@ -58,8 +58,9 @@ export function ForgotPasswordPage(): React.ReactElement {
     return (
       <AuthShell title="Reset your password">
         <p className="text-sm">
-          This server can't send email, so a reset link can't be mailed. Ask your company's owner or an admin to
-          send you a reset link from <span className="font-medium">Settings › Team</span>.
+          Reset links by email are not set up yet. Ask your company's owner or an admin to send you a reset link
+          from <span className="font-medium">Settings › Team</span>, or write to{' '}
+          <a className="underline" href="mailto:info@appsontechnologies.in">info@appsontechnologies.in</a>.
         </p>
       </AuthShell>
     );

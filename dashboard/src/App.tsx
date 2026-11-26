@@ -40,6 +40,7 @@ import Overview from './pages/Overview';
 import Platform from './pages/Platform';
 import ProspectPipeline from './pages/ProspectPipeline';
 import Settings from './pages/Settings';
+import SignupPaymentPage from './pages/SignupPayment';
 import Calls from './pages/Calls';
 import GetReady from './pages/GetReady';
 import Plan from './pages/Plan';
@@ -58,7 +59,7 @@ const queryClient = new QueryClient({
 
 /** Signed in (or bypass mode) — else to /login, remembering where they were going. */
 function RequireAuth(): React.ReactElement {
-  const { user, loading, bypassMode } = useAuth();
+  const { user, loading, bypassMode, needsPayment } = useAuth();
   const location = useLocation();
   if (loading) {
     return (
@@ -70,6 +71,8 @@ function RequireAuth(): React.ReactElement {
   if (!user && !bypassMode) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
+  // An unpaid sign-up can only pay.
+  if (needsPayment && location.pathname !== '/signup/payment') return <Navigate to="/signup/payment" replace />;
   return <Outlet />;
 }
 
@@ -80,6 +83,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<LoginPage />} />
             <Route path="/terms" element={<Legal doc="terms" />} />
             <Route path="/privacy" element={<Legal doc="privacy" />} />
             <Route path="/data-deletion" element={<Legal doc="data-deletion" />} />
@@ -89,6 +93,7 @@ export default function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route element={<RequireAuth />}>
              <Route path="/onboarding" element={<Onboarding />} />
+             <Route path="/signup/payment" element={<SignupPaymentPage />} />
              <Route element={<Layout />}>
               <Route path="/" element={<Overview />} />
               <Route path="/get-ready" element={<GetReady />} />

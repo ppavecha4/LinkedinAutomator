@@ -3,6 +3,9 @@
  * or ended. Verified with the webhook signing secret over the RAW body;
  * each event id is processed once (a replay is acknowledged and ignored).
  *
+ * A one-time sign-up fee (V39) arrives as a completed checkout marked
+ * purpose=signup; it is confirmed by asking Stripe (lib/signupFee.ts).
+ *
  * What it does to a company (V29 functions):
  *   checkout completed                -> link the Stripe customer
  *   subscription active / trialing    -> the plan its Price maps to
@@ -15,6 +18,7 @@ import express, { Router, type Request, type Response } from 'express';
 
 import { query } from '../db/client';
 import { env } from '../env';
+import { confirmPayment } from '../lib/signupFee';
 import { planForPrice, verifyWebhook } from '../lib/stripe';
 import { isUuid } from '../lib/tenantContext';
 import { logger } from '../logger';
@@ -33,6 +37,12 @@ const PAYING = new Set(['active', 'trialing']);
 
 async function handle(event: StripeEvent): Promise<void> {
   const obj = event.data.object;
+  // Some payment methods confirm later: both events mean "ask Stripe now".
+  if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)
+      && obj.metadata?.purpose === 'signup') {
+    if (typeof obj.id === 'string') await confirmPayment('stripe', obj.id);
+    return;
+  }
   if (event.type === 'checkout.session.completed') {
     const org = obj.client_reference_id ?? obj.metadata?.org_id;
     if (isUuid(org) && typeof obj.customer === 'string') {

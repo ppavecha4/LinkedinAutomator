@@ -11,10 +11,13 @@ export function AuthShell({
   title,
   intro,
   children,
+  backToSignIn = true,
 }: {
   title: string;
   intro?: React.ReactNode;
   children: React.ReactNode;
+  /** Off for pages that are only reached while signed in. */
+  backToSignIn?: boolean;
 }): React.ReactElement {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
@@ -29,9 +32,11 @@ export function AuthShell({
         {intro && <p className="mt-2 mb-6 text-sm text-muted-foreground">{intro}</p>}
         {!intro && <div className="mb-6" />}
         {children}
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          <Link to="/login" className="underline">Back to sign in</Link>
-        </p>
+        {backToSignIn && (
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            <Link to="/login" className="underline">Back to sign in</Link>
+          </p>
+        )}
       </div>
     </div>
   );

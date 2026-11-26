@@ -1,18 +1,19 @@
 /**
- * Sign in / create account (SaaS phase 3). Two panels: what the product
+ * Sign in (/login) and create account (/signup). Two panels: what the product
  * does on the left (hidden on small screens), the form on the right.
- * "Create account" shows only when the API has sign-up open
- * (SIGNUP_ENABLED). After sign-in, a company that hasn't finished setup
- * goes to /onboarding.
+ * "Create account" shows only when the API has sign-up open (SIGNUP_ENABLED,
+ * and a way to pay if there is a sign-up fee). After sign-in, a company that
+ * owes the fee goes to /signup/payment, one still being set up to /onboarding.
  */
 
 import { Check, Loader2, Lock, Sparkles } from 'lucide-react';
 import * as React from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { API_BASE } from '../lib/api';
-import { errorMessage, useAuth } from '../lib/authContext';
+import { errorMessage, useAuth, type SignupFeeOffer } from '../lib/authContext';
 import { cn } from '../lib/cn';
+import { formatFee } from '../lib/money';
 
 type Mode = 'signin' | 'signup';
 
@@ -33,12 +34,12 @@ const POINTS = [
 ];
 
 export default function LoginPage(): React.ReactElement {
-  const { user, loading, bypassMode, needsOnboarding, signupEnabled, emailEnabled, googleEnabled, login, signup } = useAuth();
+  const { user, loading, bypassMode, needsOnboarding, needsPayment, signupEnabled, signupFee, googleEnabled, login, signup } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const from = (location.state as { from?: string } | null)?.from;
-  const [mode, setMode] = React.useState<Mode>(
-    new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : 'signin',
-  );
+  const mode: Mode = location.pathname === '/signup' || new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : 'signin';
+  const setMode = (m: Mode) => navigate(m === 'signup' ? '/signup' : '/login', { replace: true, state: location.state });
 
   if (loading) {
     return (
@@ -48,7 +49,7 @@ export default function LoginPage(): React.ReactElement {
     );
   }
   if (user || bypassMode) {
-    return <Navigate to={needsOnboarding ? '/onboarding' : (from ?? '/')} replace />;
+    return <Navigate to={needsPayment ? '/signup/payment' : needsOnboarding ? '/onboarding' : (from ?? '/')} replace />;
   }
   const showSignup = signupEnabled && mode === 'signup';
   const googleError = GOOGLE_ERRORS[new URLSearchParams(location.search).get('google_error') ?? ''] ?? null;
@@ -122,8 +123,21 @@ export default function LoginPage(): React.ReactElement {
           )}
 
           <ErrorNote text={googleError} />
-          {showSignup ? <SignupForm onSignup={signup} /> : <SigninForm onLogin={login} emailEnabled={emailEnabled} />}
+          {mode === 'signup' && !signupEnabled && (
+            <p role="status" className="mb-4 rounded-lg border border-border p-3 text-sm">
+              New sign-ups are not open yet. If you already have an account, sign in below.
+            </p>
+          )}
+          {showSignup ? <SignupForm onSignup={signup} fee={signupFee} /> : <SigninForm onLogin={login} />}
           {googleEnabled && <GoogleButton creating={showSignup} />}
+          {signupEnabled && (
+            <p className="mt-5 text-center text-sm text-muted-foreground">
+              {showSignup ? 'Already have an account? ' : 'New to AmiReach? '}
+              <Link to={showSignup ? '/login' : '/signup'} replace className="font-semibold text-primary underline">
+                {showSignup ? 'Sign in' : 'Create an account'}
+              </Link>
+            </p>
+          )}
         </div>
       </main>
     </div>
@@ -161,7 +175,7 @@ function ErrorNote({ text }: { text: string | null }): React.ReactElement | null
   );
 }
 
-function SigninForm({ onLogin, emailEnabled }: { onLogin: (email: string, password: string) => Promise<void>; emailEnabled: boolean }): React.ReactElement {
+function SigninForm({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }): React.ReactElement {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -189,7 +203,7 @@ function SigninForm({ onLogin, emailEnabled }: { onLogin: (email: string, passwo
       <div>
         <div className="flex items-baseline justify-between">
           <label htmlFor="si-password" className="label">Password</label>
-          {emailEnabled && <Link to="/forgot-password" className="mb-1.5 text-xs text-primary underline">Forgot password?</Link>}
+          <Link to="/forgot-password" className="mb-1.5 text-xs text-primary underline">Forgot password?</Link>
         </div>
         <input id="si-password" type="password" autoComplete="current-password" required className="input h-10"
           value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
@@ -201,7 +215,6 @@ function SigninForm({ onLogin, emailEnabled }: { onLogin: (email: string, passwo
       </button>
       <p className="text-xs text-muted-foreground">
         Belong to several companies? Switch between them from the account menu after signing in.
-        {!emailEnabled && " Forgot your password? Ask your company's owner or an admin to send you a reset link."}
       </p>
     </form>
   );
@@ -209,8 +222,10 @@ function SigninForm({ onLogin, emailEnabled }: { onLogin: (email: string, passwo
 
 function SignupForm({
   onSignup,
+  fee,
 }: {
   onSignup: (input: { full_name: string; company: string; email: string; password: string; accept_terms: boolean }) => Promise<void>;
+  fee: SignupFeeOffer[] | null;
 }): React.ReactElement {
   const [f, setF] = React.useState({ full_name: '', company: '', email: '', password: '', accept_terms: false });
   const [busy, setBusy] = React.useState(false);
@@ -263,9 +278,17 @@ function SignupForm({
       <button type="submit" className="btn-primary h-10 w-full"
         disabled={busy || !f.full_name.trim() || !f.company.trim() || !f.email.trim() || f.password.length < 12 || !f.accept_terms}>
         {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-        {busy ? 'Creating your account…' : 'Create account'}
+        {busy ? 'Creating your account…' : fee ? 'Create account and continue to payment' : 'Create account'}
       </button>
-      <p className="text-xs text-muted-foreground">Next: a 5-minute setup that teaches the AI your business.</p>
+      {fee ? (
+        <p className="text-xs text-muted-foreground">
+          One-time sign-up fee, paid on the next step:{' '}
+          {fee.map((o) => `${formatFee(o.amount_minor, o.currency)} ${o.id === 'india' ? 'in India (GST included)' : 'outside India'}`).join(' · ')}.
+          Then a 5-minute setup teaches the AI your business.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">Next: a 5-minute setup that teaches the AI your business.</p>
+      )}
     </form>
   );
 }

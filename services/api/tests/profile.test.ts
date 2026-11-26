@@ -200,7 +200,7 @@ describe('auth: limits and switches without a database', () => {
     env.authJwtSecret = 'test-secret';
     const app = buildApp();
     const good = { full_name: 'Ana', company: 'Acme', email: 'ana@acme.test', password: 'a-long-password-1', accept_terms: true };
-    expect((await request(app).get('/api/auth/config')).body.data).toEqual({ mode: 'local', signup_enabled: false, email_enabled: false, google_enabled: false });
+    expect((await request(app).get('/api/auth/config')).body.data).toEqual({ mode: 'local', signup_enabled: false, email_enabled: false, google_enabled: false, signup_fee: null });
     expect((await request(app).post('/api/auth/signup').send(good)).status).toBe(404);
     env.signupEnabled = true;
     expect((await request(app).get('/api/auth/config')).body.data.signup_enabled).toBe(true);

@@ -16,7 +16,7 @@ export const PAID_PLANS = ['starter', 'growth', 'scale'] as const;
 export type PaidPlan = (typeof PAID_PLANS)[number];
 
 /** Test seam: replaces the HTTPS call to Stripe. */
-export type StripeCall = (method: 'POST', path: string, params: Record<string, string>) => Promise<Record<string, unknown>>;
+export type StripeCall = (method: 'GET' | 'POST', path: string, params: Record<string, string>) => Promise<Record<string, unknown>>;
 let call: StripeCall | undefined;
 export function setStripeHook(h: StripeCall | undefined): void {
   call = h;
@@ -36,12 +36,12 @@ export function planForPrice(priceId: string | undefined): PaidPlan | null {
   return PAID_PLANS.find((p) => env.stripePrices[p] === priceId) ?? null;
 }
 
-async function stripeCall(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
-  if (call) return call('POST', path, params);
+async function stripeCall(path: string, params: Record<string, string>, method: 'GET' | 'POST' = 'POST'): Promise<Record<string, unknown>> {
+  if (call) return call(method, path, params);
   const res = await fetch(`https://api.stripe.com${path}`, {
-    method: 'POST',
+    method,
     headers: { authorization: `Bearer ${env.stripeSecretKey}`, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(params).toString(),
+    body: method === 'POST' ? new URLSearchParams(params).toString() : undefined,
     signal: AbortSignal.timeout(15_000),
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -80,6 +80,50 @@ export async function createPortal(customerId: string): Promise<string> {
   const session = await stripeCall('/v1/billing_portal/sessions', { customer: customerId, return_url: back('/settings/plan') });
   if (typeof session.url !== 'string') throw ApiError.internal('payment provider returned no portal address');
   return session.url;
+}
+
+/** A one-time payment page for the sign-up fee (needs only the secret key: no Price to set up). */
+export async function createSignupSession(args: {
+  orgId: string;
+  amountMinor: number;
+  currency: string;
+  description: string;
+  email?: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ id: string; url: string }> {
+  const params: Record<string, string> = {
+    mode: 'payment',
+    'line_items[0][price_data][currency]': args.currency.toLowerCase(),
+    'line_items[0][price_data][unit_amount]': String(args.amountMinor),
+    'line_items[0][price_data][product_data][name]': args.description,
+    'line_items[0][quantity]': '1',
+    'payment_intent_data[description]': args.description,
+    // Indian Stripe accounts must collect the buyer's address for export payments.
+    billing_address_collection: 'required',
+    success_url: args.successUrl,
+    cancel_url: args.cancelUrl,
+    client_reference_id: args.orgId,
+    'metadata[org_id]': args.orgId,
+    'metadata[purpose]': 'signup',
+  };
+  if (args.email) params.customer_email = args.email;
+  const session = await stripeCall('/v1/checkout/sessions', params);
+  if (typeof session.id !== 'string' || typeof session.url !== 'string') {
+    throw ApiError.internal('payment provider returned no checkout address');
+  }
+  return { id: session.id, url: session.url };
+}
+
+/** What Stripe says about a Checkout session right now. */
+export async function fetchCheckoutSession(id: string): Promise<{ paid: boolean; amountPaid: number; currency: string; paymentId: string | null }> {
+  const s = await stripeCall(`/v1/checkout/sessions/${encodeURIComponent(id)}`, {}, 'GET');
+  return {
+    paid: s.payment_status === 'paid',
+    amountPaid: Number(s.amount_total ?? 0),
+    currency: String(s.currency ?? '').toUpperCase(),
+    paymentId: typeof s.payment_intent === 'string' ? s.payment_intent : null,
+  };
 }
 
 /** Check the Stripe-Signature header (t=...,v1=...) over the raw body. */

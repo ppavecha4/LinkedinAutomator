@@ -27,8 +27,8 @@ from db.vault import VaultError  # type: ignore
 
 NO_KEY = "no Anthropic key (connect Anthropic / set ANTHROPIC_API_KEY)"
 BUDGET_USED_UP = (
-    "the AI included in the plan is used up this month "
-    "(upgrade, wait for the new month, or connect your own Anthropic account)"
+    "the AI included in the plan is used up "
+    "(upgrade, connect your own Anthropic account, or on a paid plan wait for the new month)"
 )
 
 

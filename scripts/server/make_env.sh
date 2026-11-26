@@ -39,6 +39,11 @@ AUTH_MODE=local
 AUTH_USER_EMAIL=$EMAIL
 AUTH_USER_PASSWORD_BCRYPT=
 SIGNUP_ENABLED=false
+# Public sign-up charges a one-time fee: it stays closed until a payment provider below is filled in.
+SIGNUP_FEE_REQUIRED=true
+SIGNUP_FEE_USD_CENTS=200
+SIGNUP_FEE_INR_PAISE=18500
+SIGNUP_FEE_GST_PERCENT=18
 
 AUTH_JWT_SECRET=$(hex)
 CREDENTIALS_KEY=$(openssl rand -base64 32)
@@ -61,6 +66,20 @@ BACKUP_S3_REGION=ap-south-1
 # Monitoring
 ALERT_EMAIL=
 ALERT_WEBHOOK_URL=
+
+# The app's own mailbox: password reset, email verification, invitations
+PLATFORM_SMTP_HOST=
+PLATFORM_SMTP_PORT=587
+PLATFORM_SMTP_USER=
+PLATFORM_SMTP_PASS=
+PLATFORM_MAIL_FROM=
+
+# Payments (sign-up fee and plans)
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 
 # Provider keys: paste NEW ones
 ANTHROPIC_API_KEY=
