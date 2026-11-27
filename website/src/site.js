@@ -16,6 +16,23 @@
     if (link) remember(link.getAttribute('data-lang'));
   });
   var body = document.body;
+  // Cards fade up as they scroll into view. Only what is still below the screen is hidden first, so
+  // without scripts (or with "reduce motion") everything is simply there.
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!calm && 'IntersectionObserver' in window) {
+    var watch = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.remove('waiting');
+        watch.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('.card, .message.plain, .message.better, .panel, .banner, .art, .timeline li').forEach(function (el) {
+      if (el.getBoundingClientRect().top < window.innerHeight) return;
+      el.classList.add('reveal', 'waiting');
+      watch.observe(el);
+    });
+  }
   var offered = (body.getAttribute('data-chooser') || '').split(' ').filter(Boolean);
   if (!offered.length) return;
   var saved = (document.cookie.match(/(?:^|;\s*)lang=([a-z]{2})(?:;|$)/) || [])[1];

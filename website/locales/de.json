@@ -1,7 +1,7 @@
 {
   "lang_name": "Deutsch",
-  "meta_title": "{brand}: persönliche Ansprache in der Sprache Ihrer Kunden",
-  "meta_description": "{brand} schreibt jedem Interessenten eine persönliche Nachricht und versendet sie über Ihre eigene E-Mail und Ihr WhatsApp. Für Unternehmen ohne IT-Team.",
+  "meta_title": "{brand}: automatisierte Kundenansprache in der Sprache Ihrer Kunden",
+  "meta_description": "{brand} automatisiert die Kundenansprache: findet Interessenten, schreibt persönlich in ihrer Sprache, versendet über Ihre Konten und fasst nach.",
   "skip": "Zum Inhalt springen",
   "nav_how": "So funktioniert es",
   "nav_features": "Funktionen",
@@ -10,7 +10,7 @@
   "nav_signin": "Anmelden",
   "nav_language": "Sprache",
   "hero_title": "Neue Kunden gewinnen, in ihrer Sprache",
-  "hero_text": "{brand} schreibt jedem Interessenten eine persönliche Nachricht und versendet sie über Ihre eigene E-Mail und Ihr WhatsApp. Technisches Wissen ist nicht nötig.",
+  "hero_text": "Beschreiben Sie {brand} einmal Ihr Unternehmen. Es findet Interessenten, schreibt jedem in seiner Sprache über Ihre eigene E-Mail und Ihr WhatsApp und fasst für Sie nach.",
   "cta_access": "Frühzugang anfragen",
   "cta_how": "So funktioniert es",
   "mail_subject": "Anfrage zum Frühzugang",
@@ -127,7 +127,7 @@
   ],
   "og_locale": "de_DE",
   "about_title": "Was ist {brand}?",
-  "about_text": "{brand} ist ein Werkzeug für die Kundenansprache von Unternehmen, die an andere Unternehmen verkaufen. Es schreibt jedem Interessenten eine persönliche Nachricht in dessen Sprache und versendet sie über Ihre eigenen E-Mail- und WhatsApp-Konten. Sie lesen die Nachrichten vorher, und nichts wird versendet, bevor Sie starten. {brand} ist ein Produkt von {company}.",
+  "about_text": "{brand} automatisiert die Kundenansprache für Unternehmen, die an andere Unternehmen verkaufen. Sie beschreiben Ihr Geschäft einmal. Es findet Interessenten über das Konto zur Kundensuche, das Sie verbinden, oder arbeitet mit Ihrer Liste, schreibt jedem eine persönliche Nachricht in seiner Sprache, versendet sie über Ihre eigenen E-Mail- und WhatsApp-Konten und fasst nach. Sie prüfen die Kampagne zuerst, und nichts wird versendet, bevor Sie starten. {brand} ist ein Produkt von {company}.",
   "cta_signup": "Konto erstellen",
   "signup_meta_title": "Bei {brand} registrieren: persönliche Kundenansprache",
   "signup_meta_description": "So erstellen Sie Ihr {brand}-Konto: was Sie brauchen, wie es weitergeht und wie Sie Ihre erste Kampagne per E-Mail und WhatsApp starten.",
@@ -157,6 +157,14 @@
   "faq_cost_q": "Was kostet {brand}?",
   "faq_more": [
     {
+      "q": "Was erledigt {brand} automatisch?",
+      "a": "Nach dem Start einer Kampagne findet es Interessenten über Ihr Konto zur Kundensuche oder nutzt Ihre Liste, schreibt und versendet persönliche Nachrichten, verschickt Erinnerungen, stoppt sie bei einer Antwort und beachtet Abmeldungen."
+    },
+    {
+      "q": "Beantwortet {brand} Antworten für mich?",
+      "a": "Noch nicht. Wenn jemand antwortet, enden die Erinnerungen und die Antwort erscheint in Ihrem Posteingang. KI-Antworten mit Übergabe an Sie sind geplant."
+    },
+    {
       "q": "Wird etwas ohne meine Freigabe versendet?",
       "a": "Nein. Sie prüfen zuerst die Kampagne und ihre Nachrichten, und nichts wird versendet, bevor Sie starten. Danach gehen Erinnerungen nach Zeitplan raus und enden, sobald jemand antwortet."
     },
@@ -169,5 +177,41 @@
       "a": "Ja. Die Daten jedes Unternehmens sind in der Datenbank getrennt, und die Zugangsschlüssel Ihrer verbundenen Konten werden verschlüsselt gespeichert."
     }
   ],
-  "not_found_title": "Seite nicht gefunden"
+  "not_found_title": "Seite nicht gefunden",
+  "languages_title": "In der Sprache Ihrer Empfänger",
+  "languages_text": "Jede Person erhält die Nachricht in ihrer Sprache. Dieselbe Idee, natürlich formuliert.",
+  "example_reply_label": "Beispielantwort",
+  "example_reply": "Donnerstag passt uns. Bitte senden Sie die Details.",
+  "auto_title": "Ihre Kundenansprache auf Autopilot",
+  "auto_text": "Beschreiben Sie Ihr Geschäft einmal. Nach dem Start hält {brand} die Kampagne am Laufen und zeigt Ihnen, wer geantwortet hat.",
+  "planned_label": "Als Nächstes geplant",
+  "planned_title": "KI-Antworten",
+  "planned_text": "Routineantworten für Sie beantworten und an Sie übergeben, wenn eine Person oder ein Anruf nötig ist. Das ist noch nicht verfügbar.",
+  "auto_steps": [
+    {
+      "who": "Sie",
+      "title": "Unternehmen beschreiben",
+      "text": "Was Sie verkaufen und wen Sie erreichen möchten. Die KI bereitet die Kampagne zur Prüfung vor."
+    },
+    {
+      "who": "{brand}",
+      "title": "Findet Interessenten",
+      "text": "Es sucht passende Unternehmen und Personen über das Konto zur Kundensuche, das Sie verbinden, etwa Apollo, oder nutzt Ihre eigene Liste."
+    },
+    {
+      "who": "{brand}",
+      "title": "Schreibt jedem persönlich",
+      "text": "Eine persönliche Nachricht in der jeweiligen Sprache, nach dem Start aus Ihrem Postfach versendet. WhatsApp wird bei Personen genutzt, die zugestimmt haben."
+    },
+    {
+      "who": "{brand}",
+      "title": "Plant das Nachfassen",
+      "text": "Erinnerungen folgen dem Zeitplan und enden, sobald jemand antwortet oder keine Nachrichten mehr möchte."
+    },
+    {
+      "who": "Sie",
+      "title": "Sie übernehmen bei Antworten",
+      "text": "Antworten werden in einem Posteingang gesammelt. Sie antworten aus Ihrem Postfach und vereinbaren das Gespräch."
+    }
+  ]
 }

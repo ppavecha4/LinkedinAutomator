@@ -1,7 +1,7 @@
 {
   "lang_name": "Nederlands",
-  "meta_title": "{brand}: persoonlijk contact in de taal van je klant",
-  "meta_description": "{brand} schrijft elke potentiële klant een persoonlijk bericht en verstuurt het vanuit je eigen e-mail en WhatsApp. Gemaakt voor bedrijven zonder IT-team.",
+  "meta_title": "{brand}: geautomatiseerde acquisitie in de taal van je klant",
+  "meta_description": "{brand} automatiseert acquisitie: vindt potentiële klanten, schrijft persoonlijke berichten in hun taal, verstuurt ze vanuit je accounts en volgt op.",
   "skip": "Naar de inhoud",
   "nav_how": "Zo werkt het",
   "nav_features": "Functies",
@@ -10,7 +10,7 @@
   "nav_signin": "Inloggen",
   "nav_language": "Taal",
   "hero_title": "Vind nieuwe klanten, in hun eigen taal",
-  "hero_text": "{brand} schrijft elke potentiële klant een persoonlijk bericht en verstuurt het vanuit je eigen e-mail en WhatsApp. Technische kennis is niet nodig.",
+  "hero_text": "Vertel {brand} één keer over je bedrijf. Het vindt potentiële klanten, schrijft ieder in de eigen taal vanuit je eigen e-mail en WhatsApp, en volgt voor je op.",
   "cta_access": "Vroege toegang aanvragen",
   "cta_how": "Bekijk hoe het werkt",
   "mail_subject": "Aanvraag vroege toegang",
@@ -127,7 +127,7 @@
   ],
   "og_locale": "nl_NL",
   "about_title": "Wat is {brand}?",
-  "about_text": "{brand} is een hulpmiddel voor bedrijven die aan andere bedrijven verkopen. Het schrijft elke potentiële klant een persoonlijk bericht in de eigen taal en verstuurt het vanuit je eigen e-mail- en WhatsApp-account. Je leest de berichten eerst, en er wordt niets verstuurd tot je start. {brand} is een product van {company}.",
+  "about_text": "{brand} automatiseert de acquisitie van bedrijven die aan bedrijven verkopen. Je beschrijft je bedrijf één keer. Het vindt potentiële klanten via het account voor klantonderzoek dat je koppelt, of werkt met je eigen lijst, schrijft ieder een persoonlijk bericht in de eigen taal, verstuurt het vanuit je eigen e-mail- en WhatsApp-account en volgt op. Je controleert eerst de campagne, en er wordt niets verstuurd tot je start. {brand} is een product van {company}.",
   "cta_signup": "Account aanmaken",
   "signup_meta_title": "Aanmelden bij {brand}: persoonlijk klantcontact",
   "signup_meta_description": "Zo maak je een {brand}-account aan: wat je nodig hebt, wat er daarna gebeurt en hoe je je eerste campagne via e-mail en WhatsApp start.",
@@ -157,6 +157,14 @@
   "faq_cost_q": "Wat kost {brand}?",
   "faq_more": [
     {
+      "q": "Wat doet {brand} automatisch?",
+      "a": "Na de start van een campagne vindt het potentiële klanten via je zoekaccount of gebruikt het je lijst, schrijft en verstuurt persoonlijke berichten, stuurt herinneringen, stopt die bij een reactie en respecteert afmeldingen."
+    },
+    {
+      "q": "Beantwoordt {brand} reacties voor mij?",
+      "a": "Nog niet. Als iemand reageert, stoppen de herinneringen en verschijnt de reactie in je inbox zodat je kunt antwoorden. AI-antwoorden met overdracht aan jou zijn gepland."
+    },
+    {
       "q": "Wordt er iets verstuurd zonder mijn goedkeuring?",
       "a": "Nee. Je controleert eerst de campagne en de berichten, en er wordt niets verstuurd tot je start. Daarna gaan herinneringen volgens schema uit en stoppen ze zodra iemand reageert."
     },
@@ -169,5 +177,41 @@
       "a": "Ja. De gegevens van elk bedrijf zijn in de database gescheiden en de sleutels van je gekoppelde accounts worden versleuteld opgeslagen."
     }
   ],
-  "not_found_title": "Pagina niet gevonden"
+  "not_found_title": "Pagina niet gevonden",
+  "languages_title": "Hun taal, niet alleen de jouwe",
+  "languages_text": "Iedereen krijgt het bericht in de eigen taal. Hetzelfde idee, natuurlijk geschreven.",
+  "example_reply_label": "Voorbeeldreactie",
+  "example_reply": "Donderdag komt ons goed uit. Stuur de details maar.",
+  "auto_title": "Je acquisitie op de automatische piloot",
+  "auto_text": "Beschrijf je bedrijf één keer. Na de start houdt {brand} de campagne gaande en laat het zien wie heeft geantwoord.",
+  "planned_label": "Hierna gepland",
+  "planned_title": "AI-antwoorden op reacties",
+  "planned_text": "Veelvoorkomende reacties voor je beantwoorden en het overdragen wanneer een mens of een gesprek nodig is. Dit is nog niet beschikbaar.",
+  "auto_steps": [
+    {
+      "who": "Jij",
+      "title": "Vertel over je bedrijf",
+      "text": "Wat je verkoopt en wie je wilt bereiken. De AI zet de campagne klaar zodat je die kunt controleren."
+    },
+    {
+      "who": "{brand}",
+      "title": "Vindt potentiële klanten",
+      "text": "Het zoekt passende bedrijven en personen via het account voor klantonderzoek dat je koppelt, zoals Apollo, of gebruikt je eigen lijst."
+    },
+    {
+      "who": "{brand}",
+      "title": "Schrijft en mailt ieder",
+      "text": "Een persoonlijk bericht in hun taal, na de start verstuurd vanuit je mailbox. WhatsApp wordt gebruikt voor mensen die daarmee hebben ingestemd."
+    },
+    {
+      "who": "{brand}",
+      "title": "Plant de opvolging",
+      "text": "Herinneringen gaan volgens schema uit en stoppen zodra iemand antwoordt of vraagt te stoppen."
+    },
+    {
+      "who": "Jij",
+      "title": "Jij neemt het over bij antwoord",
+      "text": "Reacties komen samen in één inbox. Je antwoordt vanuit je mailbox en plant het gesprek."
+    }
+  ]
 }

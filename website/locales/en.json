@@ -1,7 +1,7 @@
 {
   "lang_name": "English",
-  "meta_title": "{brand}: personal outreach in your customer's language",
-  "meta_description": "{brand} writes a personal message to each prospect and sends it from your own email and WhatsApp. Made for businesses without a tech team.",
+  "meta_title": "{brand}: automated sales outreach in your customer's language",
+  "meta_description": "{brand} automates sales outreach: it finds potential customers, writes personal messages in their language, sends them from your accounts and follows up.",
   "skip": "Skip to content",
   "nav_how": "How it works",
   "nav_features": "Features",
@@ -10,7 +10,7 @@
   "nav_signin": "Sign in",
   "nav_language": "Language",
   "hero_title": "Find new customers, in their language",
-  "hero_text": "{brand} writes a personal message to each prospect and sends it from your own email and WhatsApp. No technical skills needed.",
+  "hero_text": "Tell {brand} about your business once. It finds potential customers, writes to each one in their language from your own email and WhatsApp, and follows up for you.",
   "cta_access": "Request early access",
   "cta_how": "See how it works",
   "mail_subject": "Early access request",
@@ -127,7 +127,7 @@
   ],
   "og_locale": "en_US",
   "about_title": "What is {brand}?",
-  "about_text": "{brand} is an outreach tool for businesses that sell to other businesses. It writes a personal message to each prospect in their language and sends it from your own email and WhatsApp accounts. You read the messages first, and nothing is sent until you launch. {brand} is made by {company}.",
+  "about_text": "{brand} automates sales outreach for businesses that sell to other businesses. You describe your business once. It finds potential customers through the lead-search account you connect, or works from your list, writes a personal message to each in their language, sends it from your own email and WhatsApp accounts and follows up. You check the campaign first, and nothing is sent until you launch. {brand} is made by {company}.",
   "cta_signup": "Create your account",
   "signup_meta_title": "Sign up for {brand}: personal outreach for your business",
   "signup_meta_description": "How to create your {brand} account: what you need, what happens next and how to start your first campaign by email and WhatsApp.",
@@ -157,6 +157,14 @@
   "faq_cost_q": "How much does {brand} cost?",
   "faq_more": [
     {
+      "q": "What does {brand} do automatically?",
+      "a": "After you launch a campaign, it finds potential customers through your lead-search account or uses your list, writes and sends personal messages, sends follow-ups, stops them when someone replies and honours requests to stop."
+    },
+    {
+      "q": "Does {brand} answer replies for me?",
+      "a": "Not yet. When someone replies, follow-ups stop and the reply appears in your inbox for you to answer. AI answers with a handover to you are planned."
+    },
+    {
       "q": "Is anything sent without my approval?",
       "a": "No. You check the campaign and its messages first, and nothing is sent until you launch. After that, follow-ups go out on schedule and stop when someone replies."
     },
@@ -169,5 +177,41 @@
       "a": "Yes. Each company's data is separated in the database, and the keys of your connected accounts are stored encrypted."
     }
   ],
-  "not_found_title": "Page not found"
+  "not_found_title": "Page not found",
+  "languages_title": "Their language, not just yours",
+  "languages_text": "Each person gets the message in their own language. The same idea, written naturally.",
+  "example_reply_label": "Example reply",
+  "example_reply": "Thursday works for us. Please send the details.",
+  "auto_title": "Your sales outreach, on autopilot",
+  "auto_text": "Describe your business once. After you launch, {brand} keeps the campaign moving and shows you who answered.",
+  "planned_label": "Planned next",
+  "planned_title": "AI answers to replies",
+  "planned_text": "Answering routine replies for you, and handing over when a person or a call is needed. This is not available yet.",
+  "auto_steps": [
+    {
+      "who": "You",
+      "title": "Tell it about your business",
+      "text": "What you sell and who you want to reach. The AI prepares the campaign for you to check."
+    },
+    {
+      "who": "{brand}",
+      "title": "Finds potential customers",
+      "text": "It searches for matching companies and people through the lead-search account you connect, such as Apollo, or works from your own list."
+    },
+    {
+      "who": "{brand}",
+      "title": "Writes and emails each one",
+      "text": "A personal message in their language, sent from your mailbox once you launch. WhatsApp is used for people who agreed to it."
+    },
+    {
+      "who": "{brand}",
+      "title": "Plans the follow-ups",
+      "text": "Reminders go out on schedule and stop as soon as someone replies or asks you to stop."
+    },
+    {
+      "who": "You",
+      "title": "Take over when they answer",
+      "text": "Replies are collected in one inbox. You answer from your mailbox and set up the call."
+    }
+  ]
 }

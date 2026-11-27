@@ -280,20 +280,57 @@ HEADERS = """/*
 """
 
 
-def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tuple = ()) -> str:
+# Small line icons for the feature cards, in the order of the language files' "features". Drawn inline so
+# they take the page's colours.
+ICONS = (
+    '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4.5 4.5-6 8-6s6.5 1.5 8 6"/>',                      # personal
+    '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',          # language
+    '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 8l8 6 8-6"/>',                           # own accounts
+    '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',                                        # follow-ups
+    '<path d="M12 3l8 3v6c0 5-3.500 7.500-8 9-4.500-1.500-8-4-8-9V6z"/><path d="M9 12h6"/>',               # opt-outs
+    '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',  # control
+)
+STEP_ART = ("step-business", "step-review", "step-launch")
+CASE_ART = ("factory", "ship", "services")                          # the order of the language files' "cases"
+
+
+def icon(paths: str) -> str:
+    return (f'<span class="icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths}</svg></span>')
+
+
+def art(up: str, name: str, alt: str, width: int = 320, height: int = 220) -> str:
+    return f'<img class="art" src="{up}img/{name}.svg" alt="{e(alt)}" width="{width}" height="{height}" loading="lazy" decoding="async">'
+
+
+def first_sentence(text: str) -> str:
+    return re.split(r"(?<=[.!?])\s", text, maxsplit=1)[0]
+
+
+def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tuple = (), samples: dict | None = None) -> str:
     brand, opened = cfg["brand"], signup_is_open(cfg)
     cta = t["cta_signup"] if opened else t["cta_access"]
     faqs = questions(t, cfg)
 
-    steps = "".join(f'<li><h3>{e(s["title"])}</h3><p>{e(s["text"])}</p></li>' for s in t["steps"])
-    features = "".join(f'<li class="card"><h3>{e(f["title"])}</h3><p>{e(f["text"])}</p></li>' for f in t["features"])
+    steps = "".join(f'<li class="card step">{art("../", STEP_ART[i % len(STEP_ART)], s["title"])}<h3>{e(s["title"])}</h3><p>{e(s["text"])}</p></li>'
+                    for i, s in enumerate(t["steps"]))
+    features = "".join(f'<li class="card">{icon(ICONS[i % len(ICONS)])}<h3>{e(f["title"])}</h3><p>{e(f["text"])}</p></li>'
+                       for i, f in enumerate(t["features"]))
     audience = "".join(f"<li>{e(a)}</li>" for a in t["audience"])
     trust = "".join(f"<li>{e(x)}</li>" for x in t["trust"])
     faq = "".join(f'<details><summary>{e(q["q"])}</summary><p>{e(q["a"])}</p></details>' for q in faqs)
     badges = "".join(f"<li>{e(b)}</li>" for b in t["hero_badges"])
-    cases = "".join(f'<li class="card"><h3>{e(c["title"])}</h3><p>{e(c["text"])}</p></li>' for c in t["cases"])
-    pricing = f'<p>{e(signup_fee_text(t, cfg))}</p><p>{e(t["pricing_open_text"])}</p>' if opened else f'<p>{e(t["pricing_text"])}</p>'
+    cases = "".join(f'<li class="card case">{art("../", CASE_ART[i % len(CASE_ART)], c["title"])}<h3>{e(c["title"])}</h3><p>{e(c["text"])}</p></li>'
+                    for i, c in enumerate(t["cases"]))
+    codes = "".join(f'<li lang="{c}">{c.upper()}</li>' for c in cfg["languages"])
+    # The same example message in the other languages: each is the text from that language's own file.
+    spoken = "".join(f'<li class="sample" lang="{code}"><span>{e(names[code])}</span><p>{e(first_sentence(body))}</p></li>'
+                     for code, body in (samples or {}).items() if code != lang)
+    pricing = f'<p class="price">{e(signup_fee_text(t, cfg))}</p><p>{e(t["pricing_open_text"])}</p>' if opened else f'<p>{e(t["pricing_text"])}</p>'
     join = f'<a class="button" href="signup/">{e(cta)}</a>'
+    # Who does each part: the visitor's own steps are marked differently from the automatic ones.
+    flow = "".join(f'<li class="card stage-step{" auto" if s["who"] == brand else ""}"><span class="who">{e(s["who"])}</span><h3>{e(s["title"])}</h3><p>{e(s["text"])}</p></li>'
+                   for s in t["auto_steps"])
 
     graph = None
     if site_url:
@@ -310,35 +347,51 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tup
   <main id="main">
     <section class="hero">
       <div class="wrap split">
-        <div>
+        <div class="hero-copy">
           <h1>{e(t["hero_title"])}</h1>
           <p class="lead">{e(t["hero_text"])}</p>
           <p class="buttons">{join}<a class="button ghost" href="#how">{e(t["cta_how"])}</a></p>
           <ul class="badges">{badges}</ul>
         </div>
-        <figure class="message">
-          <figcaption>{e(t["example_label"])}</figcaption>
-          <p class="to">{e(t["example_to"])}</p>
-          <blockquote>{e(t["example_body"])}</blockquote>
-        </figure>
+        <div class="stage">
+          <ul class="chips" aria-hidden="true">{codes}</ul>
+          <figure class="message main">
+            <figcaption>{e(t["example_label"])}</figcaption>
+            <p class="to">{e(t["example_to"])}</p>
+            <blockquote>{e(t["example_body"])}</blockquote>
+          </figure>
+          <figure class="message reply">
+            <figcaption>{e(t["example_reply_label"])}</figcaption>
+            <blockquote>{e(t["example_reply"])}</blockquote>
+          </figure>
+        </div>
       </div>
     </section>
-    <section id="about"><div class="wrap narrow"><h2>{e(t["about_title"])}</h2><p>{e(t["about_text"])}</p></div></section>
-    <section class="tint"><div class="wrap"><h2>{e(t["compare_title"])}</h2><p class="lead">{e(t["compare_text"])}</p>
+    <section class="strip"><div class="wrap"><h2>{e(t["audience_title"])}</h2><ul class="pills">{audience}</ul></div></section>
+    <section id="about"><div class="wrap narrow center"><h2>{e(t["about_title"])}</h2><p class="statement">{e(t["about_text"])}</p></div></section>
+    <section id="autopilot" class="tint"><div class="wrap"><div class="heading"><h2>{e(t["auto_title"])}</h2><p class="lead">{e(t["auto_text"])}</p></div>
+      <ol class="flow">{flow}</ol>
+      <div class="planned"><span class="who">{e(t["planned_label"])}</span><h3>{e(t["planned_title"])}</h3><p>{e(t["planned_text"])}</p></div>
+    </div></section>
+    <section><div class="wrap"><div class="heading"><h2>{e(t["compare_title"])}</h2><p class="lead">{e(t["compare_text"])}</p></div>
       <div class="two compare">
         <figure class="message plain"><figcaption>{e(t["generic_label"])}</figcaption><blockquote>{e(t["generic_body"])}</blockquote></figure>
-        <figure class="message"><figcaption>{e(t["personal_label"])}</figcaption><blockquote>{e(t["example_body"])}</blockquote></figure>
+        <figure class="message better"><figcaption>{e(t["personal_label"])}</figcaption><blockquote>{e(t["example_body"])}</blockquote></figure>
       </div></div></section>
-    <section id="how"><div class="wrap"><h2>{e(t["how_title"])}</h2><ol class="steps">{steps}</ol></div></section>
-    <section id="features" class="tint"><div class="wrap"><h2>{e(t["features_title"])}</h2><ul class="grid">{features}</ul></div></section>
-    <section><div class="wrap"><h2>{e(t["cases_title"])}</h2><ul class="grid">{cases}</ul></div></section>
-    <section class="tint"><div class="wrap two">
-      <div><h2>{e(t["audience_title"])}</h2><ul class="ticks">{audience}</ul></div>
+    <section id="how"><div class="wrap"><div class="heading"><h2>{e(t["how_title"])}</h2></div><ol class="steps">{steps}</ol></div></section>
+    <section id="features" class="tint"><div class="wrap"><div class="heading"><h2>{e(t["features_title"])}</h2></div><ul class="grid">{features}</ul></div></section>
+    <section class="languages"><div class="wrap split">
+      <div><h2>{e(t["languages_title"])}</h2><p class="lead">{e(t["languages_text"])}</p><ul class="samples">{spoken}</ul></div>
+      {art("../", "globe", t["languages_title"], 480, 400)}
+    </div></section>
+    <section class="tint"><div class="wrap"><div class="heading"><h2>{e(t["cases_title"])}</h2></div><ul class="grid">{cases}</ul></div></section>
+    <section><div class="wrap split">
+      {art("../", "shield", t["trust_title"])}
       <div><h2>{e(t["trust_title"])}</h2><ul class="ticks">{trust}</ul></div>
     </div></section>
-    <section id="pricing"><div class="wrap narrow"><h2>{e(t["pricing_title"])}</h2>{pricing}<p class="buttons">{join}</p></div></section>
-    <section id="faq" class="tint"><div class="wrap narrow"><h2>{e(t["faq_title"])}</h2>{faq}</div></section>
-    <section class="final"><div class="wrap narrow"><h2>{e(t["final_title"])}</h2><p>{e(t["final_open_text"] if opened else t["final_text"])}</p><p class="buttons"><a class="button light" href="signup/">{e(cta)}</a></p></div></section>
+    <section id="pricing" class="tint"><div class="wrap narrow"><div class="panel center"><h2>{e(t["pricing_title"])}</h2>{pricing}<p class="buttons">{join}</p></div></div></section>
+    <section id="faq"><div class="wrap narrow"><div class="heading"><h2>{e(t["faq_title"])}</h2></div>{faq}</div></section>
+    <section class="final"><div class="wrap"><div class="banner"><h2>{e(t["final_title"])}</h2><p>{e(t["final_open_text"] if opened else t["final_text"])}</p><p class="buttons"><a class="button light" href="signup/">{e(cta)}</a></p></div></div></section>
   </main>
 {bottom(t, cfg, "../")}"""
 
@@ -348,7 +401,7 @@ def signup_page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, local
     brand, app, opened = cfg["brand"], cfg["app_url"].rstrip("/"), signup_is_open(cfg)
     steps = "".join(f'<li><h3>{e(s["title"])}</h3><p>{e(s["text"])}</p></li>' for s in t["signup_steps"])
     if opened:
-        note = f'<p>{e(signup_fee_text(t, cfg))}</p>'
+        note = f'<p class="price">{e(signup_fee_text(t, cfg))}</p>'
         button = f'<a class="button" href="{e(app)}/signup">{e(t["cta_signup"])}</a>'
         extra = f'<p class="muted">{e(t["signup_form_note"])}</p>' if t["signup_form_note"] else ""
     else:
@@ -372,16 +425,22 @@ def signup_page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, local
 <body>
 {top_bar(t, cfg, names, lang, up="../../", after="signup/")}
   <main id="main">
-    <section class="hero"><div class="wrap narrow">
-      <h1>{e(t["signup_title"])}</h1>
-      <p class="lead">{e(t["signup_text"])}</p>
-      {note}
-      <p class="buttons">{button}</p>
-      {extra}
-      {account}
-      <p class="muted">{legal}</p>
+    <section class="hero join"><div class="wrap split">
+      <div class="panel">
+        <h1>{e(t["signup_title"])}</h1>
+        <p class="lead">{e(t["signup_text"])}</p>
+        {note}
+        <p class="buttons">{button}</p>
+        {extra}
+        {account}
+        <p class="muted">{legal}</p>
+      </div>
+      <div>
+        {art("../../", "step-launch", t["signup_steps_title"])}
+        <h2>{e(t["signup_steps_title"])}</h2>
+        <ol class="timeline">{steps}</ol>
+      </div>
     </div></section>
-    <section class="tint"><div class="wrap"><h2>{e(t["signup_steps_title"])}</h2><ol class="steps">{steps}</ol></div></section>
   </main>
 {bottom(t, cfg, "../../")}"""
 
@@ -430,7 +489,9 @@ def sitemap_xml(cfg: dict, site_url: str) -> str:
 
 def llms_txt(t: dict, cfg: dict, names: dict, site_url: str) -> str:
     """A plain summary for AI assistants (llmstxt.org), made from the English page's own words."""
-    lines = [f'# {cfg["brand"]}', "", f'> {t["about_text"]}', "", f'## {t["features_title"]}', ""]
+    lines = [f'# {cfg["brand"]}', "", f'> {t["about_text"]}', "", f'## {t["auto_title"]}', ""]
+    lines += [f'{i}. {s["who"]}: {s["title"]}. {s["text"]}' for i, s in enumerate(t["auto_steps"], 1)]
+    lines += ["", f'{t["planned_label"]}: {t["planned_title"]}. {t["planned_text"]}', "", f'## {t["features_title"]}', ""]
     lines += [f'- {f["title"]}: {f["text"]}' for f in t["features"]]
     lines += ["", f'## {t["how_title"]}', ""]
     lines += [f'{i}. {s["title"]}: {s["text"]}' for i, s in enumerate(t["steps"], 1)]
@@ -529,7 +590,8 @@ def build(site_url: str | None = None, out: Path = DIST) -> list[str]:
     # Overwrite in place: the web server mounts this folder, so the folder itself must stay.
     out.mkdir(parents=True, exist_ok=True)
     og = tuple(t["og_locale"] for t in locales.values())
-    files = {f"{lang}/index.html": page(lang, t, cfg, names, site_url, og) for lang, t in locales.items()}
+    samples = {lang: t["example_body"] for lang, t in locales.items()}
+    files = {f"{lang}/index.html": page(lang, t, cfg, names, site_url, og, samples) for lang, t in locales.items()}
     files.update({f"{lang}/signup/index.html": signup_page(lang, t, cfg, names, site_url, og) for lang, t in locales.items()})
     files["index.html"] = root_page(cfg, names)
     files["404.html"] = not_found_page(cfg, locales)
@@ -553,7 +615,11 @@ def build(site_url: str | None = None, out: Path = DIST) -> list[str]:
         target.write_text(content, encoding="utf-8", newline="\n")
     shutil.copyfile(ICON, out / "icon.png")
     shutil.copyfile(HERE / "src" / "social.png", out / "social.png")
-    return sorted([*files, "icon.png", "social.png"])
+    (out / "img").mkdir(exist_ok=True)
+    pictures = sorted((HERE / "src" / "img").glob("*.svg"))
+    for picture in pictures:
+        shutil.copyfile(picture, out / "img" / picture.name)
+    return sorted([*files, "icon.png", "social.png", *(f"img/{p.name}" for p in pictures)])
 
 
 if __name__ == "__main__":

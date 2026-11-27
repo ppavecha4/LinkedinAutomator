@@ -1,7 +1,7 @@
 {
   "lang_name": "Español",
-  "meta_title": "{brand}: contacto personalizado en el idioma de tu cliente",
-  "meta_description": "{brand} escribe un mensaje personal a cada cliente potencial y lo envía desde tu propio correo y WhatsApp. Pensado para empresas sin equipo técnico.",
+  "meta_title": "{brand}: captación comercial automatizada en el idioma de tu cliente",
+  "meta_description": "{brand} automatiza la captación: encuentra clientes potenciales, escribe mensajes personales en su idioma, los envía desde tus cuentas y hace el seguimiento.",
   "skip": "Saltar al contenido",
   "nav_how": "Cómo funciona",
   "nav_features": "Funciones",
@@ -10,7 +10,7 @@
   "nav_signin": "Iniciar sesión",
   "nav_language": "Idioma",
   "hero_title": "Encuentra nuevos clientes, en su idioma",
-  "hero_text": "{brand} escribe un mensaje personal a cada cliente potencial y lo envía desde tu propio correo y WhatsApp. No necesitas conocimientos técnicos.",
+  "hero_text": "Cuéntale a {brand} una vez a qué se dedica tu empresa. Encuentra clientes potenciales, escribe a cada uno en su idioma desde tu correo y WhatsApp, y hace el seguimiento por ti.",
   "cta_access": "Solicitar acceso anticipado",
   "cta_how": "Ver cómo funciona",
   "mail_subject": "Solicitud de acceso anticipado",
@@ -127,7 +127,7 @@
   ],
   "og_locale": "es_ES",
   "about_title": "¿Qué es {brand}?",
-  "about_text": "{brand} es una herramienta de contacto comercial para empresas que venden a otras empresas. Escribe un mensaje personal a cada cliente potencial en su idioma y lo envía desde tus propias cuentas de correo y WhatsApp. Tú lees los mensajes antes y no se envía nada hasta que lanzas la campaña. {brand} es un producto de {company}.",
+  "about_text": "{brand} automatiza la captación comercial de las empresas que venden a otras empresas. Describes tu negocio una vez. Encuentra clientes potenciales con la cuenta de búsqueda de clientes que conectes, o trabaja con tu lista, escribe un mensaje personal a cada uno en su idioma, lo envía desde tus propias cuentas de correo y WhatsApp y hace el seguimiento. Primero revisas la campaña y no se envía nada hasta que la lanzas. {brand} es un producto de {company}.",
   "cta_signup": "Crear tu cuenta",
   "signup_meta_title": "Regístrate en {brand}: contacto personalizado para tu empresa",
   "signup_meta_description": "Cómo crear tu cuenta de {brand}: qué necesitas, qué pasa después y cómo empezar tu primera campaña por correo y WhatsApp.",
@@ -157,6 +157,14 @@
   "faq_cost_q": "¿Cuánto cuesta {brand}?",
   "faq_more": [
     {
+      "q": "¿Qué hace {brand} automáticamente?",
+      "a": "Cuando lanzas una campaña, encuentra clientes potenciales con tu cuenta de búsqueda o usa tu lista, escribe y envía mensajes personales, manda recordatorios, los detiene cuando alguien responde y respeta las peticiones de baja."
+    },
+    {
+      "q": "¿{brand} contesta las respuestas por mí?",
+      "a": "Todavía no. Cuando alguien responde, los recordatorios paran y la respuesta aparece en tu bandeja para que la contestes. Las respuestas con IA, con traspaso a ti, están previstas."
+    },
+    {
       "q": "¿Se envía algo sin mi aprobación?",
       "a": "No. Primero revisas la campaña y sus mensajes, y no se envía nada hasta que la lanzas. Después, los recordatorios salen según el calendario y paran cuando alguien responde."
     },
@@ -169,5 +177,41 @@
       "a": "Sí. Los datos de cada empresa están separados en la base de datos y las claves de tus cuentas conectadas se guardan cifradas."
     }
   ],
-  "not_found_title": "Página no encontrada"
+  "not_found_title": "Página no encontrada",
+  "languages_title": "Su idioma, no solo el tuyo",
+  "languages_text": "Cada persona recibe el mensaje en su idioma. La misma idea, escrita con naturalidad.",
+  "example_reply_label": "Respuesta de ejemplo",
+  "example_reply": "El jueves nos viene bien. Envíanos los detalles.",
+  "auto_title": "Tu captación comercial en piloto automático",
+  "auto_text": "Describe tu negocio una vez. Cuando lanzas la campaña, {brand} la mantiene en marcha y te muestra quién ha respondido.",
+  "planned_label": "Próximamente en el plan",
+  "planned_title": "Respuestas con IA",
+  "planned_text": "Contestar por ti las respuestas habituales y pasarte la conversación cuando haga falta una persona o una llamada. Todavía no está disponible.",
+  "auto_steps": [
+    {
+      "who": "Tú",
+      "title": "Cuéntale sobre tu empresa",
+      "text": "Qué vendes y a quién quieres llegar. La IA prepara la campaña para que la revises."
+    },
+    {
+      "who": "{brand}",
+      "title": "Encuentra clientes potenciales",
+      "text": "Busca empresas y personas que encajen con la cuenta de búsqueda de clientes que conectes, como Apollo, o usa tu propia lista."
+    },
+    {
+      "who": "{brand}",
+      "title": "Escribe y envía a cada uno",
+      "text": "Un mensaje personal en su idioma, enviado desde tu buzón cuando lanzas la campaña. WhatsApp se usa con quienes lo han aceptado."
+    },
+    {
+      "who": "{brand}",
+      "title": "Planifica el seguimiento",
+      "text": "Los recordatorios salen según el calendario y paran en cuanto alguien responde o pide que no le escribas."
+    },
+    {
+      "who": "Tú",
+      "title": "Tomas el relevo cuando responden",
+      "text": "Las respuestas se reúnen en una sola bandeja. Contestas desde tu correo y concretas la llamada."
+    }
+  ]
 }

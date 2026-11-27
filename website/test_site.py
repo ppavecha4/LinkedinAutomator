@@ -48,7 +48,8 @@ class SiteTest(unittest.TestCase):
                     self.assertTrue(value, f"{lang}.{key} is empty")
             if lang != "en":
                 for key in ("hero_title", "hero_text", "cta_access", "example_body", "pricing_text", "final_title",
-                            "about_text", "signup_title", "signup_text", "signup_closed", "signup_fee_text", "faq_cost_q"):
+                            "about_text", "signup_title", "signup_text", "signup_closed", "signup_fee_text", "faq_cost_q",
+                            "auto_title", "auto_text", "planned_text"):
                     self.assertNotEqual(t[key], english[key], f"{lang}.{key} is still English")
                 self.assertTrue(t["footer_legal_note"], f"{lang}: say that the legal pages are in English")
 
@@ -186,6 +187,41 @@ class SiteTest(unittest.TestCase):
             offers = next(n for n in graph["@graph"] if n["@type"] == "SoftwareApplication")["offers"]
             self.assertEqual([(o["price"], o["priceCurrency"]) for o in offers], [("218.30", "INR"), ("2", "USD")])
 
+    def test_pictures_exist_have_words_and_need_nothing_from_elsewhere(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            build.build("https://example.test", out)
+            for lang in CFG["languages"]:
+                for path, depth in ((lang, 1), (f"{lang}/signup", 2)):
+                    text = (out / path / "index.html").read_text(encoding="utf-8")
+                    pictures = re.findall(r'<img class="art" src="((?:\.\./)+img/[a-z-]+\.svg)" alt="([^"]+)"', text)
+                    self.assertTrue(pictures, path)
+                    for src, alt in pictures:
+                        self.assertEqual(src.count("../"), depth, path)
+                        self.assertTrue((out / src.replace("../", "")).is_file(), src)
+                    self.assertNotIn(' style="', text, "the security policy blocks inline styles")
+            for picture in (HERE / "src" / "img").glob("*.svg"):
+                art = picture.read_text(encoding="utf-8")
+                ElementTree.fromstring(art)
+                self.assertNotRegex(art, r'<script|<style| style="|href="(?!#)', picture.name)
+
+    def test_what_is_not_built_yet_is_said_to_be_planned(self):
+        # The app does not answer replies by itself. Remove this only when it does.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            build.build("https://example.test", out)
+            for lang in CFG["languages"]:
+                t = build.load_locale(lang, CFG["brand"], CFG["company"])
+                text = unescape((out / lang / "index.html").read_text(encoding="utf-8"))
+                self.assertIn(f'<span class="who">{t["planned_label"]}</span><h3>{t["planned_title"]}</h3>', text)
+                self.assertEqual(text.count('class="card stage-step'), 5)
+                self.assertEqual(text.count('class="card stage-step auto"'), 3)
+                for step in t["auto_steps"]:
+                    self.assertNotIn(t["planned_title"], step["title"])
+            llms = (out / "llms.txt").read_text(encoding="utf-8")
+            self.assertIn("This is not available yet.", llms)
+            self.assertIn("Does AmiReach answer replies for me?\nNot yet.", llms)
+
     def test_static_hosting_rules_choose_the_language_the_same_way(self):
         rules = build.netlify_redirects(CFG, "https://example.test").splitlines()
         self.assertEqual(rules[0], "https://www.example.test/* https://example.test/:splat 301!")
@@ -210,6 +246,7 @@ class SiteTest(unittest.TestCase):
                       "robots.txt", "llms.txt"}
             wanted |= {f"{x}/index.html" for x in [*CFG["languages"], *build.LEGAL_PAGES]}
             wanted |= {f"{x}/signup/index.html" for x in CFG["languages"]}
+            wanted |= {f"img/{p.name}" for p in (HERE / "src" / "img").glob("*.svg")}
             self.assertEqual(names, wanted)
             self.assertIn("RewriteRule ^ https://example.test%{REQUEST_URI} [R=301,L]", rules)
             for countries in CFG["countries"].values():

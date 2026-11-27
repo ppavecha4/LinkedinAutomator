@@ -1,7 +1,7 @@
 {
   "lang_name": "Português",
-  "meta_title": "{brand}: contacto personalizado na língua do seu cliente",
-  "meta_description": "A {brand} escreve uma mensagem pessoal a cada potencial cliente e envia-a a partir do seu próprio e-mail e WhatsApp. Feita para empresas sem equipa técnica.",
+  "meta_title": "{brand}: angariação automatizada na língua do seu cliente",
+  "meta_description": "A {brand} automatiza a angariação: encontra potenciais clientes, escreve mensagens pessoais na língua deles, envia-as das suas contas e faz o seguimento.",
   "skip": "Saltar para o conteúdo",
   "nav_how": "Como funciona",
   "nav_features": "Funcionalidades",
@@ -10,7 +10,7 @@
   "nav_signin": "Iniciar sessão",
   "nav_language": "Idioma",
   "hero_title": "Encontre novos clientes, na língua deles",
-  "hero_text": "A {brand} escreve uma mensagem pessoal a cada potencial cliente e envia-a a partir do seu próprio e-mail e WhatsApp. Não precisa de conhecimentos técnicos.",
+  "hero_text": "Fale uma vez da sua empresa à {brand}. Ela encontra potenciais clientes, escreve a cada um na língua dele a partir do seu e-mail e WhatsApp, e faz o seguimento por si.",
   "cta_access": "Pedir acesso antecipado",
   "cta_how": "Ver como funciona",
   "mail_subject": "Pedido de acesso antecipado",
@@ -127,7 +127,7 @@
   ],
   "og_locale": "pt_PT",
   "about_title": "O que é a {brand}?",
-  "about_text": "A {brand} é uma ferramenta de contacto comercial para empresas que vendem a outras empresas. Escreve uma mensagem pessoal a cada potencial cliente na língua dele e envia-a a partir das suas próprias contas de e-mail e WhatsApp. Lê as mensagens primeiro e nada é enviado até lançar a campanha. A {brand} é um produto da {company}.",
+  "about_text": "A {brand} automatiza a angariação comercial de empresas que vendem a outras empresas. Descreve o seu negócio uma vez. Ela encontra potenciais clientes através da conta de pesquisa de clientes que ligar, ou trabalha com a sua lista, escreve uma mensagem pessoal a cada um na língua dele, envia-a das suas próprias contas de e-mail e WhatsApp e faz o seguimento. Revê primeiro a campanha e nada é enviado até a lançar. A {brand} é um produto da {company}.",
   "cta_signup": "Criar a sua conta",
   "signup_meta_title": "Registe-se na {brand}: contacto personalizado para a sua empresa",
   "signup_meta_description": "Como criar a sua conta {brand}: o que precisa, o que acontece a seguir e como começar a primeira campanha por e-mail e WhatsApp.",
@@ -157,6 +157,14 @@
   "faq_cost_q": "Quanto custa a {brand}?",
   "faq_more": [
     {
+      "q": "O que faz a {brand} automaticamente?",
+      "a": "Depois de lançar uma campanha, encontra potenciais clientes através da sua conta de pesquisa ou usa a sua lista, escreve e envia mensagens pessoais, envia lembretes, pára-os quando alguém responde e respeita os pedidos de remoção."
+    },
+    {
+      "q": "A {brand} responde às mensagens por mim?",
+      "a": "Ainda não. Quando alguém responde, os lembretes param e a resposta aparece na sua caixa de entrada para responder. Estão planeadas respostas com IA, com passagem para si."
+    },
+    {
       "q": "Alguma coisa é enviada sem a minha aprovação?",
       "a": "Não. Primeiro revê a campanha e as mensagens, e nada é enviado até a lançar. Depois, os lembretes seguem o calendário e param quando alguém responde."
     },
@@ -169,5 +177,41 @@
       "a": "Sim. Os dados de cada empresa são separados na base de dados e as chaves das contas ligadas são guardadas de forma cifrada."
     }
   ],
-  "not_found_title": "Página não encontrada"
+  "not_found_title": "Página não encontrada",
+  "languages_title": "A língua deles, não só a sua",
+  "languages_text": "Cada pessoa recebe a mensagem na sua língua. A mesma ideia, escrita com naturalidade.",
+  "example_reply_label": "Resposta de exemplo",
+  "example_reply": "Quinta-feira dá-nos jeito. Envie os detalhes.",
+  "auto_title": "A sua angariação comercial em piloto automático",
+  "auto_text": "Descreva o seu negócio uma vez. Depois de lançar, a {brand} mantém a campanha em andamento e mostra-lhe quem respondeu.",
+  "planned_label": "Planeado a seguir",
+  "planned_title": "Respostas com IA",
+  "planned_text": "Responder por si às mensagens habituais e passar-lhe a conversa quando for precisa uma pessoa ou uma chamada. Ainda não está disponível.",
+  "auto_steps": [
+    {
+      "who": "Você",
+      "title": "Fale-lhe da sua empresa",
+      "text": "O que vende e a quem quer chegar. A IA prepara a campanha para a rever."
+    },
+    {
+      "who": "{brand}",
+      "title": "Encontra potenciais clientes",
+      "text": "Procura empresas e pessoas adequadas através da conta de pesquisa de clientes que ligar, como a Apollo, ou usa a sua própria lista."
+    },
+    {
+      "who": "{brand}",
+      "title": "Escreve e envia a cada um",
+      "text": "Uma mensagem pessoal na língua deles, enviada da sua caixa de correio depois do lançamento. O WhatsApp é usado com quem o autorizou."
+    },
+    {
+      "who": "{brand}",
+      "title": "Planeia o seguimento",
+      "text": "Os lembretes seguem o calendário e param assim que alguém responde ou pede para não ser contactado."
+    },
+    {
+      "who": "Você",
+      "title": "Assume quando respondem",
+      "text": "As respostas são reunidas numa única caixa de entrada. Responde do seu e-mail e marca a chamada."
+    }
+  ]
 }
