@@ -860,6 +860,11 @@ accounts — only accounts that passed a check with the provider.
   next cron run sends it. Opt-out confirmations are exempt. A malformed rule
   never silences an account. Editable in onboarding and Settings ›
   Business profile; the API requires start before end (no overnight windows).
+  `weekdays_only` skips the recipient's own weekend (2026-11-27):
+  Friday–Saturday for SA, QA, KW, BH, OM, EG and JO (`OTHER_WEEKENDS` in
+  `agents/contact_hours.py`), Saturday–Sunday for every other country,
+  including AE since its 2022 change. Unknown country → the weekend of the
+  sending company's time zone. Public holidays are not taken into account.
 - **Follow-ups** (`scripts/schedule_followups.py`, run by `auto_sends.sh`
   before the email drain): sequence steps with channel `email`, action
   EXACTLY `follow_up`, step_number ≥ 2 and `delay_days` = days after the

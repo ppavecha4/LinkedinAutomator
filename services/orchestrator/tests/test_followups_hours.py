@@ -49,6 +49,44 @@ def test_weekends_and_no_rule():
     assert within_contact_hours({}, now=utc(*SAT, 3))[0]
 
 
+THU, FRI, NEXT_SAT, SUN = (2026, 11, 19), (2026, 11, 20), (2026, 11, 21), (2026, 11, 22)
+
+
+def _open_on(country, org_timezone=None, hour=10):
+    """Thursday to Sunday: may we message this person at `hour` UTC?"""
+    return [within_contact_hours(HOURS, countries=(country,), org_timezone=org_timezone, now=utc(*day, hour))[0]
+            for day in (THU, FRI, NEXT_SAT, SUN)]
+
+
+@pytest.mark.parametrize("country", ["SA", "Saudi Arabia", "QA", "Qatar", "KW", "BH", "OM", "EG", "JO"])
+def test_friday_saturday_weekends(country):
+    assert _open_on(country) == [True, False, False, True]
+
+
+@pytest.mark.parametrize("country", ["AE", "United Arab Emirates", "MA", "LB", "ES", "GB"])
+def test_saturday_sunday_weekends(country):
+    assert _open_on(country) == [True, True, False, False]
+
+
+def test_the_weekend_is_the_recipients_own():
+    # 21:30 UTC on Thursday is already Friday in Riyadh.
+    ok, why = within_contact_hours(HOURS, countries=("SA",), now=utc(*THU, 21, 30))
+    assert not ok and "weekend in Asia/Riyadh" in why
+    # The contact's country decides, not the company's.
+    assert within_contact_hours(HOURS, countries=("AE", "SA"), now=utc(*FRI, 10))[0]
+    assert not within_contact_hours(HOURS, countries=("SA", "AE"), now=utc(*FRI, 10))[0]
+    # A known recipient is not affected by where the sender is.
+    assert _open_on("ES", org_timezone="Asia/Riyadh") == [True, True, False, False]
+    # Turning "weekdays only" off still allows every day.
+    assert within_contact_hours({**HOURS, "weekdays_only": False}, countries=("SA",), now=utc(*FRI, 10))[0]
+
+
+def test_unknown_country_takes_the_sending_companys_weekend():
+    assert _open_on(None, org_timezone="Asia/Riyadh") == [True, False, False, True]
+    assert _open_on("Atlantis", org_timezone="Asia/Kolkata", hour=5) == [True, True, False, False]
+    assert _open_on(None) == [True, True, False, False]
+
+
 def test_unknown_country_uses_the_sending_companys_zone_and_bad_rules_never_silence():
     assert recipient_timezone("Atlantis", None, org_timezone="Asia/Kolkata") == "Asia/Kolkata"
     assert recipient_timezone(None) == "UTC"

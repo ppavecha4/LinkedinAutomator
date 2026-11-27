@@ -316,13 +316,14 @@ export function RulesForm({ value: v, onChange }: SectionProps<RulesSection>): R
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" checked={hours.weekdays_only}
                 onChange={(e) => onChange({ ...v, contact_hours: { ...hours, weekdays_only: e.target.checked } })} />
-              Monday to Friday only
+              Working days only
             </label>
             {bad && <p role="alert" className="text-xs text-destructive">The end time must be later than the start time.</p>}
           </div>
         )}
         <p className="mt-2 pl-6 text-xs text-muted-foreground">
           This is the prospect's local time, worked out from their country. Messages outside it wait in the queue and go out when the window opens.
+          The weekend is Friday and Saturday in Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Egypt and Jordan, and Saturday and Sunday elsewhere.
         </p>
       </div>
     </div>
