@@ -1,6 +1,6 @@
 # Public website
 
-One static page per language: English (default), Spanish, Portuguese (European), German and Dutch.
+A home page and a sign-up page per language: English (default), Spanish, Portuguese (European), German and Dutch.
 No framework, no tracking, no third-party files. The only cookie remembers a language the visitor picked.
 
 ```bash
@@ -22,11 +22,31 @@ python3 -m unittest discover -s website
 record "proxied", and leave Network > IP Geolocation on). Without it step 3 applies.
 Every language also has its own address (`/es/`, `/de/`, ...), which search engines use.
 
+## Sign-up page
+
+`/<language>/signup/`. While `app_signup` is `false` in `site.json` it asks visitors to email for access.
+When the app's sign-up is open, set it to `true` (and keep `signup_fee` equal to the app's `SIGNUP_FEE_*`
+settings), then rebuild: the page and the front page then lead to the app's sign-up form and show the fee.
+
+## Search engines, answer engines, AI assistants
+
+Built into every build with a site address:
+
+- canonical and `hreflang` links, social cards, `sitemap.xml` with the language versions;
+- schema.org data: organisation, website, software, page, breadcrumbs and the front page's questions
+  (the same questions visitors see: edit `faq` and `faq_more` in the language files);
+- `robots.txt` that welcomes search and AI crawlers (`AI_CRAWLERS` in `build.py`);
+- `llms.txt`, a plain summary made from the English page.
+
+After publishing: add the domain in Google Search Console and Bing Webmaster Tools and submit
+`/sitemap.xml`. If Cloudflare is put in front, check that it is not blocking AI crawlers. State only facts
+the product does today: answer engines repeat them.
+
 ## Changing things
 
 | What | Where |
 |---|---|
-| Brand name, contact address, app address, country lists | `site.json` |
+| Brand name, contact address, app address, sign-up switch and fee, country lists | `site.json` |
 | Words | `locales/<language>.json` (same keys in every file) |
 | Design | `src/styles.css` |
 | Country routing on the server | `infrastructure/caddy/Caddyfile` (keep equal to `site.json`; a test checks) |
@@ -35,7 +55,7 @@ A new language: add `locales/<code>.json`, list it in `site.json`, add its routi
 
 ## Publishing
 
-- **On the app's server:** set `WEBSITE_DOMAIN=your-website-domain` in `.env`, point the domain at the
+- **On the app's server:** set `WEBSITE_DOMAIN=your-website-domain` (and `WEBSITE_WWW=www.your-website-domain`) in `.env`, point the domain at the
   server, and run `scripts/vps/deploy.sh` (or `scripts/server/first_start.sh` the first time). Both build
   the site.
 - **On Netlify:** publish the folder `website/dist/`. The generated `_redirects` file picks the language by

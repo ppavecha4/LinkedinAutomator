@@ -35,9 +35,9 @@ If your home internet address changes, update the SSH rule in the console.
 At your DNS provider, set the `A` record of your app's domain to the static IP. Do this before step 6,
 so the HTTPS certificate can be issued.
 
-**Public website** (optional, `website/`): it needs its own domain. Point it at the same IP and, in step 5,
-set `WEBSITE_DOMAIN` in `.env`. To show visitors their country's language, put that domain behind
-Cloudflare (see `website/README.md`).
+**Public website** (optional, `website/`): it needs its own domain. Point it (and `www`) at the same IP and,
+in step 5, set `WEBSITE_DOMAIN=example.com` and `WEBSITE_WWW=www.example.com` in `.env`. To show visitors
+their country's language, put that domain behind Cloudflare (see `website/README.md`).
 
 ## 5. Prepare the server
 

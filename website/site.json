@@ -3,7 +3,9 @@
   "company": "Ritik Technologie Private Limited",
   "contact_email": "info@appsontechnologies.in",
   "site_url": "https://amireach.com",
-  "app_url": "",
+  "app_url": "https://app.amireach.com",
+  "app_signup": false,
+  "signup_fee": { "inr": "₹218.30", "usd": "US$2" },
   "default_language": "en",
   "languages": ["en", "es", "pt", "de", "nl"],
   "countries": {

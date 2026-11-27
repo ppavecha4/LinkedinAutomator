@@ -18,6 +18,8 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		# The signed-in app stays out of search results; the public website is what should be found.
+		X-Robots-Tag "noindex, nofollow"
 		-Server
 	}
 
@@ -122,4 +124,17 @@
 	handle {
 		file_server
 	}
+
+	handle_errors {
+		@missing expression {http.error.status_code} == 404
+		handle @missing {
+			rewrite * /404.html
+			file_server
+		}
+	}
+}
+
+# "www." of the public website goes to the plain address (set WEBSITE_WWW together with WEBSITE_DOMAIN).
+{$WEBSITE_WWW:http://www.website.localhost} {
+	redir https://{$WEBSITE_DOMAIN:website.localhost}{uri} permanent
 }

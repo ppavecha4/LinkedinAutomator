@@ -177,6 +177,8 @@ services:
       DOMAIN: ${DOMAIN:-localhost}
       # The public website's address (website/). Empty = not published.
       WEBSITE_DOMAIN: ${WEBSITE_DOMAIN:-http://website.localhost}
+      # Its "www." address, sent on to WEBSITE_DOMAIN. Empty = none.
+      WEBSITE_WWW: ${WEBSITE_WWW:-http://www.website.localhost}
     ports: ["80:80", "443:443"]
     volumes:
       - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro

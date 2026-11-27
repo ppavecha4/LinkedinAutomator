@@ -29,6 +29,7 @@ NODE_ENV=production
 DOMAIN=$DOMAIN
 # The public website's own domain, e.g. example.com (point it at this server first). Empty = no website.
 WEBSITE_DOMAIN=
+WEBSITE_WWW=
 DASHBOARD_URL=$URL
 CORS_ORIGINS=$URL
 UNSUBSCRIBE_BASE_URL=$URL

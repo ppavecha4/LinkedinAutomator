@@ -124,5 +124,50 @@
       "title": "Finanzas y servicios profesionales",
       "text": "Abre conversaciones con propietarios de empresas y equipos financieros, con un motivo claro para hablar."
     }
-  ]
+  ],
+  "og_locale": "es_ES",
+  "about_title": "¿Qué es {brand}?",
+  "about_text": "{brand} es una herramienta de contacto comercial para empresas que venden a otras empresas. Escribe un mensaje personal a cada cliente potencial en su idioma y lo envía desde tus propias cuentas de correo y WhatsApp. Tú lees los mensajes antes y no se envía nada hasta que lanzas la campaña. {brand} es un producto de {company}.",
+  "cta_signup": "Crear tu cuenta",
+  "signup_meta_title": "Regístrate en {brand}: contacto personalizado para tu empresa",
+  "signup_meta_description": "Cómo crear tu cuenta de {brand}: qué necesitas, qué pasa después y cómo empezar tu primera campaña por correo y WhatsApp.",
+  "signup_title": "Crea tu cuenta de {brand}",
+  "signup_text": "La cuenta es para tu empresa. Necesitas tu nombre, el nombre de la empresa, un correo de trabajo y una contraseña de al menos 12 caracteres.",
+  "signup_steps_title": "Qué pasa cuando te registras",
+  "signup_steps": [
+    {
+      "title": "Crea la cuenta",
+      "text": "Introduce tus datos y acepta las Condiciones del servicio y la Política de privacidad."
+    },
+    {
+      "title": "Paga la cuota única de alta",
+      "text": "Un solo pago abre tu cuenta. En la India puedes pagar por UPI, incluido BHIM, con tarjeta o banca en línea; en el resto del mundo, con tarjeta."
+    },
+    {
+      "title": "Configura y lanza",
+      "text": "Cuenta a la IA a qué se dedica tu empresa, revisa la primera campaña y sus mensajes, y lánzala cuando estés conforme."
+    }
+  ],
+  "signup_closed": "El registro en línea se abrirá pronto. Envíanos un correo breve y te avisaremos cuando puedas crear tu cuenta.",
+  "signup_fee_text": "Cuota única de alta: {inr} en la India (IVA indio incluido) o {usd} en el resto del mundo. No es una suscripción.",
+  "signup_have_account": "¿Ya tienes una cuenta?",
+  "signup_form_note": "El formulario de registro y el producto están en inglés.",
+  "pricing_open_text": "Estamos ultimando los planes mensuales. Cualquier otro precio se muestra antes de pagarlo, con los impuestos que correspondan.",
+  "final_open_text": "Crea tu cuenta y la IA te ayudará a preparar tu primera campaña.",
+  "faq_cost_q": "¿Cuánto cuesta {brand}?",
+  "faq_more": [
+    {
+      "q": "¿Se envía algo sin mi aprobación?",
+      "a": "No. Primero revisas la campaña y sus mensajes, y no se envía nada hasta que la lanzas. Después, los recordatorios salen según el calendario y paran cuando alguien responde."
+    },
+    {
+      "q": "¿Necesito mis propias cuentas de correo y WhatsApp?",
+      "a": "Sí. Los mensajes salen desde tu buzón y tu número de WhatsApp de empresa, y pagas directamente a esos proveedores. WhatsApp exige el consentimiento del destinatario antes de escribirle."
+    },
+    {
+      "q": "¿Mis datos están separados de los de otras empresas?",
+      "a": "Sí. Los datos de cada empresa están separados en la base de datos y las claves de tus cuentas conectadas se guardan cifradas."
+    }
+  ],
+  "not_found_title": "Página no encontrada"
 }

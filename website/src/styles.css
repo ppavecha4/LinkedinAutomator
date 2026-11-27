@@ -88,6 +88,7 @@ footer { padding: 2rem 0 3rem; border-top: 1px solid var(--line); color: var(--m
   section { padding: 3rem 0; }
 }
 
+.notice { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: .9rem 1.1rem; margin-top: 1.25rem; }
 .badges { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }
 .badges li { font-size: .9rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: .3rem .8rem; background: var(--surface); }
 .compare { gap: 1.5rem; align-items: stretch; margin-top: 1.5rem; }

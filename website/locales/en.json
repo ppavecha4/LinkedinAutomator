@@ -124,5 +124,50 @@
       "title": "Finance and professional services",
       "text": "Open conversations with business owners and finance teams, with a clear reason to talk."
     }
-  ]
+  ],
+  "og_locale": "en_US",
+  "about_title": "What is {brand}?",
+  "about_text": "{brand} is an outreach tool for businesses that sell to other businesses. It writes a personal message to each prospect in their language and sends it from your own email and WhatsApp accounts. You read the messages first, and nothing is sent until you launch. {brand} is made by {company}.",
+  "cta_signup": "Create your account",
+  "signup_meta_title": "Sign up for {brand}: personal outreach for your business",
+  "signup_meta_description": "How to create your {brand} account: what you need, what happens next and how to start your first campaign by email and WhatsApp.",
+  "signup_title": "Create your {brand} account",
+  "signup_text": "An account is for your company. You need your name, your company name, a work email and a password of at least 12 characters.",
+  "signup_steps_title": "What happens when you sign up",
+  "signup_steps": [
+    {
+      "title": "Create the account",
+      "text": "Enter your details and accept the Terms of Service and Privacy Policy."
+    },
+    {
+      "title": "Pay the one-time sign-up fee",
+      "text": "A single payment opens your account. In India you can pay by UPI, including BHIM, card or netbanking; elsewhere by card."
+    },
+    {
+      "title": "Set up and launch",
+      "text": "Tell the AI about your business, check the first campaign and its messages, then launch when you are happy."
+    }
+  ],
+  "signup_closed": "Online sign-up is opening soon. Send us a short email and we will tell you when your account can be created.",
+  "signup_fee_text": "One-time sign-up fee: {inr} in India (GST included) or {usd} elsewhere. It is not a subscription.",
+  "signup_have_account": "Already have an account?",
+  "signup_form_note": "",
+  "pricing_open_text": "Monthly plans are being finalised. Any further price is shown before you pay it, with the taxes that apply.",
+  "final_open_text": "Create your account and the AI helps you prepare your first campaign.",
+  "faq_cost_q": "How much does {brand} cost?",
+  "faq_more": [
+    {
+      "q": "Is anything sent without my approval?",
+      "a": "No. You check the campaign and its messages first, and nothing is sent until you launch. After that, follow-ups go out on schedule and stop when someone replies."
+    },
+    {
+      "q": "Do I need my own email and WhatsApp accounts?",
+      "a": "Yes. Messages go out from your own mailbox and your WhatsApp business number, and you pay those providers directly. WhatsApp requires the recipient's agreement before you message them."
+    },
+    {
+      "q": "Is my data kept separate from other companies?",
+      "a": "Yes. Each company's data is separated in the database, and the keys of your connected accounts are stored encrypted."
+    }
+  ],
+  "not_found_title": "Page not found"
 }

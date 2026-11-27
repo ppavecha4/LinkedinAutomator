@@ -124,5 +124,50 @@
       "title": "Financiële en zakelijke dienstverleners",
       "text": "Open gesprekken met ondernemers en financiële teams, met een duidelijke aanleiding."
     }
-  ]
+  ],
+  "og_locale": "nl_NL",
+  "about_title": "Wat is {brand}?",
+  "about_text": "{brand} is een hulpmiddel voor bedrijven die aan andere bedrijven verkopen. Het schrijft elke potentiële klant een persoonlijk bericht in de eigen taal en verstuurt het vanuit je eigen e-mail- en WhatsApp-account. Je leest de berichten eerst, en er wordt niets verstuurd tot je start. {brand} is een product van {company}.",
+  "cta_signup": "Account aanmaken",
+  "signup_meta_title": "Aanmelden bij {brand}: persoonlijk klantcontact",
+  "signup_meta_description": "Zo maak je een {brand}-account aan: wat je nodig hebt, wat er daarna gebeurt en hoe je je eerste campagne via e-mail en WhatsApp start.",
+  "signup_title": "Maak je {brand}-account aan",
+  "signup_text": "Het account is voor je bedrijf. Je hebt je naam, de bedrijfsnaam, een zakelijk e-mailadres en een wachtwoord van minstens 12 tekens nodig.",
+  "signup_steps_title": "Wat er gebeurt als je je aanmeldt",
+  "signup_steps": [
+    {
+      "title": "Maak het account aan",
+      "text": "Vul je gegevens in en ga akkoord met de Servicevoorwaarden en het Privacybeleid."
+    },
+    {
+      "title": "Betaal de eenmalige aanmeldkosten",
+      "text": "Eén betaling opent je account. In India betaal je met UPI (ook BHIM), kaart of internetbankieren, daarbuiten met een kaart."
+    },
+    {
+      "title": "Instellen en starten",
+      "text": "Vertel de AI over je bedrijf, controleer de eerste campagne en de berichten, en start wanneer je tevreden bent."
+    }
+  ],
+  "signup_closed": "Online aanmelden kan binnenkort. Stuur ons een kort bericht, dan laten we weten wanneer je je account kunt aanmaken.",
+  "signup_fee_text": "Eenmalige aanmeldkosten: {inr} in India (inclusief Indiase btw) of {usd} daarbuiten. Het is geen abonnement.",
+  "signup_have_account": "Heb je al een account?",
+  "signup_form_note": "Het aanmeldformulier en het product zijn in het Engels.",
+  "pricing_open_text": "De maandabonnementen worden nog vastgesteld. Elke verdere prijs zie je voordat je betaalt, met de belastingen die van toepassing zijn.",
+  "final_open_text": "Maak je account aan en de AI helpt je je eerste campagne voor te bereiden.",
+  "faq_cost_q": "Wat kost {brand}?",
+  "faq_more": [
+    {
+      "q": "Wordt er iets verstuurd zonder mijn goedkeuring?",
+      "a": "Nee. Je controleert eerst de campagne en de berichten, en er wordt niets verstuurd tot je start. Daarna gaan herinneringen volgens schema uit en stoppen ze zodra iemand reageert."
+    },
+    {
+      "q": "Heb ik eigen e-mail- en WhatsApp-accounts nodig?",
+      "a": "Ja. Berichten komen uit je eigen mailbox en van je zakelijke WhatsApp-nummer, en je betaalt die aanbieders rechtstreeks. Voor WhatsApp is vooraf toestemming van de ontvanger nodig."
+    },
+    {
+      "q": "Blijven mijn gegevens gescheiden van die van andere bedrijven?",
+      "a": "Ja. De gegevens van elk bedrijf zijn in de database gescheiden en de sleutels van je gekoppelde accounts worden versleuteld opgeslagen."
+    }
+  ],
+  "not_found_title": "Pagina niet gevonden"
 }

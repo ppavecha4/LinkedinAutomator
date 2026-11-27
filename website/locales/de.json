@@ -124,5 +124,50 @@
       "title": "Finanz- und professionelle Dienstleister",
       "text": "Kommen Sie mit Unternehmern und Finanzteams ins Gespräch, mit einem klaren Anlass."
     }
-  ]
+  ],
+  "og_locale": "de_DE",
+  "about_title": "Was ist {brand}?",
+  "about_text": "{brand} ist ein Werkzeug für die Kundenansprache von Unternehmen, die an andere Unternehmen verkaufen. Es schreibt jedem Interessenten eine persönliche Nachricht in dessen Sprache und versendet sie über Ihre eigenen E-Mail- und WhatsApp-Konten. Sie lesen die Nachrichten vorher, und nichts wird versendet, bevor Sie starten. {brand} ist ein Produkt von {company}.",
+  "cta_signup": "Konto erstellen",
+  "signup_meta_title": "Bei {brand} registrieren: persönliche Kundenansprache",
+  "signup_meta_description": "So erstellen Sie Ihr {brand}-Konto: was Sie brauchen, wie es weitergeht und wie Sie Ihre erste Kampagne per E-Mail und WhatsApp starten.",
+  "signup_title": "Erstellen Sie Ihr {brand}-Konto",
+  "signup_text": "Das Konto gilt für Ihr Unternehmen. Sie brauchen Ihren Namen, den Firmennamen, eine geschäftliche E-Mail-Adresse und ein Passwort mit mindestens 12 Zeichen.",
+  "signup_steps_title": "So läuft die Registrierung ab",
+  "signup_steps": [
+    {
+      "title": "Konto anlegen",
+      "text": "Geben Sie Ihre Daten ein und stimmen Sie den Nutzungsbedingungen und der Datenschutzerklärung zu."
+    },
+    {
+      "title": "Einmalige Anmeldegebühr bezahlen",
+      "text": "Eine einzige Zahlung öffnet Ihr Konto. In Indien zahlen Sie per UPI (auch BHIM), Karte oder Netbanking, außerhalb Indiens per Karte."
+    },
+    {
+      "title": "Einrichten und starten",
+      "text": "Beschreiben Sie der KI Ihr Unternehmen, prüfen Sie die erste Kampagne und ihre Nachrichten und starten Sie, wenn alles passt."
+    }
+  ],
+  "signup_closed": "Die Online-Registrierung wird bald freigeschaltet. Schreiben Sie uns kurz, und wir melden uns, sobald Sie Ihr Konto anlegen können.",
+  "signup_fee_text": "Einmalige Anmeldegebühr: {inr} in Indien (inklusive indischer Umsatzsteuer) oder {usd} in anderen Ländern. Kein Abonnement.",
+  "signup_have_account": "Sie haben bereits ein Konto?",
+  "signup_form_note": "Das Registrierungsformular und das Produkt sind auf Englisch.",
+  "pricing_open_text": "Die monatlichen Tarife werden noch festgelegt. Jeder weitere Preis wird vor der Zahlung angezeigt, einschließlich anfallender Steuern.",
+  "final_open_text": "Erstellen Sie Ihr Konto, und die KI hilft Ihnen bei Ihrer ersten Kampagne.",
+  "faq_cost_q": "Was kostet {brand}?",
+  "faq_more": [
+    {
+      "q": "Wird etwas ohne meine Freigabe versendet?",
+      "a": "Nein. Sie prüfen zuerst die Kampagne und ihre Nachrichten, und nichts wird versendet, bevor Sie starten. Danach gehen Erinnerungen nach Zeitplan raus und enden, sobald jemand antwortet."
+    },
+    {
+      "q": "Brauche ich eigene E-Mail- und WhatsApp-Konten?",
+      "a": "Ja. Die Nachrichten kommen aus Ihrem Postfach und von Ihrer WhatsApp-Geschäftsnummer, und Sie bezahlen diese Anbieter direkt. Für WhatsApp ist vorher die Zustimmung der Empfänger erforderlich."
+    },
+    {
+      "q": "Sind meine Daten von denen anderer Unternehmen getrennt?",
+      "a": "Ja. Die Daten jedes Unternehmens sind in der Datenbank getrennt, und die Zugangsschlüssel Ihrer verbundenen Konten werden verschlüsselt gespeichert."
+    }
+  ],
+  "not_found_title": "Seite nicht gefunden"
 }
