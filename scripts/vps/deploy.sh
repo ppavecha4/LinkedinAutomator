@@ -113,6 +113,27 @@ SITE="$(sed -n 's/^WEBSITE_DOMAIN=//p' .env | tail -1 | tr -d "'\r")"
 run python3 website/build.py ${SITE:+--site-url "https://$SITE"}
 run "${COMPOSE[@]}" up -d --build
 
+# The web server reads one mounted file. `git pull` replaces that file, but a running container keeps
+# the old one and `up -d` leaves it alone. So compare what the container sees with the repository's
+# copy and, when they differ, restart it: only after checking the new file, so a mistake in it leaves
+# the web server running on its old settings.
+CADDYFILE=infrastructure/caddy/Caddyfile
+WEB_PROBLEM=""
+if [ "$DRY" = 1 ]; then
+  echo "   [dry run] if the web server has old settings: check $CADDYFILE, then restart caddy"
+elif ! "${COMPOSE[@]}" exec -T caddy cat /etc/caddy/Caddyfile </dev/null 2>/dev/null | cmp -s - "$CADDYFILE"; then
+  echo "   the web server settings changed: checking the new ones"
+  if ! CHECK="$("${COMPOSE[@]}" run --rm --no-deps -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile </dev/null 2>&1)"; then
+    printf '%s\n' "$CHECK" | tail -5
+    WEB_PROBLEM="$CADDYFILE did not pass the check, so the web server was NOT restarted. Fix the file and deploy again."
+  elif "${COMPOSE[@]}" restart caddy; then
+    echo "   web server restarted with the new settings"
+  else
+    WEB_PROBLEM="the web server did not restart: docker logs ai-sales-agent-caddy-1 --tail 50"
+  fi
+  [ -z "$WEB_PROBLEM" ] || echo "   !! $WEB_PROBLEM"
+fi
+
 # Nothing but the web server may be reachable from outside: check what is really published now.
 if [ "$DRY" = 0 ]; then
   bash scripts/server/check_ports.sh running || die "a container publishes a port other than 80/443 (listed above). Fix this now: docker ps"
@@ -156,6 +177,8 @@ fi
 echo "Then smoke test: sign in, open Platform > System health, send one test email."
 echo
 echo "To go back (migrations are forward-only, so restore the dump too):"
-echo "   git reset --hard ${BEFORE:0:7} && ${COMPOSE[*]} up -d --build"
+echo "   git reset --hard ${BEFORE:0:7} && ${COMPOSE[*]} up -d --build && ${COMPOSE[*]} restart caddy"
 [ -n "$DUMP" ] && echo "   docker exec -i $POSTGRES pg_restore -U agent -d salesagent --clean --if-exists < $DUMP"
+# Last, so it is not lost above the rollback commands.
+[ -z "$WEB_PROBLEM" ] || printf '\n!! WEB SERVER: %s\n' "$WEB_PROBLEM"
 exit 0

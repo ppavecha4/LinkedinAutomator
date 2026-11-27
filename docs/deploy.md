@@ -57,6 +57,11 @@ then: backs up the database, pauses the crons, `git pull --ff-only`, runs the mi
 starts the stack, updates the cron scripts in `/usr/local/bin`, restores the crons, and waits for the API to
 answer. The crons are restored even if a step fails. Anything that fails before the pull changes nothing.
 
+When `infrastructure/caddy/Caddyfile` changed, it also checks the new file and restarts the web server (a few
+seconds without the site and the app). If the check fails, the web server keeps its old settings and the
+script ends with a `!! WEB SERVER` line. The release that adds this step still runs the old script, so a
+Caddyfile change in that same release needs `sudo docker restart ai-sales-agent-caddy-1` by hand.
+
 If it prints a V17 note, finish the runbook step below.
 
 ### The first release of the multi-tenant version
