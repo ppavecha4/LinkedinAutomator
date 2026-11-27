@@ -59,7 +59,8 @@ class SiteTest(unittest.TestCase):
             build.build("https://example.test/", out)
             for lang in CFG["languages"]:
                 text = (out / lang / "index.html").read_text(encoding="utf-8")
-                self.assertIn(f'<html lang="{lang}">', text)
+                rtl = ' dir="rtl"' if lang in CFG["rtl_languages"] else ""
+                self.assertIn(f'<html lang="{lang}"{rtl}>', text)
                 self.assertNotIn("{brand}", text)
                 self.assertIn(CFG["brand"], text)
                 self.assertIn(f'<link rel="canonical" href="https://example.test/{lang}/">', text)
@@ -221,6 +222,25 @@ class SiteTest(unittest.TestCase):
             llms = (out / "llms.txt").read_text(encoding="utf-8")
             self.assertIn("This is not available yet.", llms)
             self.assertIn("Does AmiReach answer replies for me?\nNot yet.", llms)
+
+    def test_arabic_reads_right_to_left_and_gulf_visitors_get_it(self):
+        self.assertEqual(CFG["countries"]["ar"], ["SA"])
+        for country in ("AE", "QA"):                       # many business readers there use English: the browser decides
+            self.assertEqual(CFG["multilingual_countries"][country], ["ar"])
+        caddy = (HERE.parent / "infrastructure" / "caddy" / "Caddyfile").read_text(encoding="utf-8")
+        for matcher in ("@saved_ar", "@ae_ar", "@qa_ar", "@country_ar", "@browser_ar"):
+            self.assertIn(f"redir {matcher} /ar/ 302", caddy)
+        styles = (HERE / "src" / "styles.css").read_text(encoding="utf-8")
+        outside_banner = "\n".join(line for line in styles.splitlines() if not line.startswith(".banner"))
+        self.assertNotRegex(outside_banner, r"(?<![-\w])(left|right|margin-left|margin-right|padding-left|padding-right|border-left)\s*:",
+                            "use inline-start / inline-end so Arabic mirrors correctly")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            build.build("https://example.test", out)
+            english = (out / "en" / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<li class="sample" lang="ar" dir="rtl">', english)
+            arabic = (out / "ar" / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<li class="sample" lang="en" dir="ltr">', arabic)
 
     def test_static_hosting_rules_choose_the_language_the_same_way(self):
         rules = build.netlify_redirects(CFG, "https://example.test").splitlines()

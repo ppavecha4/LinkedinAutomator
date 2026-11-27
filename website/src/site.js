@@ -2,7 +2,7 @@
 // sends the root page to the visitor's language. No tracking, no third-party code.
 (function () {
   'use strict';
-  var all = ['en', 'es', 'pt', 'de', 'nl'];
+  var all = ['en', 'es', 'pt', 'de', 'nl', 'ar'];
   function remember(lang) {
     var keep = '; path=/; max-age=31536000; SameSite=Lax';
     document.cookie = 'lang=' + lang + keep;

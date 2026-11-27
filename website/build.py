@@ -143,6 +143,14 @@ def web_page(site_url: str, path: str, lang: str, title: str, description: str, 
     return graph
 
 
+def direction(cfg: dict, lang: str, always: bool = False) -> str:
+    """The dir attribute: right-to-left languages need it; `always` also marks left-to-right text, for a
+    sentence quoted inside a page written the other way."""
+    if lang in cfg.get("rtl_languages", []):
+        return ' dir="rtl"'
+    return ' dir="ltr"' if always else ""
+
+
 def head(cfg: dict, site_url: str, *, title: str, description: str, up: str, path: str, lang: str,
          alternates: str | None = None, locale: str = "en_US", other_locales: tuple = (), graph: list | None = None) -> str:
     """The shared <head>. `up` leads back to the site root; `alternates` is the path after the language."""
@@ -160,7 +168,7 @@ def head(cfg: dict, site_url: str, *, title: str, description: str, up: str, pat
         seo += f'  <meta name="twitter:image" content="{e(site_url)}/social.png">\n'
     seo += "".join(f'  <meta property="og:locale:alternate" content="{c}">\n' for c in other_locales)
     return f"""<!doctype html>
-<html lang="{lang}">
+<html lang="{lang}"{direction(cfg, lang)}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -324,7 +332,7 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tup
                     for i, c in enumerate(t["cases"]))
     codes = "".join(f'<li lang="{c}">{c.upper()}</li>' for c in cfg["languages"])
     # The same example message in the other languages: each is the text from that language's own file.
-    spoken = "".join(f'<li class="sample" lang="{code}"><span>{e(names[code])}</span><p>{e(first_sentence(body))}</p></li>'
+    spoken = "".join(f'<li class="sample" lang="{code}"{direction(cfg, code, always=True)}><span>{e(names[code])}</span><p>{e(first_sentence(body))}</p></li>'
                      for code, body in (samples or {}).items() if code != lang)
     pricing = f'<p class="price">{e(signup_fee_text(t, cfg))}</p><p>{e(t["pricing_open_text"])}</p>' if opened else f'<p>{e(t["pricing_text"])}</p>'
     join = f'<a class="button" href="signup/">{e(cta)}</a>'

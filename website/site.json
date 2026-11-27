@@ -7,15 +7,19 @@
   "app_signup": false,
   "signup_fee": { "inr": "₹218.30", "usd": "US$2" },
   "default_language": "en",
-  "languages": ["en", "es", "pt", "de", "nl"],
+  "languages": ["en", "es", "pt", "de", "nl", "ar"],
+  "rtl_languages": ["ar"],
   "countries": {
     "es": ["ES", "MX", "AR", "CO", "CL", "PE", "VE", "EC", "GT", "CU", "BO", "DO", "HN", "PY", "SV", "NI", "CR", "PA", "UY", "PR", "GQ"],
     "pt": ["PT", "BR", "AO", "MZ", "CV", "GW", "ST", "TL"],
     "de": ["DE", "AT", "LI"],
-    "nl": ["NL", "SR"]
+    "nl": ["NL", "SR"],
+    "ar": ["SA"]
   },
   "multilingual_countries": {
     "BE": ["nl", "de"],
-    "CH": ["de"]
+    "CH": ["de"],
+    "AE": ["ar"],
+    "QA": ["ar"]
   }
 }

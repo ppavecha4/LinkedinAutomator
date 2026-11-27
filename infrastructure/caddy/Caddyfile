@@ -77,6 +77,8 @@
 			redir @saved_de /de/ 302
 			@saved_nl header_regexp Cookie (?:^|;\s*)lang=nl(?:;|$)
 			redir @saved_nl /nl/ 302
+			@saved_ar header_regexp Cookie (?:^|;\s*)lang=ar(?:;|$)
+			redir @saved_ar /ar/ 302
 			# 2. countries with several languages: the browser decides among that country's languages
 			@be_nl {
 				header Cf-Ipcountry BE
@@ -93,6 +95,16 @@
 				header_regexp Accept-Language (?i)^\s*de\b
 			}
 			redir @ch_de /de/ 302
+			@ae_ar {
+				header Cf-Ipcountry AE
+				header_regexp Accept-Language (?i)^\s*ar\b
+			}
+			redir @ae_ar /ar/ 302
+			@qa_ar {
+				header Cf-Ipcountry QA
+				header_regexp Accept-Language (?i)^\s*ar\b
+			}
+			redir @qa_ar /ar/ 302
 			# 2. the country
 			@country_es header_regexp Cf-Ipcountry ^(ES|MX|AR|CO|CL|PE|VE|EC|GT|CU|BO|DO|HN|PY|SV|NI|CR|PA|UY|PR|GQ)$
 			redir @country_es /es/ 302
@@ -102,6 +114,8 @@
 			redir @country_de /de/ 302
 			@country_nl header_regexp Cf-Ipcountry ^(NL|SR)$
 			redir @country_nl /nl/ 302
+			@country_ar header_regexp Cf-Ipcountry ^(SA)$
+			redir @country_ar /ar/ 302
 			# any other known country: English ("XX" means unknown)
 			@country_other {
 				header_regexp Cf-Ipcountry ^[A-Z]{2}$
@@ -117,6 +131,8 @@
 			redir @browser_de /de/ 302
 			@browser_nl header_regexp Accept-Language (?i)^\s*nl\b
 			redir @browser_nl /nl/ 302
+			@browser_ar header_regexp Accept-Language (?i)^\s*ar\b
+			redir @browser_ar /ar/ 302
 			redir * /en/ 302
 		}
 	}
