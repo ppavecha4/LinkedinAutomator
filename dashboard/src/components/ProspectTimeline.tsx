@@ -42,6 +42,8 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 
+import { label } from '../lib/labels';
+import { t, tn } from '../i18n';
 import type { TimelineEvent } from '../hooks/useTimeline';
 import { cn } from '../lib/cn';
 import { formatRelative } from '../lib/format';
@@ -54,28 +56,28 @@ interface VerbMeta {
 }
 
 const VERB_META: Record<string, VerbMeta> = {
-  discovered: { label: 'Discovered', icon: Sparkles, tone: 'bg-emerald-500' },
-  enriched: { label: 'Enriched', icon: UserCheck, tone: 'bg-sky-500' },
-  message_drafted: { label: 'Draft prepared', icon: MessageSquare, tone: 'bg-sky-500' },
-  message_queued: { label: 'Queued for send', icon: PauseCircle, tone: 'bg-sky-500' },
-  message_sent: { label: 'Sent', icon: Send, tone: 'bg-sky-500' },
-  message_delivered: { label: 'Delivered', icon: CheckCircle2, tone: 'bg-sky-500' },
-  message_opened: { label: 'Opened / seen', icon: Eye, tone: 'bg-violet-500' },
-  message_clicked: { label: 'Link clicked', icon: Target, tone: 'bg-violet-500' },
-  message_replied: { label: 'Replied', icon: Inbox, tone: 'bg-rose-500' },
-  message_bounced: { label: 'Bounced', icon: XCircle, tone: 'bg-amber-500' },
-  message_failed: { label: 'Send failed', icon: XCircle, tone: 'bg-rose-500' },
-  connection_requested: { label: 'Connection request sent', icon: UserPlus, tone: 'bg-sky-500' },
-  connection_accepted: { label: 'Connection accepted', icon: UserCheck, tone: 'bg-emerald-500' },
-  connection_declined: { label: 'Connection declined', icon: UserMinus, tone: 'bg-rose-500' },
-  meeting_booked: { label: 'Meeting booked', icon: Calendar, tone: 'bg-violet-500' },
-  meeting_completed: { label: 'Meeting completed', icon: CheckCircle2, tone: 'bg-emerald-500' },
-  opted_out: { label: 'Opted out', icon: UserMinus, tone: 'bg-rose-500' },
-  note: { label: 'Note', icon: Activity, tone: 'bg-muted-foreground' },
+  discovered: { label: t('Discovered'), icon: Sparkles, tone: 'bg-emerald-500' },
+  enriched: { label: t('Enriched'), icon: UserCheck, tone: 'bg-sky-500' },
+  message_drafted: { label: t('Draft prepared'), icon: MessageSquare, tone: 'bg-sky-500' },
+  message_queued: { label: t('Queued for send'), icon: PauseCircle, tone: 'bg-sky-500' },
+  message_sent: { label: t('Sent'), icon: Send, tone: 'bg-sky-500' },
+  message_delivered: { label: t('Delivered'), icon: CheckCircle2, tone: 'bg-sky-500' },
+  message_opened: { label: t('Opened / seen'), icon: Eye, tone: 'bg-violet-500' },
+  message_clicked: { label: t('Link clicked'), icon: Target, tone: 'bg-violet-500' },
+  message_replied: { label: t('Replied'), icon: Inbox, tone: 'bg-rose-500' },
+  message_bounced: { label: t('Bounced'), icon: XCircle, tone: 'bg-amber-500' },
+  message_failed: { label: t('Send failed'), icon: XCircle, tone: 'bg-rose-500' },
+  connection_requested: { label: t('Connection request sent'), icon: UserPlus, tone: 'bg-sky-500' },
+  connection_accepted: { label: t('Connection accepted'), icon: UserCheck, tone: 'bg-emerald-500' },
+  connection_declined: { label: t('Connection declined'), icon: UserMinus, tone: 'bg-rose-500' },
+  meeting_booked: { label: t('Meeting booked'), icon: Calendar, tone: 'bg-violet-500' },
+  meeting_completed: { label: t('Meeting completed'), icon: CheckCircle2, tone: 'bg-emerald-500' },
+  opted_out: { label: t('Opted out'), icon: UserMinus, tone: 'bg-rose-500' },
+  note: { label: t('Note'), icon: Activity, tone: 'bg-muted-foreground' },
 };
 
 const FALLBACK_META: VerbMeta = {
-  label: 'Event',
+  label: t('Event'),
   icon: Activity,
   tone: 'bg-muted-foreground',
 };
@@ -91,8 +93,8 @@ function describePayload(p: Record<string, unknown>): string {
   if (!p || typeof p !== 'object') return '';
   if (typeof p.note === 'string' && p.note) return p.note;
   if (typeof p.reason === 'string' && p.reason) return p.reason;
-  if (typeof p.via === 'string') return `via ${p.via}`;
-  if (typeof p.to === 'string') return `to ${p.to}`;
+  if (typeof p.via === 'string') return t('via {name}', { name: p.via });
+  if (typeof p.to === 'string') return t('to {name}', { name: p.to });
   if (
     typeof p.email_revealed === 'boolean' ||
     typeof p.linkedin_url_revealed === 'boolean'
@@ -100,9 +102,9 @@ function describePayload(p: Record<string, unknown>): string {
     const bits: string[] = [];
     if (p.linkedin_url_revealed) bits.push('linkedin');
     if (p.email_revealed) bits.push('email');
-    if (bits.length) return `unlocked ${bits.join(' + ')}`;
+    if (bits.length) return t('unlocked {items}', { items: bits.join(' + ') });
   }
-  if (typeof p.body_chars === 'number') return `${p.body_chars} chars`;
+  if (typeof p.body_chars === 'number') return tn(p.body_chars, '{count} character', '{count} characters');
   return '';
 }
 
@@ -142,8 +144,7 @@ export function ProspectTimeline({
         {emptyState ?? (
           <>
             <History className="mx-auto h-5 w-5 mb-2 opacity-60" />
-            No events yet — discovery, sends, opens, and replies will
-            appear here.
+            {t('No events yet — discovery, sends, opens, and replies will appear here.')}
           </>
         )}
       </div>
@@ -153,7 +154,7 @@ export function ProspectTimeline({
   return (
     <ol
       className={cn(
-        'relative border-l border-border/60 ml-3 space-y-4',
+        'relative border-s border-border/60 ms-3 space-y-4',
         className,
       )}
     >
@@ -164,10 +165,10 @@ export function ProspectTimeline({
         const detail = describePayload(e.payload);
         const operatorTagged = e.source === 'operator' || e.source === 'manual';
         return (
-          <li key={e.id} className="pl-5 relative">
+          <li key={e.id} className="ps-5 relative">
             <span
               className={cn(
-                '-left-[7px] top-1.5 absolute flex h-3.5 w-3.5 items-center justify-center rounded-full ring-4 ring-background',
+                '-start-[7px] top-1.5 absolute flex h-3.5 w-3.5 items-center justify-center rounded-full ring-4 ring-background',
                 meta.tone,
               )}
             />
@@ -178,7 +179,7 @@ export function ProspectTimeline({
                   {ChannelIcon && (
                     <span className="inline-flex items-center gap-0.5 rounded bg-muted/60 px-1.5 py-0 text-[10px] uppercase tracking-wider text-muted-foreground">
                       <ChannelIcon className="h-2.5 w-2.5" />
-                      {e.channel}
+                      {label(e.channel)}
                     </span>
                   )}
                   <span className="text-sm font-medium leading-tight">
@@ -186,7 +187,7 @@ export function ProspectTimeline({
                   </span>
                   {operatorTagged && (
                     <span className="text-[10px] text-muted-foreground/80">
-                      · operator
+                      {t('· operator')}
                     </span>
                   )}
                 </div>

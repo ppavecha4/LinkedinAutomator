@@ -2,6 +2,7 @@
  * Shared wizard-state type — the draft the user is building before submit.
  */
 
+import { msg, t } from '../../i18n';
 import type { Channel } from '../../lib/types';
 
 export interface WizardSequenceStep {
@@ -57,10 +58,10 @@ export const INITIAL_DRAFT: WizardDraft = {
 
   channels_enabled: ['email', 'linkedin'],
   sequence: [
-    { day: 1, channel: 'linkedin', action: 'Connection request', note: 'personalised note' },
-    { day: 3, channel: 'email', action: 'Intro', note: 'AI-generated per prospect' },
-    { day: 7, channel: 'email', action: 'Follow-up 1', note: 'based on reply signal' },
-    { day: 12, channel: 'linkedin', action: 'DM follow-up', note: 'only if connected' },
+    { day: 1, channel: 'linkedin', action: t('Connection request'), note: t('personalised note') },
+    { day: 3, channel: 'email', action: t('Intro'), note: t('AI-generated per prospect') },
+    { day: 7, channel: 'email', action: t('Follow-up 1'), note: t('based on reply signal') },
+    { day: 12, channel: 'linkedin', action: t('DM follow-up'), note: t('only if connected') },
   ],
   daily_limits: { email: 100, linkedin: 20, whatsapp: 0 },
   batch_size: 500,
@@ -69,27 +70,28 @@ export const INITIAL_DRAFT: WizardDraft = {
 };
 
 export const INDUSTRY_OPTIONS = [
-  'Logistics',
-  'Manufacturing',
-  'Financial Services',
-  'Healthcare',
-  'Retail',
-  'Professional Services',
+  msg('Logistics'),
+  msg('Manufacturing'),
+  msg('Financial Services'),
+  msg('Healthcare'),
+  msg('Retail'),
+  msg('Professional Services'),
   'SaaS',
-  'Fintech',
-  'Insurance',
-  'Real Estate',
-  'Education',
-  'Media & Advertising',
+  msg('Fintech'),
+  msg('Insurance'),
+  msg('Real Estate'),
+  msg('Education'),
+  msg('Media & Advertising'),
 ];
 
 export const COMPANY_SIZE_OPTIONS = ['51-200', '201-500', '501-1000', '1000+'];
 
+// The country names are values sent to the server: English in data, translated where shown.
 export const COUNTRY_GROUPS: Record<string, string[]> = {
-  'North America': ['United States', 'Canada', 'Mexico'],
-  Europe: ['United Kingdom', 'Germany', 'France', 'Netherlands', 'Spain', 'Ireland'],
-  'APAC': ['India', 'Singapore', 'Australia', 'Japan', 'UAE'],
-  'Latin America': ['Brazil', 'Argentina', 'Chile', 'Colombia'],
+  [msg('North America')]: [msg('United States'), msg('Canada'), msg('Mexico')],
+  [msg('Europe')]: [msg('United Kingdom'), msg('Germany'), msg('France'), msg('Netherlands'), msg('Spain'), msg('Ireland')],
+  'APAC': [msg('India'), msg('Singapore'), msg('Australia'), msg('Japan'), 'UAE'],
+  [msg('Latin America')]: [msg('Brazil'), msg('Argentina'), msg('Chile'), msg('Colombia')],
 };
 
 export const TITLE_SUGGESTIONS = [
@@ -114,10 +116,10 @@ export const INTENT_SUGGESTIONS = [
 ];
 
 export const GOAL_OPTIONS = [
-  'Book discovery calls',
-  'Demo requests',
-  'Partnership',
-  'Custom',
+  msg('Book discovery calls'),
+  msg('Demo requests'),
+  msg('Partnership'),
+  msg('Custom'),
 ];
 
 export const TONE_OPTIONS: Array<{
@@ -126,15 +128,15 @@ export const TONE_OPTIONS: Array<{
   description: string;
   recommended?: boolean;
 }> = [
-  { value: 'professional', label: 'Professional', description: 'Formal, respectful' },
+  { value: 'professional', label: t('Professional'), description: t('Formal, respectful') },
   {
     value: 'consultative',
-    label: 'Consultative',
-    description: 'Advisory, insight-led',
+    label: t('Consultative'),
+    description: t('Advisory, insight-led'),
     recommended: true,
   },
-  { value: 'direct', label: 'Direct', description: 'Concise, no fluff' },
-  { value: 'friendly', label: 'Friendly', description: 'Warm, conversational' },
+  { value: 'direct', label: t('Direct'), description: t('Concise, no fluff') },
+  { value: 'friendly', label: t('Friendly'), description: t('Warm, conversational') },
 ];
 
 /**

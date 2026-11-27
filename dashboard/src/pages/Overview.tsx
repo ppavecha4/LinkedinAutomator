@@ -31,6 +31,8 @@ import {
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
+import { label } from '../lib/labels';
+import { t, tn } from '../i18n';
 import { LifecycleFunnel } from '../components/LifecycleFunnel';
 import { SetupBanner } from '../components/SetupBanner';
 import StatusBadge from '../components/StatusBadge';
@@ -74,7 +76,7 @@ const TONE_STYLE = {
 } as const;
 
 function HeroStat({ label, value, tone, icon: Icon }: HeroStatProps) {
-  const t = TONE_STYLE[tone];
+  const item = TONE_STYLE[tone];
   return (
     <div
       onMouseMove={(e) => {
@@ -85,14 +87,14 @@ function HeroStat({ label, value, tone, icon: Icon }: HeroStatProps) {
       }}
       className={cn(
         'spotlight glass rounded-2xl p-5 transition-all hover:shadow-xl',
-        t.glow,
+        item.glow,
       )}
     >
       <div className="mb-4">
         <div
           className={cn(
             'flex h-10 w-10 items-center justify-center rounded-xl',
-            t.chip,
+            item.chip,
           )}
         >
           <Icon className="h-4 w-4" />
@@ -134,32 +136,32 @@ function TopRow({ c }: { c: Campaign }) {
         </div>
       </div>
       <div className="hidden md:flex items-center gap-6 text-xs">
-        <div className="text-right">
+        <div className="text-end">
           <div className="text-[10px] text-muted-foreground uppercase">
-            Prospects
+            {t('Prospects')}
           </div>
           <div className="font-semibold tabular-nums">
             {formatNumber(c.total_prospects ?? 0)}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-end">
           <div className="text-[10px] text-muted-foreground uppercase">
-            Replied
+            {t('Replied')}
           </div>
           <div className="font-semibold tabular-nums">
             {Math.round(repliedPct)}%
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-end">
           <div className="text-[10px] text-muted-foreground uppercase">
-            Booked
+            {t('Booked')}
           </div>
           <div className="font-semibold tabular-nums">
             {c.meeting_booked ?? 0}
           </div>
         </div>
       </div>
-      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors rtl:rotate-180" />
     </Link>
   );
 }
@@ -217,14 +219,14 @@ export default function Overview(): React.ReactElement {
   return (
     <div>
       <PageHeader
-        eyebrow="Live · auto-refresh 15s"
-        title="Overview"
-        description="Your autonomous outbound at a glance. KPIs, activity, and top performers across every campaign."
+        eyebrow={t('Live · auto-refresh 15s')}
+        title={t('Overview')}
+        description={t('Your autonomous outbound at a glance. KPIs, activity, and top performers across every campaign.')}
         icon={Sparkles}
         actions={
           <Link to="/campaigns/new" className="btn-primary">
             <PlusCircle className="h-4 w-4" />
-            New campaign
+            {t('New campaign')}
           </Link>
         }
       />
@@ -241,25 +243,25 @@ export default function Overview(): React.ReactElement {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <HeroStat
-            label="Total prospects"
+            label={t('Total prospects')}
             value={totals.prospects}
             tone="primary"
             icon={Users}
           />
           <HeroStat
-            label="Contacted"
+            label={t('Contacted')}
             value={totals.contacted}
             tone="sky"
             icon={Mail}
           />
           <HeroStat
-            label="Replies"
+            label={t('Replies')}
             value={totals.replied}
             tone="emerald"
             icon={MessageSquare}
           />
           <HeroStat
-            label="Meetings booked"
+            label={t('Meetings booked')}
             value={totals.meetings}
             tone="violet"
             icon={CalendarCheck}
@@ -277,20 +279,20 @@ export default function Overview(): React.ReactElement {
         <TabsList>
           <TabsTrigger value="snapshot">
             <TrendingUp className="h-3.5 w-3.5" />
-            Snapshot
+            {t('Snapshot')}
           </TabsTrigger>
           <TabsTrigger value="feed">
             <Radio className="h-3.5 w-3.5" />
-            Live feed
+            {t('Live feed')}
             {feed.length > 0 && (
-              <span className="ml-1 rounded-full bg-emerald-500/20 text-emerald-500 px-1.5 text-[10px] font-semibold">
+              <span className="ms-1 rounded-full bg-emerald-500/20 text-emerald-500 px-1.5 text-[10px] font-semibold">
                 {feed.length}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="performers">
             <Target className="h-3.5 w-3.5" />
-            Top performers
+            {t('Top performers')}
           </TabsTrigger>
         </TabsList>
 
@@ -301,12 +303,12 @@ export default function Overview(): React.ReactElement {
           ) : active.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="No campaigns yet"
-              description="Your autonomous outbound pipeline will populate here once you launch your first campaign."
+              title={t('No campaigns yet')}
+              description={t('Your autonomous outbound pipeline will populate here once you launch your first campaign.')}
               action={
                 <Link to="/campaigns/new" className="btn-primary">
                   <PlusCircle className="h-4 w-4" />
-                  Create your first campaign
+                  {t('Create your first campaign')}
                 </Link>
               }
             />
@@ -316,17 +318,16 @@ export default function Overview(): React.ReactElement {
               <div className="lg:col-span-2 glass rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <h3 className="text-base font-semibold">In flight</h3>
+                    <h3 className="text-base font-semibold">{t('In flight')}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {active.length} {active.length === 1 ? 'campaign' : 'campaigns'}{' '}
-                      running · click to open pipeline
+                      {tn(active.length, '{count} campaign running · click to open the pipeline', '{count} campaigns running · click to open the pipeline')}
                     </p>
                   </div>
                   <Link
                     to="/campaigns"
                     className="text-xs text-primary hover:underline"
                   >
-                    View all →
+                    {t('View all →')}
                   </Link>
                 </div>
                 <div className="space-y-1 -mx-3">
@@ -343,15 +344,15 @@ export default function Overview(): React.ReactElement {
                     <Activity className="h-4 w-4 text-emerald-500" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold">Latest</div>
+                    <div className="text-sm font-semibold">{t('Latest')}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      Real-time WebSocket
+                      {t('Real-time WebSocket')}
                     </div>
                   </div>
                 </div>
                 {feed.length === 0 ? (
                   <div className="text-xs text-muted-foreground text-center py-6">
-                    Waiting for live events…
+                    {t('Waiting for live events…')}
                   </div>
                 ) : (
                   <ul className="space-y-2.5 text-xs">
@@ -365,10 +366,10 @@ export default function Overview(): React.ReactElement {
                         <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-primary/20 shrink-0" />
                         <div className="min-w-0">
                           <div className="font-medium text-foreground">
-                            {event.type.replace(/_/g, ' ').toLowerCase()}
+                            {label(event.type)}
                           </div>
                           <div className="text-muted-foreground truncate">
-                            just now
+                            {t('just now')}
                           </div>
                         </div>
                       </motion.li>
@@ -389,31 +390,31 @@ export default function Overview(): React.ReactElement {
                 <span className="absolute inset-0 rounded-lg ring-2 ring-emerald-500/40 animate-ping" />
               </div>
               <div>
-                <h3 className="text-base font-semibold">Live feed</h3>
+                <h3 className="text-base font-semibold">{t('Live feed')}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Every reply, meeting, and contacted prospect as it happens
+                  {t('Every reply, meeting, and contacted prospect as it happens')}
                 </p>
               </div>
             </div>
             {feed.length === 0 ? (
               <EmptyState
                 icon={Radio}
-                title="No live events yet"
-                description="Replies, meetings, and contact events will stream here the moment the orchestrator emits them."
+                title={t('No live events yet')}
+                description={t('Replies, meetings, and contact events will stream here the moment the orchestrator emits them.')}
               />
             ) : (
-              <ol className="relative border-l border-border/60 ml-4 space-y-6">
+              <ol className="relative border-s border-border/60 ms-4 space-y-6">
                 {feed.map((event, idx) => (
                   <motion.li
                     key={idx}
                     initial={{ opacity: 0, x: 8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: idx * 0.02 }}
-                    className="pl-6"
+                    className="ps-6"
                   >
-                    <span className="absolute -left-[7px] mt-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary ring-4 ring-background" />
+                    <span className="absolute -start-[7px] mt-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary ring-4 ring-background" />
                     <div className="text-sm font-semibold">
-                      {event.type.replace(/_/g, ' ')}
+                      {label(event.type)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 font-mono truncate">
                       {JSON.stringify(event)}
@@ -430,8 +431,8 @@ export default function Overview(): React.ReactElement {
           {active.length === 0 ? (
             <EmptyState
               icon={Target}
-              title="No ranked campaigns yet"
-              description="Launch a campaign to start seeing performance rankings here."
+              title={t('No ranked campaigns yet')}
+              description={t('Launch a campaign to start seeing performance rankings here.')}
             />
           ) : (
             <div className="glass rounded-2xl p-6">
@@ -441,10 +442,10 @@ export default function Overview(): React.ReactElement {
                 </div>
                 <div>
                   <h3 className="text-base font-semibold">
-                    Ranked by meetings booked
+                    {t('Ranked by meetings booked')}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Conversion ring = bookings / discovered
+                    {t('Conversion ring = bookings / discovered')}
                   </p>
                 </div>
               </div>
@@ -456,7 +457,7 @@ export default function Overview(): React.ReactElement {
                         <TopRow c={c} />
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent>Click to open pipeline</TooltipContent>
+                    <TooltipContent>{t('Click to open pipeline')}</TooltipContent>
                   </Tooltip>
                 ))}
               </div>

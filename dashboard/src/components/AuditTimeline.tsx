@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 
+import { t, tn } from '../i18n';
 import { useCampaignAuditLog, type AuditLogEntry } from '../hooks/useCampaigns';
 import { cn } from '../lib/cn';
 import { formatRelative } from '../lib/format';
@@ -40,54 +41,54 @@ interface ActionMeta {
 
 const ACTION_META: Record<string, ActionMeta> = {
   created: {
-    label: 'Created',
+    label: t('Created'),
     icon: Plus,
     tone: 'bg-emerald-500',
   },
   updated: {
-    label: 'Edited',
+    label: t('Edited'),
     icon: Pencil,
     tone: 'bg-primary',
   },
   launched: {
-    label: 'Launched',
+    label: t('Launched'),
     icon: Rocket,
     tone: 'bg-violet-500',
   },
   paused: {
-    label: 'Paused',
+    label: t('Paused'),
     icon: Pause,
     tone: 'bg-amber-500',
   },
   resumed: {
-    label: 'Resumed',
+    label: t('Resumed'),
     icon: Play,
     tone: 'bg-emerald-500',
   },
   archived: {
-    label: 'Archived',
+    label: t('Archived'),
     icon: Archive,
     tone: 'bg-rose-500',
   },
   unarchived: {
-    label: 'Unarchived',
+    label: t('Unarchived'),
     icon: RefreshCw,
     tone: 'bg-emerald-500',
   },
   cloned: {
-    label: 'Cloned',
+    label: t('Cloned'),
     icon: Copy,
     tone: 'bg-sky-500',
   },
   completed: {
-    label: 'Completed',
+    label: t('Completed'),
     icon: CheckCircle2,
     tone: 'bg-emerald-600',
   },
 };
 
 const FALLBACK_META: ActionMeta = {
-  label: 'Status changed',
+  label: t('Status changed'),
   icon: History,
   tone: 'bg-muted-foreground',
 };
@@ -127,7 +128,7 @@ function describeChanges(entry: AuditLogEntry): string {
       })
       .join(', ');
   }
-  return `${fieldNames.length} fields changed`;
+  return tn(fieldNames.length, '{count} field changed', '{count} fields changed');
 }
 
 interface AuditTimelineProps {
@@ -148,9 +149,9 @@ export function AuditTimeline({
           <History className="h-4 w-4" />
         </div>
         <div>
-          <div className="text-sm font-semibold">Change history</div>
+          <div className="text-sm font-semibold">{t('Change history')}</div>
           <div className="text-[11px] text-muted-foreground">
-            Auto-refreshes every 30s
+            {t('Auto-refreshes every 30s')}
           </div>
         </div>
       </div>
@@ -163,19 +164,19 @@ export function AuditTimeline({
         </div>
       ) : !data || data.length === 0 ? (
         <div className="text-xs text-muted-foreground py-6 text-center">
-          No history yet — edits and status changes will appear here.
+          {t('No history yet — edits and status changes will appear here.')}
         </div>
       ) : (
-        <ol className="relative border-l border-border/60 ml-3 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        <ol className="relative border-s border-border/60 ms-3 space-y-4 max-h-[60vh] overflow-y-auto pe-2">
           {data.map((entry) => {
             const meta = ACTION_META[entry.action] ?? FALLBACK_META;
             const Icon = meta.icon;
             const detail = describeChanges(entry);
             return (
-              <li key={entry.id} className="pl-5 relative">
+              <li key={entry.id} className="ps-5 relative">
                 <span
                   className={cn(
-                    '-left-[7px] top-1.5 absolute flex h-3.5 w-3.5 items-center justify-center rounded-full ring-4 ring-background',
+                    '-start-[7px] top-1.5 absolute flex h-3.5 w-3.5 items-center justify-center rounded-full ring-4 ring-background',
                     meta.tone,
                   )}
                 />

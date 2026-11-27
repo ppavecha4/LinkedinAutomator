@@ -6,6 +6,7 @@
  *   - JSON serialisation on POST/PATCH
  */
 
+import { lang, tServer } from '../i18n';
 import { DEV_USER_ID } from './auth';
 import type { ApiResponseBody } from './types';
 
@@ -34,6 +35,8 @@ async function request<T>(
     headers.set('Content-Type', 'application/json');
   }
   headers.set('X-Dev-User', DEV_USER_ID);
+  // The screen language, so the emails the server sends (reset, invitation, verification) match it.
+  headers.set('Accept-Language', lang());
   // Always send cookies — required for the local-auth session cookie.
   // Harmless in dev (no cookie set) or Bearer-token deployments.
   const response = await fetch(url, {
@@ -53,7 +56,7 @@ async function request<T>(
   if (!response.ok || body?.error) {
     const err =
       body?.error ?? { code: 'HTTP_' + response.status, message: response.statusText };
-    throw new ApiClientError(response.status, err.code, err.message, err.details);
+    throw new ApiClientError(response.status, err.code, tServer(err.message), err.details);
   }
   return { data: body.data, raw: body };
 }

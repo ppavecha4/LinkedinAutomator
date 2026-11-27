@@ -8,6 +8,8 @@
  * (services/orchestrator/src/db/accounts.py). Keep the three in step.
  */
 
+import { t } from '../i18n';
+
 export type OrgChannel = 'email' | 'whatsapp' | 'voice' | 'linkedin';
 
 export interface Organization {
@@ -82,9 +84,9 @@ export interface AccountKind {
 export const ACCOUNT_KINDS: AccountKind[] = [
   {
     id: 'email',
-    title: 'Email',
-    subtitle: 'Google Workspace or your own mail server',
-    why: 'Emails go out from your own mailbox, so replies come back to you.',
+    title: t('Email'),
+    subtitle: t('Google Workspace or your own mail server'),
+    why: t('Emails go out from your own mailbox, so replies come back to you.'),
     channel: 'email',
     providers: [
       {
@@ -92,24 +94,24 @@ export const ACCOUNT_KINDS: AccountKind[] = [
         name: 'Google Workspace',
         summary: 'email',
         fields: [
-          { key: 'email', label: 'Sending address', type: 'email', placeholder: 'sales@yourcompany.com' },
-          { key: 'from_name', label: 'Sender name', placeholder: 'Ana Torres', optional: true },
-          { key: 'app_password', label: 'App password', secret: true, type: 'password', hint: 'Create one at myaccount.google.com › Security › App passwords (16 characters).' },
+          { key: 'email', label: t('Sending address'), type: 'email', placeholder: 'sales@yourcompany.com' },
+          { key: 'from_name', label: t('Sender name'), placeholder: t('Ana Torres'), optional: true },
+          { key: 'app_password', label: t('App password'), secret: true, type: 'password', hint: t('Create one at myaccount.google.com › Security › App passwords (16 characters).') },
         ],
       },
       {
         id: 'smtp',
-        name: 'Other mail server (SMTP)',
+        name: t('Other mail server (SMTP)'),
         summary: 'from_email',
         fields: [
-          { key: 'from_email', label: 'Sending address', type: 'email', placeholder: 'sales@yourcompany.com' },
-          { key: 'from_name', label: 'Sender name', optional: true },
-          { key: 'host', label: 'SMTP server', placeholder: 'smtp.yourprovider.com' },
-          { key: 'port', label: 'Port', type: 'number', placeholder: '587', hint: '587 (STARTTLS) or 465 (SSL).' },
-          { key: 'username', label: 'Username' },
-          { key: 'password', label: 'Password', secret: true, type: 'password' },
-          { key: 'imap_host', label: 'IMAP server (to read replies)', placeholder: 'imap.yourprovider.com', optional: true,
-            hint: 'Without it, replies and opt-outs sent to this mailbox are not picked up automatically.' },
+          { key: 'from_email', label: t('Sending address'), type: 'email', placeholder: 'sales@yourcompany.com' },
+          { key: 'from_name', label: t('Sender name'), optional: true },
+          { key: 'host', label: t('SMTP server'), placeholder: 'smtp.yourprovider.com' },
+          { key: 'port', label: t('Port'), type: 'number', placeholder: '587', hint: t('587 (STARTTLS) or 465 (SSL).') },
+          { key: 'username', label: t('Username') },
+          { key: 'password', label: t('Password'), secret: true, type: 'password' },
+          { key: 'imap_host', label: t('IMAP server (to read replies)'), placeholder: 'imap.yourprovider.com', optional: true,
+            hint: t('Without it, replies and opt-outs sent to this mailbox are not picked up automatically.') },
         ],
       },
     ],
@@ -117,8 +119,8 @@ export const ACCOUNT_KINDS: AccountKind[] = [
   {
     id: 'whatsapp',
     title: 'WhatsApp',
-    subtitle: 'Your Twilio WhatsApp sender',
-    why: 'Messages come from your own WhatsApp business number. The messages themselves are written for you below, and approved by WhatsApp.',
+    subtitle: t('Your Twilio WhatsApp sender'),
+    why: t('Messages come from your own WhatsApp business number. The messages themselves are written for you below, and approved by WhatsApp.'),
     channel: 'whatsapp',
     providers: [
       {
@@ -126,28 +128,28 @@ export const ACCOUNT_KINDS: AccountKind[] = [
         name: 'Twilio',
         summary: 'whatsapp_from',
         fields: [
-          { key: 'account_id', label: 'Account SID', placeholder: 'AC…', pattern: /^AC[0-9a-fA-F]{32}$/, patternMessage: 'An Account SID starts with AC and has 34 characters.' },
-          { key: 'whatsapp_from', label: 'WhatsApp number', placeholder: '+51987654321', optional: true, hint: 'In international format, with the country code. Leave empty if you use Twilio only for calls.' },
-          { key: 'voice_from', advanced: true, label: 'Phone number for calls', placeholder: '+51987654321', optional: true, hint: 'A number in your Twilio account that AI phone calls are made from. Leave empty if you do not use calls.' },
-          { key: 'auth_token', label: 'Auth token', secret: true, type: 'password' },
-          { key: 'template_sid', advanced: true, label: 'Approved first-message template (Content SID)', placeholder: 'HX…', optional: true,
-            pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: 'A template Content SID starts with HX and has 34 characters.',
-            hint: 'Optional. The AI writes these for you under “WhatsApp messages” and gets them approved: paste an ID here only if you already have your own approved template. Ours fills {{1}} with the first name and {{2}} with the company.' },
-          { key: 'template_sids', advanced: true, label: 'Templates for other languages', placeholder: 'es=HX…, ar=HX…', optional: true, langPrefix: 'template_sid',
-            hint: 'One per language your prospects get. Without a template for their language (and no default above), WhatsApp messages wait.' },
-          { key: 'followup_template_sid', advanced: true, label: 'Follow-up template (Content SID)', placeholder: 'HX…', optional: true,
-            pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: 'A template Content SID starts with HX and has 34 characters.',
-            hint: 'Optional. The AI writes this too (under “WhatsApp messages”). Paste an ID only if you already have your own approved follow-up template ({{1}} first name, {{2}} company).' },
-          { key: 'followup_template_sids', advanced: true, label: 'Follow-up templates for other languages', placeholder: 'es=HX…, ar=HX…', optional: true, langPrefix: 'followup_template_sid' },
+          { key: 'account_id', label: t('Account SID'), placeholder: 'AC…', pattern: /^AC[0-9a-fA-F]{32}$/, patternMessage: t('An Account SID starts with AC and has 34 characters.') },
+          { key: 'whatsapp_from', label: t('WhatsApp number'), placeholder: '+51987654321', optional: true, hint: t('In international format, with the country code. Leave empty if you use Twilio only for calls.') },
+          { key: 'voice_from', advanced: true, label: t('Phone number for calls'), placeholder: '+51987654321', optional: true, hint: t('A number in your Twilio account that AI phone calls are made from. Leave empty if you do not use calls.') },
+          { key: 'auth_token', label: t('Auth token'), secret: true, type: 'password' },
+          { key: 'template_sid', advanced: true, label: t('Approved first-message template (Content SID)'), placeholder: 'HX…', optional: true,
+            pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: t('A template Content SID starts with HX and has 34 characters.'),
+            hint: t('Optional. The AI writes these for you under “WhatsApp messages” and gets them approved: paste an ID here only if you already have your own approved template. Ours fills {{1}} with the first name and {{2}} with the company.') },
+          { key: 'template_sids', advanced: true, label: t('Templates for other languages'), placeholder: t('es=HX…, ar=HX…'), optional: true, langPrefix: 'template_sid',
+            hint: t('One per language your prospects get. Without a template for their language (and no default above), WhatsApp messages wait.') },
+          { key: 'followup_template_sid', advanced: true, label: t('Follow-up template (Content SID)'), placeholder: 'HX…', optional: true,
+            pattern: /^HX[0-9a-fA-F]{32}$/, patternMessage: t('A template Content SID starts with HX and has 34 characters.'),
+            hint: t('Optional. The AI writes this too (under “WhatsApp messages”). Paste an ID only if you already have your own approved follow-up template ({{1}} first name, {{2}} company).') },
+          { key: 'followup_template_sids', advanced: true, label: t('Follow-up templates for other languages'), placeholder: t('es=HX…, ar=HX…'), optional: true, langPrefix: 'followup_template_sid' },
         ],
       },
     ],
   },
   {
     id: 'voice',
-    title: 'AI phone calls',
-    subtitle: 'An ElevenLabs voice and a Twilio number',
-    why: 'An automated assistant calls people who agreed to calls or replied to you. It needs a voice (ElevenLabs), a phone number for calls (in your Twilio account, under WhatsApp above) and your AI key (below).',
+    title: t('AI phone calls'),
+    subtitle: t('An ElevenLabs voice and a Twilio number'),
+    why: t('An automated assistant calls people who agreed to calls or replied to you. It needs a voice (ElevenLabs), a phone number for calls (in your Twilio account, under WhatsApp above) and your AI key (below).'),
     channel: 'voice',
     providers: [
       {
@@ -155,10 +157,10 @@ export const ACCOUNT_KINDS: AccountKind[] = [
         name: 'ElevenLabs',
         summary: 'voice_id',
         fields: [
-          { key: 'api_key', label: 'API key', secret: true, type: 'password', hint: 'elevenlabs.io › Developers › API keys. Allow Text to Speech, Speech to Text and Voices.' },
-          { key: 'voice_id', label: 'Voice ID', placeholder: 'e.g. 21m00Tcm4TlvDq8ikWAM', hint: 'The voice the assistant speaks with: copy its ID from your ElevenLabs voices.' },
-          { key: 'voice_ids', label: 'Voices for other languages', placeholder: 'es=…, pt=…', optional: true, langPrefix: 'voice_id',
-            hint: 'One voice per language, if you want a different voice for each. Others use the voice above.' },
+          { key: 'api_key', label: t('API key'), secret: true, type: 'password', hint: t('elevenlabs.io › Developers › API keys. Allow Text to Speech, Speech to Text and Voices.') },
+          { key: 'voice_id', label: t('Voice ID'), placeholder: t('e.g. 21m00Tcm4TlvDq8ikWAM'), hint: t('The voice the assistant speaks with: copy its ID from your ElevenLabs voices.') },
+          { key: 'voice_ids', label: t('Voices for other languages'), placeholder: t('es=…, pt=…'), optional: true, langPrefix: 'voice_id',
+            hint: t('One voice per language, if you want a different voice for each. Others use the voice above.') },
         ],
       },
     ],
@@ -167,39 +169,39 @@ export const ACCOUNT_KINDS: AccountKind[] = [
     id: 'linkedin',
     title: 'LinkedIn',
     subtitle: 'Heyreach',
-    why: 'Connection requests and messages through your Heyreach workspace.',
+    why: t('Connection requests and messages through your Heyreach workspace.'),
     channel: 'linkedin',
     providers: [
       {
         id: 'heyreach',
         name: 'Heyreach',
         fields: [
-          { key: 'linkedin_account_id', label: 'LinkedIn account ID (in Heyreach)', optional: true },
-          { key: 'api_key', label: 'API key', secret: true, type: 'password' },
+          { key: 'linkedin_account_id', label: t('LinkedIn account ID (in Heyreach)'), optional: true },
+          { key: 'api_key', label: t('API key'), secret: true, type: 'password' },
         ],
       },
     ],
   },
   {
     id: 'apollo',
-    title: 'Lead search',
-    subtitle: 'Apollo, for AI discovery',
-    why: 'Only needed when the AI agent finds leads for you. Uploaded lists don’t use it.',
-    providers: [{ id: 'apollo', name: 'Apollo', fields: [{ key: 'api_key', label: 'API key', secret: true, type: 'password', hint: 'app.apollo.io › Settings › Integrations › API keys.' }] }],
+    title: t('Lead search'),
+    subtitle: t('Apollo, for AI discovery'),
+    why: t('Only needed when the AI agent finds leads for you. Uploaded lists don’t use it.'),
+    providers: [{ id: 'apollo', name: 'Apollo', fields: [{ key: 'api_key', label: t('API key'), secret: true, type: 'password', hint: t('app.apollo.io › Settings › Integrations › API keys.') }] }],
   },
   {
     id: 'anthropic',
-    title: 'AI model',
-    subtitle: 'Optional: your own Anthropic API key',
-    why: 'Writing is included in your plan. Connect your own account to go past the included AI, or to pay Anthropic directly: your usage then does not count against your plan.',
-    providers: [{ id: 'anthropic', name: 'Anthropic', fields: [{ key: 'api_key', label: 'API key', secret: true, type: 'password', hint: 'console.anthropic.com › API keys.' }] }],
+    title: t('AI model'),
+    subtitle: t('Optional: your own Anthropic API key'),
+    why: t('Writing is included in your plan. Connect your own account to go past the included AI, or to pay Anthropic directly: your usage then does not count against your plan.'),
+    providers: [{ id: 'anthropic', name: 'Anthropic', fields: [{ key: 'api_key', label: t('API key'), secret: true, type: 'password', hint: t('console.anthropic.com › API keys.') }] }],
   },
 ];
 
 export const CHANNEL_LABEL: Record<OrgChannel, string> = {
-  email: 'Email',
+  email: t('Email'),
   whatsapp: 'WhatsApp',
-  voice: 'AI phone calls',
+  voice: t('AI phone calls'),
   linkedin: 'LinkedIn',
 };
 

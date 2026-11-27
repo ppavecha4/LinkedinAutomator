@@ -7,6 +7,8 @@ import { useState } from 'react';
 
 import clsx from 'clsx';
 
+import { t } from '../../i18n';
+
 interface Props {
   values: string[];
   onChange: (next: string[]) => void;
@@ -55,7 +57,7 @@ export default function TagInput({ values, onChange, suggestions, placeholder }:
             }
           }}
           onBlur={() => commit(draft)}
-          placeholder={placeholder ?? 'Type and press Enter'}
+          placeholder={placeholder ?? t('Type and press Enter')}
           className="flex-1 min-w-[120px] text-sm outline-none"
         />
       </div>

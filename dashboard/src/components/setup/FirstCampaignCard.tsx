@@ -9,6 +9,7 @@ import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { t } from '../../i18n';
 import { useCreateFirstCampaign, useFirstCampaign } from '../../hooks/useFirstCampaign';
 import { errorMessage } from '../../lib/authContext';
 import { CHANNEL_LABEL } from '../../lib/workspace';
@@ -19,10 +20,10 @@ export function FirstCampaignCard({ canCreate = true }: { canCreate?: boolean })
   const create = useCreateFirstCampaign();
   const proposal = view.data?.proposal;
 
-  if (view.isLoading) return <Loader2 className="mt-3 h-4 w-4 animate-spin text-muted-foreground" aria-label="Loading" />;
+  if (view.isLoading) return <Loader2 className="mt-3 h-4 w-4 animate-spin text-muted-foreground" aria-label={t('Loading')} />;
   if (!proposal) {
     const blockers = view.data?.blockers ?? [];
-    return blockers.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">{blockers.map((b) => <li key={b}>{b}</li>)}</ul> : null;
+    return blockers.length ? <ul className="mt-3 list-disc space-y-1 ps-5 text-xs text-muted-foreground">{blockers.map((b) => <li key={b}>{b}</li>)}</ul> : null;
   }
 
   const s = proposal.summary;
@@ -33,10 +34,10 @@ export function FirstCampaignCard({ canCreate = true }: { canCreate?: boolean })
   async function go() {
     try {
       const id = await create.mutateAsync(proposal!.body);
-      toast.success('Your first campaign is ready', { description: 'Nothing is sent yet: add the people you want to reach, then launch.' });
+      toast.success(t('Your first campaign is ready'), { description: t('Nothing is sent yet: add the people you want to reach, then launch.') });
       navigate(`/campaigns/${id}/import`);
     } catch (e) {
-      toast.error(errorMessage(e, 'Could not create the campaign.'));
+      toast.error(errorMessage(e, t('Could not create the campaign.')));
     }
   }
 
@@ -44,25 +45,25 @@ export function FirstCampaignCard({ canCreate = true }: { canCreate?: boolean })
     <div className="mt-3 space-y-3 rounded-xl border border-border/70 bg-muted/30 p-4">
       <p className="text-sm font-semibold">{proposal.body.name}</p>
       <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1.5 text-sm">
-        <dt className="text-muted-foreground">Offers</dt><dd>{s.offering}</dd>
+        <dt className="text-muted-foreground">{t('Offers')}</dt><dd>{s.offering}</dd>
         {s.audience.map((line) => {
           const [label, ...rest] = line.split(': ');
           return <React.Fragment key={line}><dt className="text-muted-foreground">{label}</dt><dd>{rest.join(': ')}</dd></React.Fragment>;
         })}
-        <dt className="text-muted-foreground">Reaches them by</dt><dd>{channels}</dd>
-        <dt className="text-muted-foreground">If no reply</dt><dd>{s.follow_ups.count} follow-ups on {followChannels}, after {days} days</dd>
-        <dt className="text-muted-foreground">Writes in</dt><dd>{s.languages}</dd>
-        <dt className="text-muted-foreground">Goal</dt><dd>{s.goal}</dd>
+        <dt className="text-muted-foreground">{t('Reaches them by')}</dt><dd>{channels}</dd>
+        <dt className="text-muted-foreground">{t('If no reply')}</dt><dd>{t('{count} follow-ups on {followChannels}, after {days} days', { count: s.follow_ups.count, followChannels, days })}</dd>
+        <dt className="text-muted-foreground">{t('Writes in')}</dt><dd>{s.languages}</dd>
+        <dt className="text-muted-foreground">{t('Goal')}</dt><dd>{s.goal}</dd>
       </dl>
-      <p className="text-xs text-muted-foreground">Nothing is sent until you add your people and launch. You can change any of this first.</p>
+      <p className="text-xs text-muted-foreground">{t('Nothing is sent until you add your people and launch. You can change any of this first.')}</p>
       <div className="flex flex-wrap gap-2">
         {canCreate && (
           <button type="button" className="btn-primary" onClick={go} disabled={create.isPending}>
             {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Rocket className="h-4 w-4" aria-hidden="true" />}
-            Create it and add my people
+            {t('Create it and add my people')}
           </button>
         )}
-        <Link to="/campaigns/new" className="btn-ghost text-xs">Set it up myself instead</Link>
+        <Link to="/campaigns/new" className="btn-ghost text-xs">{t('Set it up myself instead')}</Link>
       </div>
     </div>
   );

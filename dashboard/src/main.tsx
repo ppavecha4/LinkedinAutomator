@@ -1,12 +1,17 @@
+import { DirectionProvider } from '@radix-ui/react-direction';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Toaster } from 'sonner';
 
-import App from './App';
 import { TooltipProvider } from './components/ui/tooltip';
+import { direction, initI18n, t } from './i18n';
 import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+async function start(): Promise<void> {
+  // The language file first: the app's modules read their sentences as they load.
+  await initI18n();
+  const { default: App } = await import('./App');
+  ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {/*
      * TooltipProvider MUST wrap the whole app so every Tooltip instance
@@ -15,11 +20,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
      * Sonner `<Toaster />` is mounted here so any page can call
      * `toast.success(...)` without importing a React context.
      */}
+    <DirectionProvider dir={direction()}>
     <TooltipProvider delayDuration={200}>
       <App />
       <Toaster
         theme="system"
-        position="bottom-right"
+        dir={direction()}
+        containerAriaLabel={t('Notifications')}
+        position={direction() === 'rtl' ? 'bottom-left' : 'bottom-right'}
         toastOptions={{
           style: {
             background: 'hsl(var(--card) / 0.9)',
@@ -31,5 +39,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         }}
       />
     </TooltipProvider>
+    </DirectionProvider>
   </React.StrictMode>,
-);
+  );
+}
+
+void start();

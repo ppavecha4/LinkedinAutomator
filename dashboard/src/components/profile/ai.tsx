@@ -8,9 +8,10 @@
 import { Globe, Loader2, Wand2 } from 'lucide-react';
 import * as React from 'react';
 
+import { t, tn } from '../../i18n';
 import { useReadWebsite, useSampleMessage } from '../../hooks/useProfile';
 import { errorMessage } from '../../lib/authContext';
-import { countryName, type Profile } from '../../lib/profile';
+import { englishCountryName, type Profile } from '../../lib/profile';
 import { CountrySelect, Field } from './fields';
 
 /** Fill only what is still empty: never overwrite what the customer typed. */
@@ -45,8 +46,8 @@ export function AiNote({ freeLeft }: { freeLeft: number }): React.ReactElement {
   return (
     <span className="text-xs text-muted-foreground">
       {freeLeft > 0
-        ? `Free during setup: ${freeLeft} AI ${freeLeft === 1 ? 'use' : 'uses'} left, on us.`
-        : 'Uses your connected Anthropic account.'}
+        ? tn(freeLeft, 'Free during setup: {count} AI use left, on us.', 'Free during setup: {count} AI uses left, on us.')
+        : t('Uses your connected Anthropic account.')}
     </span>
   );
 }
@@ -78,23 +79,23 @@ export function WebsiteReader({
       const n = onDraft(r.draft, /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`);
       const host = (() => { try { return new URL(r.sources[0]).host; } catch { return url; } })();
       setNote(n
-        ? `Filled ${n} field${n === 1 ? '' : 's'} from ${host}, marked "from website" below. Change anything that's wrong.`
-        : `Read ${host}, but every field it found is already filled in.`);
+        ? tn(n, 'Filled {count} field from {site}, marked "from website" below. Change anything that\'s wrong.', 'Filled {count} fields from {site}, marked "from website" below. Change anything that\'s wrong.', { site: host })
+        : t('Read {site}, but every field it found is already filled in.', { site: host }));
     } catch (err) {
-      setError(errorMessage(err, 'Could not read that website. Fill the fields in by hand.'));
+      setError(errorMessage(err, t('Could not read that website. Fill the fields in by hand.')));
     }
   }
 
   return (
     <div className="glass mb-8 rounded-2xl p-5">
-      <Field label="Website" htmlFor="ob-website">
+      <Field label={t('Website')} htmlFor="ob-website">
         <div className="flex flex-col gap-2 sm:flex-row">
-          <input id="ob-website" className="input" type="text" inputMode="url" placeholder="acme-exports.com" value={url}
+          <input id="ob-website" className="input" type="text" inputMode="url" placeholder={t('acme-exports.com')} value={url}
             onChange={(e) => { setUrl(e.target.value); onWebsiteChange(e.target.value); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void onRead(); } }} />
           <button type="button" onClick={onRead} className="btn-secondary shrink-0" disabled={read.isPending || url.trim().length < 4}>
             {read.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Globe className="h-4 w-4" aria-hidden="true" />}
-            {read.isPending ? 'Reading…' : 'Read my website'}
+            {read.isPending ? t('Reading…') : t('Read my website')}
           </button>
         </div>
       </Field>
@@ -127,33 +128,33 @@ export function SampleMessage({ profile, freeLeft }: { profile: Profile; freeLef
           name: p.name.trim(),
           company: p.company.trim(),
           ...(p.title.trim() ? { title: p.title.trim() } : {}),
-          ...(p.country ? { country: countryName(p.country) } : {}),
+          ...(p.country ? { country: englishCountryName(p.country) } : {}),
           ...(p.context.trim() ? { context: p.context.trim() } : {}),
         },
       });
     } catch (err) {
-      setError(errorMessage(err, 'Could not write a sample right now.'));
+      setError(errorMessage(err, t('Could not write a sample right now.')));
     }
   }
 
   return (
     <article className="glass rounded-2xl p-5">
-      <h2 className="text-base font-semibold">Try a first message</h2>
-      <p className="mt-1 mb-4 text-xs text-muted-foreground">Describe a real prospect. Nothing is sent.</p>
+      <h2 className="text-base font-semibold">{t('Try a first message')}</h2>
+      <p className="mt-1 mb-4 text-xs text-muted-foreground">{t('Describe a real prospect. Nothing is sent.')}</p>
       <form onSubmit={onWrite} className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <input className="input" aria-label="Prospect's first name" placeholder="First name, e.g. Carla" value={p.name} maxLength={120} onChange={(e) => setP({ ...p, name: e.target.value })} required />
-        <input className="input" aria-label="Their company" placeholder="Company, e.g. Frutas del Sur" value={p.company} maxLength={200} onChange={(e) => setP({ ...p, company: e.target.value })} required />
-        <input className="input" aria-label="Their role" placeholder="Role" value={p.title} maxLength={120} onChange={(e) => setP({ ...p, title: e.target.value })} />
+        <input className="input" aria-label={t('Prospect\'s first name')} placeholder={t('First name, e.g. Carla')} value={p.name} maxLength={120} onChange={(e) => setP({ ...p, name: e.target.value })} required />
+        <input className="input" aria-label={t('Their company')} placeholder={t('Company, e.g. Frutas del Sur')} value={p.company} maxLength={200} onChange={(e) => setP({ ...p, company: e.target.value })} required />
+        <input className="input" aria-label={t('Their role')} placeholder={t('Role')} value={p.title} maxLength={120} onChange={(e) => setP({ ...p, title: e.target.value })} />
         <CountrySelect value={p.country} onChange={(c) => setP({ ...p, country: c })} />
-        <input className="input md:col-span-2" aria-label="Something real about them" placeholder="Something real about them, e.g. started exporting blueberries to the Netherlands" value={p.context} maxLength={500} onChange={(e) => setP({ ...p, context: e.target.value })} />
+        <input className="input md:col-span-2" aria-label={t('Something real about them')} placeholder={t('Something real about them, e.g. started exporting blueberries to the Netherlands')} value={p.context} maxLength={500} onChange={(e) => setP({ ...p, context: e.target.value })} />
         <div className="flex flex-wrap items-center gap-3 md:col-span-2">
-          <select className="input w-auto" aria-label="Channel" value={channel} onChange={(e) => setChannel(e.target.value as 'whatsapp' | 'email')}>
+          <select className="input w-auto" aria-label={t('Channel')} value={channel} onChange={(e) => setChannel(e.target.value as 'whatsapp' | 'email')}>
             <option value="whatsapp">WhatsApp</option>
-            <option value="email">Email</option>
+            <option value="email">{t('Email')}</option>
           </select>
           <button type="submit" className="btn-secondary" disabled={sample.isPending || !p.name.trim() || !p.company.trim()}>
             {sample.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />}
-            Write a sample
+            {t('Write a sample')}
           </button>
           <AiNote freeLeft={freeLeft} />
         </div>

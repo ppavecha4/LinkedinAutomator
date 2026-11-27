@@ -4,6 +4,7 @@
  */
 
 import { query } from '../db/client';
+import { emailWords, type EmailLanguage } from './accountEmails';
 import { ApiError } from './errors';
 import { dashboardLink, mailerConfigured, sendMail } from './mailer';
 import { newToken } from './tokens';
@@ -20,12 +21,9 @@ export async function issueToken(userId: string, purpose: 'reset' | 'verify'): P
   return token;
 }
 
-export async function emailVerificationLink(userId: string, email: string, name: string | null): Promise<void> {
+export async function emailVerificationLink(userId: string, email: string, name: string | null, language: EmailLanguage = 'en'): Promise<void> {
   if (!mailerConfigured()) return;
   const link = dashboardLink('/verify-email', await issueToken(userId, 'verify'));
-  await sendMail({
-    to: email,
-    subject: 'Verify your email address',
-    text: `Hi ${name ?? 'there'},\n\nConfirm your email address to start launching campaigns:\n\n${link}\n\nThis link works once, for 3 days. If you didn't create an account, ignore this email.\n`,
-  });
+  const words = emailWords(language);
+  await sendMail({ to: email, subject: words.verify.subject, text: `${words.hi(name)}\n\n${words.verify.body(link)}` });
 }

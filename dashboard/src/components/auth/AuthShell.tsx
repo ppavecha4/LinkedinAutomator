@@ -7,6 +7,9 @@ import { Sparkles } from 'lucide-react';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
+import { LanguageSelect } from '../LanguageSelect';
+import { t } from '../../i18n';
+
 export function AuthShell({
   title,
   intro,
@@ -20,7 +23,8 @@ export function AuthShell({
   backToSignIn?: boolean;
 }): React.ReactElement {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
+    <div className="relative min-h-screen flex items-center justify-center bg-background px-4 py-16">
+      <LanguageSelect className="absolute end-4 top-4" />
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2.5 font-semibold">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
@@ -34,7 +38,7 @@ export function AuthShell({
         {children}
         {backToSignIn && (
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            <Link to="/login" className="underline">Back to sign in</Link>
+            <Link to="/login" className="underline">{t('Back to sign in')}</Link>
           </p>
         )}
       </div>

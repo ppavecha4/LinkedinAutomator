@@ -4,6 +4,7 @@
 
 import clsx from 'clsx';
 
+import { t } from '../../i18n';
 import type { Channel } from '../../lib/types';
 
 import type { WizardDraft, WizardSequenceStep } from './types';
@@ -18,19 +19,19 @@ const CHANNEL_INFO: Record<
   { label: string; icon: string; note: string }
 > = {
   email: {
-    label: 'Email',
+    label: t('Email'),
     icon: '📧',
-    note: 'SES — bounce + complaint webhooks wired, suppression enforced.',
+    note: t('SES — bounce + complaint webhooks wired, suppression enforced.'),
   },
   linkedin: {
     label: 'LinkedIn',
     icon: '💼',
-    note: 'Partner API — 300-char connection note (LinkedIn limit), daily quota enforced.',
+    note: t('Partner API — 300-char connection note (LinkedIn limit), daily quota enforced.'),
   },
   whatsapp: {
     label: 'WhatsApp',
     icon: '💬',
-    note: 'Twilio Business API — opted-in templates only outside 24h window.',
+    note: t('Twilio Business API — opted-in templates only outside 24h window.'),
   },
 };
 
@@ -69,7 +70,7 @@ export default function StepSequence({ draft, onChange }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <label className="label">Channels</label>
+        <label className="label">{t('Channels')}</label>
         <div className="grid grid-cols-3 gap-3">
           {CHANNEL_ORDER.map((c) => {
             const on = draft.channels_enabled.includes(c);
@@ -80,7 +81,7 @@ export default function StepSequence({ draft, onChange }: Props) {
                 type="button"
                 onClick={() => toggleChannel(c)}
                 className={clsx(
-                  'text-left rounded-md border p-3 transition-colors',
+                  'text-start rounded-md border p-3 transition-colors',
                   on
                     ? 'border-brand bg-brand-light'
                     : 'border-slate-200 hover:border-slate-300',
@@ -96,15 +97,15 @@ export default function StepSequence({ draft, onChange }: Props) {
       </div>
 
       <div>
-        <label className="label">Sequence</label>
+        <label className="label">{t('Sequence')}</label>
         <div className="card p-0 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left w-20">Day</th>
-                <th className="px-3 py-2 text-left w-32">Channel</th>
-                <th className="px-3 py-2 text-left">Action</th>
-                <th className="px-3 py-2 text-left">Note</th>
+                <th className="px-3 py-2 text-start w-20">{t('Day')}</th>
+                <th className="px-3 py-2 text-start w-32">{t('Channel')}</th>
+                <th className="px-3 py-2 text-start">{t('Action')}</th>
+                <th className="px-3 py-2 text-start">{t('Note')}</th>
                 <th className="px-3 py-2 w-10" />
               </tr>
             </thead>
@@ -171,12 +172,12 @@ export default function StepSequence({ draft, onChange }: Props) {
                       }
                     />
                   </td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-2 py-2 text-end">
                     <button
                       onClick={() => removeStep(idx)}
                       className="text-slate-400 hover:text-rose-600"
                       type="button"
-                      aria-label="Remove step"
+                      aria-label={t('Remove step')}
                     >
                       ✕
                     </button>
@@ -187,14 +188,14 @@ export default function StepSequence({ draft, onChange }: Props) {
           </table>
           <div className="border-t border-slate-100 p-2">
             <button type="button" onClick={addStep} className="btn-ghost text-xs">
-              + Add step
+              {t('+ Add step')}
             </button>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="label">Daily send limits</label>
+        <label className="label">{t('Daily send limits')}</label>
         <div className="grid grid-cols-3 gap-4">
           {CHANNEL_ORDER.map((c) => {
             const max = c === 'email' ? 500 : c === 'linkedin' ? 100 : 250;
@@ -203,7 +204,7 @@ export default function StepSequence({ draft, onChange }: Props) {
               <div key={c}>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
                   <span>{CHANNEL_INFO[c].label}</span>
-                  <span className="font-mono">{val}/day</span>
+                  <span className="font-mono">{t('{val}/day', { val })}</span>
                 </div>
                 <input
                   type="range"
@@ -220,7 +221,7 @@ export default function StepSequence({ draft, onChange }: Props) {
                   }
                   className="w-full"
                 />
-                <div className="text-[10px] text-slate-400">max {max}</div>
+                <div className="text-[10px] text-slate-400">{t('max {max}', { max })}</div>
               </div>
             );
           })}
@@ -228,7 +229,7 @@ export default function StepSequence({ draft, onChange }: Props) {
       </div>
 
       <div>
-        <label className="label">Batch size</label>
+        <label className="label">{t('Batch size')}</label>
         <input
           type="number"
           className="input max-w-xs"
@@ -240,7 +241,7 @@ export default function StepSequence({ draft, onChange }: Props) {
           }
         />
         <div className="text-xs text-slate-500 mt-1">
-          How many prospects to fetch and enqueue on launch.
+          {t('How many prospects to fetch and enqueue on launch.')}
         </div>
       </div>
     </div>

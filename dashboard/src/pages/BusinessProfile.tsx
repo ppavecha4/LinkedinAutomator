@@ -10,6 +10,7 @@ import { Building2, Loader2, Megaphone, Pencil, ShieldBan, Target, UserRound } f
 import * as React from 'react';
 import { toast } from 'sonner';
 
+import { t, tServer, tn } from '../i18n';
 import { mergeWebsiteDraft, SampleMessage, WebsiteReader } from '../components/profile/ai';
 import {
   CompanyForm,
@@ -34,19 +35,19 @@ import {
 } from '../lib/profile';
 
 const CARDS: Array<{ section: Section; title: string; icon: typeof Building2 }> = [
-  { section: 'company', title: 'Company', icon: Building2 },
-  { section: 'offer', title: 'What you sell', icon: Megaphone },
-  { section: 'customers', title: 'Ideal customers', icon: Target },
-  { section: 'voice', title: 'Voice and sender', icon: UserRound },
-  { section: 'rules', title: 'Rules and exclusions', icon: ShieldBan },
+  { section: 'company', title: t('Company'), icon: Building2 },
+  { section: 'offer', title: t('What you sell'), icon: Megaphone },
+  { section: 'customers', title: t('Ideal customers'), icon: Target },
+  { section: 'voice', title: t('Voice and sender'), icon: UserRound },
+  { section: 'rules', title: t('Rules and exclusions'), icon: ShieldBan },
 ];
 
 const USES: Array<[string, string]> = [
-  ['Finding prospects', 'Your offering, built from this profile, becomes the search: roles, industries, sizes and countries.'],
-  ['Skipping people', 'The never-contact list, blocked countries and opt-outs are checked when finding, importing and again before every send.'],
-  ['Choosing what to say', 'Each prospect gets the offer and problem that fit them; only proof you allowed is ever cited.'],
-  ['How it sounds', 'Tone, formality, sender, meeting link and words to avoid, in every language.'],
-  ['Which language', "Each prospect's own language, limited to the languages your team can answer in."],
+  [t('Finding prospects'), t('Your offering, built from this profile, becomes the search: roles, industries, sizes and countries.')],
+  [t('Skipping people'), t('The never-contact list, blocked countries and opt-outs are checked when finding, importing and again before every send.')],
+  [t('Choosing what to say'), t('Each prospect gets the offer and problem that fit them; only proof you allowed is ever cited.')],
+  [t('How it sounds'), t('Tone, formality, sender, meeting link and words to avoid, in every language.')],
+  [t('Which language'), t("Each prospect's own language, limited to the languages your team can answer in.")],
 ];
 
 export default function BusinessProfile(): React.ReactElement {
@@ -54,17 +55,17 @@ export default function BusinessProfile(): React.ReactElement {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Settings"
-        title="Business profile"
-        description="Everything the AI knows about your business. Changes apply to prospects found and messages written from now on."
+        eyebrow={t('Settings')}
+        title={t('Business profile')}
+        description={t('Everything the AI knows about your business. Changes apply to prospects found and messages written from now on.')}
         icon={Building2}
       />
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label={t('Loading')} />
         </div>
       ) : error || !data ? (
-        <p role="alert" className="text-sm text-destructive">{errorMessage(error, 'Could not load your business profile.')}</p>
+        <p role="alert" className="text-sm text-destructive">{errorMessage(error, t('Could not load your business profile.'))}</p>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="space-y-5">
@@ -75,11 +76,11 @@ export default function BusinessProfile(): React.ReactElement {
           <aside className="space-y-5">
             <Strength data={data} />
             <section className="glass rounded-2xl p-5">
-              <h2 className="mb-3 text-base font-semibold">How the AI uses your profile</h2>
+              <h2 className="mb-3 text-base font-semibold">{t('How the AI uses your profile')}</h2>
               <dl className="space-y-3 text-sm">
-                {USES.map(([t, d]) => (
-                  <div key={t}>
-                    <dt className="font-medium">{t}</dt>
+                {USES.map(([item, d]) => (
+                  <div key={item}>
+                    <dt className="font-medium">{item}</dt>
                     <dd className="text-muted-foreground">{d}</dd>
                   </div>
                 ))}
@@ -98,18 +99,18 @@ function Strength({ data }: { data: ProfileResponse }): React.ReactElement {
   return (
     <section className="glass rounded-2xl p-5">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-base font-semibold">Profile strength</h2>
+        <h2 className="text-base font-semibold">{t('Profile strength')}</h2>
         <span className="text-2xl font-semibold tabular-nums">{score}%</span>
       </div>
-      <Progress value={score} className="mt-3" aria-label={`Profile ${score}% complete`} />
+      <Progress value={score} className="mt-3" aria-label={t('Profile {score}% complete', { score })} />
       {missing.length ? (
         <ul className="mt-4 space-y-1.5 text-sm text-muted-foreground">
           {missing.slice(0, 3).map((m) => (
-            <li key={m.item}>· {m.hint}</li>
+            <li key={m.item}>· {tServer(m.hint)}</li>
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-muted-foreground">Complete. The AI has what it needs.</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t('Complete. The AI has what it needs.')}</p>
       )}
     </section>
   );
@@ -145,9 +146,9 @@ function SectionCard({
     try {
       await save.mutateAsync({ section: card.section, value: prepareSection(card.section, draft) });
       setEditing(false);
-      toast.success(`${card.title} saved`);
+      toast.success(t('{title} saved', { title: card.title }));
     } catch (err) {
-      setError(errorMessage(err, 'Could not save. Check the fields and try again.'));
+      setError(errorMessage(err, t('Could not save. Check the fields and try again.')));
     }
   }
 
@@ -159,11 +160,11 @@ function SectionCard({
         </span>
         <h2 id={`card-${card.section}`} className="text-base font-semibold">{card.title}</h2>
         <span className={missing ? 'text-xs text-amber-600 dark:text-amber-400' : 'text-xs text-muted-foreground'}>
-          {missing ? `${missing} thing${missing === 1 ? '' : 's'} missing` : 'Complete'}
+          {missing ? tn(missing, '{count} thing missing', '{count} things missing') : t('Complete')}
         </span>
         {!editing && canEdit && (
-          <button type="button" className="btn-ghost ml-auto px-2.5 py-1.5 text-xs" onClick={startEdit} aria-label={`Edit ${card.title}`}>
-            <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edit
+          <button type="button" className="btn-ghost ms-auto px-2.5 py-1.5 text-xs" onClick={startEdit} aria-label={t('Edit {title}', { title: card.title })}>
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />{' '}{t('Edit')}
           </button>
         )}
       </div>
@@ -198,10 +199,10 @@ function SectionCard({
             </p>
           )}
           <div className="mt-5 flex justify-end gap-2">
-            <button type="button" className="btn-ghost" onClick={() => setEditing(false)} disabled={save.isPending}>Cancel</button>
+            <button type="button" className="btn-ghost" onClick={() => setEditing(false)} disabled={save.isPending}>{t('Cancel')}</button>
             <button type="submit" className="btn-primary" disabled={save.isPending}>
               {save.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Save
+              {t('Save')}
             </button>
           </div>
         </form>
@@ -214,7 +215,7 @@ function SectionCard({
 
 function Rows({ rows }: { rows: Array<[string, React.ReactNode]> }): React.ReactElement {
   const shown = rows.filter(([, v]) => v !== null && v !== undefined && v !== '');
-  if (!shown.length) return <p className="text-sm text-muted-foreground">Nothing here yet.</p>;
+  if (!shown.length) return <p className="text-sm text-muted-foreground">{t('Nothing here yet.')}</p>;
   return (
     <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
       {shown.map(([k, v]) => (
@@ -235,12 +236,12 @@ function Summary({ section, profile }: { section: Section; profile: Profile }): 
     case 'company':
       return (
         <Rows rows={[
-          ['Name', c.name],
-          ['Website', c.website],
-          ['Industry', c.industry],
-          ['Headquarters · size', [c.hq_country && countryName(c.hq_country), c.size && `${c.size.replace('-', '–')} people`].filter(Boolean).join(' · ')],
-          ['Team replies in', list(c.languages_handled?.map(languageName))],
-          ['What you do', c.description],
+          [t('Name'), c.name],
+          [t('Website'), c.website],
+          [t('Industry'), c.industry],
+          [t('Headquarters · size'), [c.hq_country && countryName(c.hq_country), c.size && t('{size} people', { size: c.size.replace('-', '–') })].filter(Boolean).join(' · ')],
+          [t('Team replies in'), list(c.languages_handled?.map(languageName))],
+          [t('What you do'), c.description],
         ]} />
       );
     case 'offer': {
@@ -248,45 +249,45 @@ function Summary({ section, profile }: { section: Section; profile: Profile }): 
       const hidden = (o.proof ?? []).length - allowed.length;
       return (
         <Rows rows={[
-          ['Offers', list(o.offers?.map((x) => x.name))],
-          ['Why customers choose you', o.value_proposition],
-          ['Proof the AI may cite', list(allowed)],
-          ['Kept private', hidden ? `${hidden} proof point${hidden === 1 ? '' : 's'} (never sent to the AI)` : ''],
-          ['Prices', o.price_policy === 'starting_price' ? 'May offer to share pricing' : 'Never mentioned'],
+          [t('Offers'), list(o.offers?.map((x) => x.name))],
+          [t('Why customers choose you'), o.value_proposition],
+          [t('Proof the AI may cite'), list(allowed)],
+          [t('Kept private'), hidden ? tn(hidden, '{count} proof point (never sent to the AI)', '{count} proof points (never sent to the AI)') : ''],
+          [t('Prices'), o.price_policy === 'starting_price' ? t('May offer to share pricing') : t('Never mentioned')],
         ]} />
       );
     }
     case 'customers':
       return (
         <Rows rows={[
-          ['Roles', list(k.roles)],
-          ['Industries', list(k.industries)],
-          ['Company sizes', list(k.company_sizes?.map((s) => s.replace('-', '–')))],
-          ['Countries', list(k.countries?.map(countryName))],
-          ['Buying signals', list(k.signals?.map((s) => SIGNAL_LABELS[s]))],
-          ['Problems you solve', k.problems],
+          [t('Roles'), list(k.roles)],
+          [t('Industries'), list(k.industries)],
+          [t('Company sizes'), list(k.company_sizes?.map((s) => s.replace('-', '–')))],
+          [t('Countries'), list(k.countries?.map(countryName))],
+          [t('Buying signals'), list(k.signals?.map((s) => SIGNAL_LABELS[s]))],
+          [t('Problems you solve'), k.problems],
         ]} />
       );
     case 'voice':
       return (
         <Rows rows={[
-          ['Tone · formality', v.tone || v.formality ? `${TONE_LABELS[v.tone ?? 'professional']} · ${v.formality ?? 'formal'}` : ''],
-          ['Sender', [v.sender_name, v.sender_title].filter(Boolean).join(', ')],
-          ['Meeting link', v.meeting_link],
-          ['Never say', list(v.avoid)],
-          ['Style example', v.example ? 'Saved (style only, facts never reused)' : ''],
+          [t('Tone · formality'), v.tone || v.formality ? `${TONE_LABELS[v.tone ?? 'professional']} · ${v.formality === 'informal' ? t('informal') : t('formal')}` : ''],
+          [t('Sender'), [v.sender_name, v.sender_title].filter(Boolean).join(', ')],
+          [t('Meeting link'), v.meeting_link],
+          [t('Never say'), list(v.avoid)],
+          [t('Style example'), v.example ? t('Saved (style only, facts never reused)') : ''],
         ]} />
       );
     case 'rules': {
       const never = (k.never_contact ?? []).length;
       return (
         <Rows rows={[
-          ['Never contact', never ? `${never} domain${never === 1 ? '' : 's'} or compan${never === 1 ? 'y' : 'ies'} (edit under Ideal customers)` : 'None (add them under Ideal customers)'],
-          ['Blocked countries', list(r.blocked_countries?.map(countryName)) || 'None'],
-          ['Contact hours', r.contact_hours
-            ? `${r.contact_hours.start}–${r.contact_hours.end} their local time${r.contact_hours.weekdays_only ? ', working days only' : ''}`
-            : 'No limit'],
-          ['Opted out', 'Kept automatically, in every language'],
+          [t('Never contact'), never ? tn(never, '{count} domain or company (edit under Ideal customers)', '{count} domains or companies (edit under Ideal customers)') : t('None (add them under Ideal customers)')],
+          [t('Blocked countries'), list(r.blocked_countries?.map(countryName)) || t('None')],
+          [t('Contact hours'), r.contact_hours
+            ? t(r.contact_hours.weekdays_only ? '{start}–{end} their local time, working days only' : '{start}–{end} their local time', { start: r.contact_hours.start, end: r.contact_hours.end })
+            : t('No limit')],
+          [t('Opted out'), t('Kept automatically, in every language')],
         ]} />
       );
     }

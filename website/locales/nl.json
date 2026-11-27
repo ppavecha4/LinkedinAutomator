@@ -82,7 +82,7 @@
     },
     {
       "q": "In welke talen kunnen de berichten zijn?",
-      "a": "De AI schrijft in de taal van de ontvanger. De schermen van het product zijn op dit moment in het Engels."
+      "a": "De AI schrijft in de taal van de ontvanger. De schermen van de app zijn beschikbaar in het Nederlands, Engels, Spaans, Portugees, Duits en Arabisch."
     },
     {
       "q": "Van wie komen de berichten?",
@@ -98,7 +98,7 @@
   "footer_privacy": "Privacybeleid",
   "footer_terms": "Voorwaarden",
   "footer_deletion": "Gegevens verwijderen",
-  "footer_legal_note": "De juridische documenten zijn beschikbaar in het Engels.",
+  "footer_legal_note": "",
   "footer_contact": "Contact",
   "hero_badges": [
     "E-mail en WhatsApp",
@@ -151,7 +151,7 @@
   "signup_closed": "Online aanmelden kan binnenkort. Stuur ons een kort bericht, dan laten we weten wanneer je je account kunt aanmaken.",
   "signup_fee_text": "Eenmalige aanmeldkosten: {inr} in India (inclusief Indiase btw) of {usd} daarbuiten. Het is geen abonnement.",
   "signup_have_account": "Heb je al een account?",
-  "signup_form_note": "Het aanmeldformulier en het product zijn in het Engels.",
+  "signup_form_note": "",
   "pricing_open_text": "De maandabonnementen worden nog vastgesteld. Elke verdere prijs zie je voordat je betaalt, met de belastingen die van toepassing zijn.",
   "final_open_text": "Maak je account aan en de AI helpt je je eerste campagne voor te bereiden.",
   "faq_cost_q": "Wat kost {brand}?",

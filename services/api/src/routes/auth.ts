@@ -31,6 +31,7 @@ import { z } from 'zod';
 import { query } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { requestLanguage } from '../lib/accountEmails';
 import { emailVerificationLink } from '../lib/accountTokens';
 import { googleConfigured } from '../lib/googleOidc';
 import { mailerConfigured } from '../lib/mailer';
@@ -216,7 +217,7 @@ router.post(
       logger.info('signup', { org_id: created.org_id });
       // Verification link (when the server can email). A failure here must
       // not undo the sign-up: they can resend it from the banner.
-      emailVerificationLink(created.user_id, email, b.full_name).catch((e) =>
+      emailVerificationLink(created.user_id, email, b.full_name, requestLanguage(req)).catch((e) =>
         logger.warn('verification email failed', { error: (e as Error).message }));
       ok(res, {
         user: { email, full_name: b.full_name, org_id: created.org_id, role: 'owner' },

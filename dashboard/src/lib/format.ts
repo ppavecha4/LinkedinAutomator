@@ -3,11 +3,13 @@
  * for Session 6.
  */
 
+import { locale } from '../i18n';
+
 export function formatNumber(n: number | string | null | undefined): string {
   if (n === null || n === undefined || n === '') return '0';
   const num = typeof n === 'string' ? Number(n) : n;
   if (!Number.isFinite(num)) return '0';
-  return new Intl.NumberFormat('en-US').format(Math.round(num));
+  return new Intl.NumberFormat(locale()).format(Math.round(num));
 }
 
 export function formatPercent(
@@ -17,14 +19,14 @@ export function formatPercent(
   if (n === null || n === undefined || n === '') return '—';
   const num = typeof n === 'string' ? Number(n) : n;
   if (!Number.isFinite(num)) return '—';
-  return `${num.toFixed(digits)}%`;
+  return new Intl.NumberFormat(locale(), { style: 'percent', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(num / 100);
 }
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString(locale(), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -38,7 +40,7 @@ export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
     const d = new Date(iso);
-    return d.toLocaleString(undefined, {
+    return d.toLocaleString(locale(), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -55,13 +57,14 @@ export function formatRelative(iso: string | null | undefined): string {
   const d = new Date(iso);
   const delta = Date.now() - d.getTime();
   const seconds = Math.floor(delta / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
+  const ago = (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+    new Intl.RelativeTimeFormat(locale(), { numeric: 'always', style: 'narrow' }).format(-value, unit);
+  if (seconds < 60) return ago(seconds, 'second');
   const mins = Math.floor(seconds / 60);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return ago(mins, 'minute');
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  if (hrs < 24) return ago(hrs, 'hour');
+  return ago(Math.floor(hrs / 24), 'day');
 }
 
 export function num(v: unknown): number {

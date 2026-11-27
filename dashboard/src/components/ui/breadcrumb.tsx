@@ -6,6 +6,7 @@ import { ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
+import { t } from '../../i18n';
 import { cn } from '../../lib/cn';
 
 export interface BreadcrumbItem {
@@ -23,7 +24,7 @@ export function Breadcrumb({
   className,
 }: BreadcrumbProps): React.ReactElement {
   return (
-    <nav aria-label="breadcrumb" className={cn('flex items-center', className)}>
+    <nav aria-label={t('breadcrumb')} className={cn('flex items-center', className)}>
       <ol className="flex items-center gap-1.5 text-sm">
         {items.map((item, i) => {
           const last = i === items.length - 1;
@@ -49,7 +50,7 @@ export function Breadcrumb({
                 </span>
               )}
               {!last && (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 rtl:rotate-180" />
               )}
             </li>
           );

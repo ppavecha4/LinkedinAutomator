@@ -25,6 +25,8 @@ import {
 import * as React from 'react';
 import { toast } from 'sonner';
 
+import { label } from '../lib/labels';
+import { t, tn } from '../i18n';
 import { useUpdateCampaign } from '../hooks/useCampaigns';
 import { api } from '../lib/api';
 
@@ -99,12 +101,12 @@ export function HeyreachLinkPanel({
       });
       toast.success(
         heyreachCampaignId
-          ? 'Linked to Heyreach campaign'
-          : 'Heyreach link cleared',
+          ? t('Linked to Heyreach campaign')
+          : t('Heyreach link cleared'),
       );
       setEditing(false);
     } catch (e) {
-      toast.error('Save failed', { description: (e as Error).message });
+      toast.error(t('Save failed'), { description: (e as Error).message });
     }
   };
 
@@ -115,7 +117,7 @@ export function HeyreachLinkPanel({
   };
 
   return (
-    <div className="glass rounded-xl p-4 mb-6 border-l-4 border-[#0a66c2]">
+    <div className="glass rounded-xl p-4 mb-6 border-s-4 border-[#0a66c2]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#0a66c2]/15 text-[#0a66c2]">
@@ -123,31 +125,31 @@ export function HeyreachLinkPanel({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              Heyreach campaign link
+              {t('Heyreach campaign link')}
               {linked && (
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
               )}
             </div>
             {linked ? (
               <div className="mt-1 text-xs text-muted-foreground">
-                Linked to{' '}
+                {t('Linked to')}{' '}
                 <strong className="text-foreground">
-                  {linkedName ?? `(id ${heyreachId})`}
+                  {linkedName ?? t('(id {heyreachId})', { heyreachId })}
                 </strong>
-                . LinkedIn drafts on this campaign push directly to Heyreach.
+                {t('. LinkedIn drafts on this campaign push directly to Heyreach.')}
               </div>
             ) : (
               <div className="mt-1 text-xs text-muted-foreground">
-                Not linked. Pick an existing Heyreach campaign below or{' '}
+                {t('Not linked. Pick an existing Heyreach campaign below, or')}{' '}
                 <a
                   href="https://app.heyreach.io/campaigns"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#0a66c2] underline"
                 >
-                  create one in Heyreach
+                  {t('create one in Heyreach')}
                 </a>
-                {' '}then refresh.
+                {' '}{t('Then refresh.')}
               </div>
             )}
           </div>
@@ -159,59 +161,58 @@ export function HeyreachLinkPanel({
         {list.isLoading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Loading your Heyreach campaigns…
+            {t('Loading your Heyreach campaigns…')}
           </div>
         ) : list.data?.skipped ? (
           <div className="text-xs text-muted-foreground">
-            Heyreach not configured on the API service (HEYREACH_API_KEY).
-            You can still paste a campaign id manually below.
+            {t('Heyreach not configured on the API service (HEYREACH_API_KEY). You can still paste a campaign id manually below.')}
           </div>
         ) : list.data?.ok === false ? (
           <div className="text-xs text-rose-500">
-            Heyreach API error: {list.data?.error ?? 'unknown'}{' '}
+            {t('Heyreach API error: {error}', { error: list.data?.error ?? t('unknown') })}{' '}
             <button
-              className="ml-2 underline"
+              className="ms-2 underline"
               onClick={refresh}
             >
-              retry
+              {t('retry')}
             </button>
           </div>
         ) : (
           <>
             <div className="relative flex-1 min-w-[260px]">
               <select
-                className="input h-8 text-xs pr-7 appearance-none"
+                className="input h-8 text-xs pe-7 appearance-none"
                 value={heyreachId ?? ''}
                 onChange={(e) => onPick(e.target.value)}
                 disabled={update.isPending}
               >
                 <option value="">
-                  {linked ? '— Unlink —' : '— Pick a Heyreach campaign —'}
+                  {linked ? t('— Unlink —') : t('— Pick a Heyreach campaign —')}
                 </option>
                 {list.data?.campaigns.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} {c.status !== 'UNKNOWN' ? `· ${c.status}` : ''}
+                    {c.name} {c.status !== 'UNKNOWN' ? `· ${label(c.status)}` : ''}
                     {c.account_count !== undefined
-                      ? ` · ${c.account_count} account${c.account_count === 1 ? '' : 's'}`
+                      ? ` · ${tn(c.account_count, '{count} account', '{count} accounts')}`
                       : ''}
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+              <ChevronDown className="absolute end-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
             </div>
 
             <button
               className="btn-ghost text-xs h-8 px-3"
               onClick={refresh}
               disabled={list.isFetching}
-              title="Re-fetch from Heyreach"
+              title={t('Re-fetch from Heyreach')}
             >
               {list.isFetching ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <RefreshCw className="h-3 w-3" />
               )}
-              Refresh
+              {t('Refresh')}
             </button>
 
             <a
@@ -221,7 +222,7 @@ export function HeyreachLinkPanel({
               rel="noopener noreferrer"
             >
               <ExternalLink className="h-3 w-3" />
-              Create in Heyreach
+              {t('Create in Heyreach')}
             </a>
           </>
         )}
@@ -234,7 +235,7 @@ export function HeyreachLinkPanel({
           onClick={() => setEditing(true)}
         >
           <Link2 className="h-3 w-3" />
-          Or paste an id manually
+          {t('Or paste an id manually')}
         </button>
       ) : (
         <div className="mt-2 flex items-center gap-1">
@@ -242,7 +243,7 @@ export function HeyreachLinkPanel({
             className="input h-7 text-xs flex-1"
             value={manualValue}
             onChange={(e) => setManualValue(e.target.value)}
-            placeholder="paste Heyreach campaign id"
+            placeholder={t('paste Heyreach campaign id')}
             autoFocus
           />
           <button
@@ -250,7 +251,7 @@ export function HeyreachLinkPanel({
             onClick={onSaveManual}
             disabled={update.isPending}
           >
-            {update.isPending ? 'Saving…' : 'Save'}
+            {update.isPending ? t('Saving…') : t('Save')}
           </button>
           <button
             className="btn-ghost text-xs h-7 px-3"
@@ -260,21 +261,21 @@ export function HeyreachLinkPanel({
             }}
             disabled={update.isPending}
           >
-            Cancel
+            {t('Cancel')}
           </button>
         </div>
       )}
 
       {list.data?.ok && list.data.campaigns.length === 0 && (
         <div className="mt-2 text-xs text-muted-foreground">
-          You have no Heyreach campaigns yet.{' '}
+          {t('You have no Heyreach campaigns yet.')}{' '}
           <a
             href="https://app.heyreach.io/campaigns"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[#0a66c2] underline"
           >
-            Create your first one →
+            {t('Create your first one →')}
           </a>
         </div>
       )}

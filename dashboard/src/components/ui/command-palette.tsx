@@ -19,6 +19,7 @@ import {
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { t } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { useTheme } from '../../lib/theme';
 
@@ -75,60 +76,60 @@ export function CommandPalette({
         )}
       >
         <Command
-          label="Command palette"
+          label={t('Command palette')}
           className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
         >
           <div className="flex items-center border-b border-border/60 px-4">
-            <Sparkles className="mr-2 h-4 w-4 text-primary" />
+            <Sparkles className="me-2 h-4 w-4 text-primary" />
             <Command.Input
-              placeholder="Type a command or search…"
+              placeholder={t('Type a command or search…')}
               className="flex h-12 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <kbd className="kbd">ESC</kbd>
+            <kbd className="kbd">{t('ESC')}</kbd>
           </div>
           <Command.List className="max-h-[400px] overflow-y-auto overflow-x-hidden p-2">
             <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
-              No results found.
+              {t('No results found.')}
             </Command.Empty>
 
-            <Command.Group heading="Navigate">
+            <Command.Group heading={t('Navigate')}>
               <PaletteItem
                 icon={LayoutDashboard}
-                label="Overview"
+                label={t('Overview')}
                 onSelect={() => go('/')}
               />
               <PaletteItem
                 icon={Sparkles}
-                label="Campaigns"
+                label={t('Campaigns')}
                 onSelect={() => go('/campaigns')}
               />
               <PaletteItem
                 icon={Users}
-                label="Prospects"
+                label={t('Prospects')}
                 onSelect={() => go('/prospects')}
               />
               <PaletteItem
                 icon={BarChart3}
-                label="Analytics"
+                label={t('Analytics')}
                 onSelect={() => go('/analytics')}
               />
               <PaletteItem
                 icon={SettingsIcon}
-                label="Settings"
+                label={t('Settings')}
                 onSelect={() => go('/settings')}
               />
             </Command.Group>
 
-            <Command.Group heading="Actions">
+            <Command.Group heading={t('Actions')}>
               <PaletteItem
                 icon={PlusCircle}
-                label="New campaign"
+                label={t('New campaign')}
                 shortcut="N"
                 onSelect={() => go('/campaigns/new')}
               />
               <PaletteItem
                 icon={Sun}
-                label="Toggle theme"
+                label={t('Toggle theme')}
                 shortcut="T"
                 onSelect={() => {
                   toggle();

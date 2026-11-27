@@ -12,15 +12,16 @@
 
 import * as React from 'react';
 
+import { t } from '../i18n';
 import { useOverallFunnel } from '../hooks/useAnalytics';
 
 const STAGES: { key: string; label: string; color: string }[] = [
-  { key: 'discovered', label: 'Discovered', color: 'bg-slate-400' },
-  { key: 'enriched', label: 'Enriched', color: 'bg-sky-400' },
-  { key: 'contacted', label: 'Contacted', color: 'bg-indigo-500' },
-  { key: 'opened', label: 'Opened', color: 'bg-violet-500' },
-  { key: 'replied', label: 'Replied', color: 'bg-emerald-500' },
-  { key: 'meeting_booked', label: 'Meeting booked', color: 'bg-amber-500' },
+  { key: 'discovered', label: t('Discovered'), color: 'bg-slate-400' },
+  { key: 'enriched', label: t('Enriched'), color: 'bg-sky-400' },
+  { key: 'contacted', label: t('Contacted'), color: 'bg-indigo-500' },
+  { key: 'opened', label: t('Opened'), color: 'bg-violet-500' },
+  { key: 'replied', label: t('Replied'), color: 'bg-emerald-500' },
+  { key: 'meeting_booked', label: t('Meeting booked'), color: 'bg-amber-500' },
 ];
 
 export function LifecycleFunnel(): React.ReactElement {
@@ -43,18 +44,18 @@ export function LifecycleFunnel(): React.ReactElement {
     <div className="card">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-slate-800">
-          Lifecycle funnel
+          {t('Lifecycle funnel')}
         </h3>
-        <span className="text-xs text-slate-400">active campaigns</span>
+        <span className="text-xs text-slate-400">{t('active campaigns')}</span>
       </div>
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground py-6 text-center">
-          Loading…
+          {t('Loading…')}
         </div>
       ) : cumulative[0] === 0 ? (
         <div className="text-sm text-muted-foreground py-6 text-center">
-          No prospects yet — launch a campaign to see the funnel fill.
+          {t('No prospects yet — launch a campaign to see the funnel fill.')}
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -72,7 +73,7 @@ export function LifecycleFunnel(): React.ReactElement {
                   <span className="text-slate-500">
                     <strong className="text-slate-800">{value}</strong>
                     {convFromPrev !== null && (
-                      <span className="ml-2 text-slate-400">
+                      <span className="ms-2 text-slate-400">
                         {convFromPrev}% ↓
                       </span>
                     )}

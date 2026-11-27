@@ -58,7 +58,8 @@ export function PageHeader({
               {eyebrow}
             </div>
           )}
-          <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
+          {/* Long words (German) wrap on a phone instead of being cut off. */}
+          <h1 className="text-2xl sm:text-4xl font-bold leading-tight break-words hyphens-auto">
             <span className="text-gradient">{title}</span>
           </h1>
           {description && (

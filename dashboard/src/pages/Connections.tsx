@@ -15,6 +15,7 @@ import * as React from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { t, tServer } from '../i18n';
 import { CountrySelect, Field } from '../components/profile/fields';
 import { ConnectWhatsApp } from '../components/whatsapp/ConnectWhatsApp';
 import { WhatsAppMessages } from '../components/whatsapp/WhatsAppMessages';
@@ -73,24 +74,23 @@ export default function Connections(): React.ReactElement {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Settings"
-        title="Connected accounts"
-        description="Outreach is sent from your accounts, not ours. Keys are encrypted the moment you save them and are never shown again."
+        eyebrow={t('Settings')}
+        title={t('Connected accounts')}
+        description={t('Outreach is sent from your accounts, not ours. Keys are encrypted the moment you save them and are never shown again.')}
         icon={Plug}
       />
       {org.isLoading || creds.isLoading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label={t('Loading')} />
         </div>
       ) : org.error || creds.error ? (
-        <p role="alert" className="text-sm text-destructive">{errorMessage(org.error ?? creds.error, 'Could not load your accounts.')}</p>
+        <p role="alert" className="text-sm text-destructive">{errorMessage(org.error ?? creds.error, t('Could not load your accounts.'))}</p>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="space-y-4">
             {org.data?.operator && (
               <p className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm">
-                This is the operator workspace: it runs on the keys in the server's environment file. Accounts saved
-                here are stored but not used.
+                {t('This is the operator workspace: it runs on the keys in the server\'s environment file. Accounts saved here are stored but not used.')}
               </p>
             )}
             {kinds.map((k) => (
@@ -109,18 +109,18 @@ export default function Connections(): React.ReactElement {
               </React.Fragment>
             ))}
             {!canManage && (
-              <p className="text-xs text-muted-foreground">Only owners and admins can connect or change accounts.</p>
+              <p className="text-xs text-muted-foreground">{t('Only owners and admins can connect or change accounts.')}</p>
             )}
           </div>
           <aside className="space-y-5">
             <section className="glass rounded-2xl p-5">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-base font-semibold">Setup progress</h2>
-                <span className="text-sm tabular-nums text-muted-foreground">{done} of {countable.length} verified</span>
+                <h2 className="text-base font-semibold">{t('Setup progress')}</h2>
+                <span className="text-sm tabular-nums text-muted-foreground">{t('{done} of {count} verified', { done, count: countable.length })}</span>
               </div>
-              <Progress value={countable.length ? (done / countable.length) * 100 : 0} className="mt-3" aria-label={`${done} of ${countable.length} accounts verified`} />
+              <Progress value={countable.length ? (done / countable.length) * 100 : 0} className="mt-3" aria-label={t('{done} of {count} accounts verified', { done, count: countable.length })} />
               <p className="mt-3 text-xs text-muted-foreground">
-                A campaign can launch once every channel it uses has a verified account. Unverified accounts send nothing.
+                {t('A campaign can launch once every channel it uses has a verified account. Unverified accounts send nothing.')}
               </p>
             </section>
             {org.data && <OrgDefaults canManage={canManage} />}
@@ -133,17 +133,17 @@ export default function Connections(): React.ReactElement {
 
 function StatusBadge({ cred }: { cred: Credential | undefined }): React.ReactElement {
   if (!cred) {
-    return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />Not connected</span>;
+    return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />{t('Not connected')}</span>;
   }
   if (cred.status === 'VERIFIED') {
-    return <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Verified</span>;
+    return <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />{t('Verified')}</span>;
   }
   if (cred.status === 'FAILED') {
-    return <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><XCircle className="h-3.5 w-3.5" aria-hidden="true" />Check failed</span>;
+    return <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><XCircle className="h-3.5 w-3.5" aria-hidden="true" />{t('Check failed')}</span>;
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-      <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />{CHECKABLE.has(cred.provider) ? 'Not checked yet' : 'Saved'}
+      <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />{CHECKABLE.has(cred.provider) ? t('Not checked yet') : t('Saved')}
     </span>
   );
 }
@@ -165,10 +165,10 @@ function AccountCard({ kind, creds, canManage, autoOpen = false, onAutoOpened }:
   async function checkAgain() {
     try {
       const r = await verify.mutateAsync(cred!.id);
-      if (r.status === 'VERIFIED') toast.success(`${kind.title} verified`);
-      else toast.error(`${kind.title} check failed`, { description: r.last_error ?? undefined });
+      if (r.status === 'VERIFIED') toast.success(t('{title} verified', { title: kind.title }));
+      else toast.error(t('{title} check failed', { title: kind.title }), { description: r.last_error ?? undefined });
     } catch (e) {
-      toast.error(errorMessage(e, 'Could not check this account.'));
+      toast.error(errorMessage(e, t('Could not check this account.')));
     }
   }
 
@@ -188,11 +188,11 @@ function AccountCard({ kind, creds, canManage, autoOpen = false, onAutoOpened }:
             </p>
           )}
           {cred?.status === 'FAILED' && cred.last_error && (
-            <p role="status" className="mt-2 text-sm text-destructive">{cred.last_error}</p>
+            <p role="status" className="mt-2 text-sm text-destructive">{tServer(cred.last_error)}</p>
           )}
         </div>
         <div className="shrink-0">
-          {kind.comingSoon ? <span className="text-xs font-medium text-muted-foreground">Coming soon</span> : <StatusBadge cred={cred} />}
+          {kind.comingSoon ? <span className="text-xs font-medium text-muted-foreground">{t('Coming soon')}</span> : <StatusBadge cred={cred} />}
         </div>
       </div>
       {!kind.comingSoon && canManage && (
@@ -200,16 +200,16 @@ function AccountCard({ kind, creds, canManage, autoOpen = false, onAutoOpened }:
           {cred && CHECKABLE.has(cred.provider) && cred.status !== 'VERIFIED' && (
             <button type="button" className="btn-ghost px-2.5 py-1.5 text-xs" onClick={checkAgain} disabled={verify.isPending}>
               {verify.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-              {cred.status === 'FAILED' ? 'Check again' : 'Check now'}
+              {cred.status === 'FAILED' ? t('Check again') : t('Check now')}
             </button>
           )}
           {cred && (
-            <button type="button" className="btn-ghost px-2.5 py-1.5 text-xs text-destructive" onClick={() => setConfirmRemove(true)} aria-label={`Disconnect ${kind.title}`}>
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Disconnect
+            <button type="button" className="btn-ghost px-2.5 py-1.5 text-xs text-destructive" onClick={() => setConfirmRemove(true)} aria-label={t('Disconnect {title}', { title: kind.title })}>
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />{' '}{t('Disconnect')}
             </button>
           )}
           <button type="button" className={cred ? 'btn-secondary px-3 py-1.5 text-xs' : 'btn-primary px-3 py-1.5 text-xs'} onClick={() => setOpen(true)}>
-            {cred ? 'Manage' : 'Connect'}
+            {cred ? t('Manage') : t('Connect')}
           </button>
         </div>
       )}
@@ -219,14 +219,13 @@ function AccountCard({ kind, creds, canManage, autoOpen = false, onAutoOpened }:
       <Dialog open={confirmRemove} onOpenChange={setConfirmRemove}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Disconnect {kind.title}?</DialogTitle>
+            <DialogTitle>{t('Disconnect {title}?', { title: kind.title })}</DialogTitle>
             <DialogDescription>
-              The saved key is destroyed and can't be recovered. Campaigns that use {kind.title.toLowerCase()} can't
-              launch until you connect an account again.
+              {t('The saved key is destroyed and can\'t be recovered. Campaigns that use {value} can\'t launch until you connect an account again.', { value: kind.title.toLowerCase() })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button type="button" className="btn-ghost" onClick={() => setConfirmRemove(false)}>Keep it</button>
+            <button type="button" className="btn-ghost" onClick={() => setConfirmRemove(false)}>{t('Keep it')}</button>
             <button
               type="button"
               className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -234,15 +233,15 @@ function AccountCard({ kind, creds, canManage, autoOpen = false, onAutoOpened }:
               onClick={async () => {
                 try {
                   await remove.mutateAsync(cred!.id);
-                  toast.success(`${kind.title} disconnected`);
+                  toast.success(t('{title} disconnected', { title: kind.title }));
                   setConfirmRemove(false);
                 } catch (e) {
-                  toast.error(errorMessage(e, 'Could not disconnect.'));
+                  toast.error(errorMessage(e, t('Could not disconnect.')));
                 }
               }}
             >
               {remove.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Disconnect
+              {t('Disconnect')}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -285,7 +284,7 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
         for (const part of v.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)) {
           const m = /^([a-z]{2,3})\s*[=:]\s*(HX[0-9a-fA-F]{32})$/i.exec(part);
           if (!m) {
-            setError(`${f.label}: write each as language=Content SID, e.g. es=HX… ("${part}" isn't).`);
+            setError(t('{label}: write each as language=Content SID, e.g. es=HX… ("{part}" isn\'t).', { label: f.label, part }));
             return;
           }
           meta[`${f.langPrefix}_${m[1].toLowerCase()}`] = m[2];
@@ -294,11 +293,11 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
       }
       if (!v) {
         if (f.optional) continue;
-        setError(`${f.label} is required.`);
+        setError(t('{label} is required.', { label: f.label }));
         return;
       }
       if (f.pattern && !f.pattern.test(v)) {
-        setError(f.patternMessage ?? `${f.label} doesn't look right.`);
+        setError(f.patternMessage ?? t('{label} doesn\'t look right.', { label: f.label }));
         return;
       }
       if (f.secret) secret[f.key] = v;
@@ -307,25 +306,25 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
     try {
       const saved = await save.mutateAsync({ provider: provider.id, secret, meta });
       if (!CHECKABLE.has(provider.id)) {
-        toast.success(`${kind.title} saved`, { description: 'Encrypted and stored.' });
+        toast.success(t('{title} saved', { title: kind.title }), { description: t('Encrypted and stored.') });
         onClose();
         return;
       }
       // Check it with the provider right away; campaigns only use verified accounts.
       const checked = await verify.mutateAsync(saved.id);
       if (checked.status === 'VERIFIED') {
-        toast.success(`${kind.title} connected and verified`);
+        toast.success(t('{title} connected and verified', { title: kind.title }));
         onClose();
       } else {
-        setError(`Saved, but the check failed: ${checked.last_error ?? 'unknown reason'}`);
+        setError(t('Saved, but the check failed: {reason}', { reason: checked.last_error ? tServer(checked.last_error) : t('unknown reason') }));
       }
     } catch (err) {
-      setError(errorMessage(err, 'Could not save. Check the fields and try again.'));
+      setError(errorMessage(err, t('Could not save. Check the fields and try again.')));
     }
   }
 
   const renderField = (f: ProviderField) => (
-    <Field key={f.key} label={`${f.label}${f.optional ? ' (optional)' : ''}`} hint={f.hint} htmlFor={`cx-${f.key}`}>
+    <Field key={f.key} label={`${f.label}${f.optional ? ` ${t('(optional)')}` : ''}`} hint={f.hint} htmlFor={`cx-${f.key}`}>
       <input
         id={`cx-${f.key}`}
         className="input font-mono text-sm"
@@ -342,14 +341,14 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{current ? `Update ${kind.title}` : `Connect ${kind.title}`}</DialogTitle>
+          <DialogTitle>{current ? t('Update {title}', { title: kind.title }) : t('Connect {title}', { title: kind.title })}</DialogTitle>
           <DialogDescription>
-            {current ? 'Enter the key again to replace it; saved keys are never shown.' : kind.why}
+            {current ? t('Enter the key again to replace it; saved keys are never shown.') : kind.why}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4" autoComplete="off">
           {kind.providers.length > 1 && (
-            <Field label="Provider" htmlFor="cx-provider">
+            <Field label={t('Provider')} htmlFor="cx-provider">
               <select id="cx-provider" className="input" value={providerId} onChange={(e) => { setProviderId(e.target.value); setValues({}); setError(null); }}>
                 {kind.providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -358,20 +357,20 @@ function ConnectDialog({ kind, current, onClose }: { kind: AccountKind; current:
           {provider.fields.filter((f) => !f.advanced).map(renderField)}
           {provider.fields.some((f) => f.advanced) && (
             <details className="rounded-lg border border-border/70 p-3" open={provider.fields.some((f) => f.advanced && !!values[f.key])}>
-              <summary className="cursor-pointer text-sm font-medium">Advanced options (you can skip these)</summary>
+              <summary className="cursor-pointer text-sm font-medium">{t('Advanced options (you can skip these)')}</summary>
               <div className="mt-3 space-y-4">{provider.fields.filter((f) => f.advanced).map(renderField)}</div>
             </details>
           )}
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Keys are encrypted before they are stored, tied to your organization, and never shown again.
+            {t('Keys are encrypted before they are stored, tied to your organization, and never shown again.')}
           </p>
           {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-ghost" onClick={onClose}>{t('Cancel')}</button>
             <button type="submit" className="btn-primary" disabled={save.isPending || verify.isPending}>
               {(save.isPending || verify.isPending) && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              {verify.isPending ? 'Checking…' : CHECKABLE.has(provider.id) ? 'Save and check' : 'Save'}
+              {verify.isPending ? t('Checking…') : CHECKABLE.has(provider.id) ? t('Save and check') : t('Save')}
             </button>
           </DialogFooter>
         </form>
@@ -395,31 +394,31 @@ function OrgDefaults({ canManage }: { canManage: boolean }): React.ReactElement 
   const patch = async (p: Parameters<typeof update.mutateAsync>[0]) => {
     try {
       await update.mutateAsync(p);
-      toast.success('Saved');
+      toast.success(t('Saved'));
     } catch (e) {
-      toast.error(errorMessage(e, 'Could not save.'));
+      toast.error(errorMessage(e, t('Could not save.')));
     }
   };
 
   return (
     <section className="glass rounded-2xl p-5 space-y-4">
-      <h2 className="text-base font-semibold">Organization defaults</h2>
-      <Field label="Default language" htmlFor="od-lang">
+      <h2 className="text-base font-semibold">{t('Organization defaults')}</h2>
+      <Field label={t('Default language')} htmlFor="od-lang">
         <select id="od-lang" className="input" disabled={!canManage} value={org.default_language} onChange={(e) => patch({ default_language: e.target.value })}>
           {(LANGUAGES as readonly string[]).includes(org.default_language) ? null : <option value={org.default_language}>{languageName(org.default_language)}</option>}
           {LANGUAGES.map((l) => <option key={l} value={l}>{languageName(l)}</option>)}
         </select>
       </Field>
-      <Field label="Home country" htmlFor="od-country">
+      <Field label={t('Home country')} htmlFor="od-country">
         <CountrySelect id="od-country" value={org.default_country ?? undefined} onChange={(c) => patch({ default_country: c ?? null })} />
       </Field>
-      <Field label="Time zone" htmlFor="od-tz">
+      <Field label={t('Time zone')} htmlFor="od-tz">
         <select id="od-tz" className="input" disabled={!canManage} value={org.timezone} onChange={(e) => patch({ timezone: e.target.value })}>
           {timezones.includes(org.timezone) ? null : <option value={org.timezone}>{org.timezone}</option>}
-          {timezones.map((t) => <option key={t} value={t}>{t}</option>)}
+          {timezones.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
       </Field>
-      <p className="text-xs text-muted-foreground">Used when a contact has no language or country of their own.</p>
+      <p className="text-xs text-muted-foreground">{t('Used when a contact has no language or country of their own.')}</p>
     </section>
   );
 }

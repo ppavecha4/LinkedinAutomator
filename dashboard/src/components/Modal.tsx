@@ -5,6 +5,8 @@
 
 import { useEffect } from 'react';
 
+import { t } from '../i18n';
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -45,7 +47,7 @@ export default function Modal({ open, onClose, children, title, size = 'lg' }: P
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-slate-600"
-              aria-label="Close"
+              aria-label={t('Close')}
             >
               ✕
             </button>

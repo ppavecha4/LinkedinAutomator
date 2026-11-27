@@ -11,6 +11,8 @@ import { Filter, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { label } from '../lib/labels';
+import { t } from '../i18n';
 import ConversationViewer from '../components/ConversationViewer';
 import ProspectTable from '../components/ProspectTable';
 import { PageHeader } from '../components/ui/page-header';
@@ -66,9 +68,9 @@ export default function ProspectPipeline() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pipeline"
-        title="Prospects"
-        description="Every discovered and enriched contact across your campaigns. Filter by campaign, stage, pitch, country, industry."
+        eyebrow={t('Pipeline')}
+        title={t('Prospects')}
+        description={t('Every discovered and enriched contact across your campaigns. Filter by campaign, stage, pitch, country, industry.')}
         icon={Users}
       />
 
@@ -76,11 +78,11 @@ export default function ProspectPipeline() {
       <div className="glass rounded-2xl p-5 mb-6">
         <div className="flex items-center gap-2 mb-4 text-sm font-semibold text-muted-foreground">
           <Filter className="h-4 w-4" />
-          Filters
+          {t('Filters')}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
-            <label className="label">Campaign</label>
+            <label className="label">{t('Campaign')}</label>
             <select
               className="input"
               value={campaignId ?? ''}
@@ -98,7 +100,7 @@ export default function ProspectPipeline() {
             </select>
           </div>
           <div>
-            <label className="label">Status</label>
+            <label className="label">{t('Status')}</label>
             <select
               className="input"
               value={status}
@@ -106,13 +108,13 @@ export default function ProspectPipeline() {
             >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {s === 'ALL' ? t('All') : label(s)}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="label">Pitch</label>
+            <label className="label">{t('Pitch')}</label>
             <select
               className="input"
               value={pitch}
@@ -120,27 +122,27 @@ export default function ProspectPipeline() {
             >
               {PITCH_OPTIONS.map((p) => (
                 <option key={p} value={p}>
-                  {p}
+                  {p === 'ALL' ? t('All') : label(p)}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="label">Country contains</label>
+            <label className="label">{t('Country contains')}</label>
             <input
               className="input"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              placeholder="US, India…"
+              placeholder={t('US, India…')}
             />
           </div>
           <div>
-            <label className="label">Industry contains</label>
+            <label className="label">{t('Industry contains')}</label>
             <input
               className="input"
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              placeholder="SaaS, Logistics…"
+              placeholder={t('SaaS, Logistics…')}
             />
           </div>
         </div>
@@ -149,7 +151,7 @@ export default function ProspectPipeline() {
       {isLoading && <div className="glass rounded-2xl h-40 animate-shimmer" />}
       {!isLoading && !campaignId && (
         <div className="glass rounded-2xl text-center text-sm text-muted-foreground py-12 bg-grid-subtle">
-          Create a campaign first to see prospects.
+          {t('Create a campaign first to see prospects.')}
         </div>
       )}
       {!isLoading && campaignId && (

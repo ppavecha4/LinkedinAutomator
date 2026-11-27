@@ -7,6 +7,7 @@ import { ArrowRight, ListChecks } from 'lucide-react';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
+import { t } from '../i18n';
 import { nextStep, useSetup } from '../hooks/useSetup';
 
 export function SetupBanner(): React.ReactElement | null {
@@ -20,10 +21,10 @@ export function SetupBanner(): React.ReactElement | null {
     >
       <ListChecks className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold">Finish setting up: {setup.done} of {setup.total} ready</p>
-        {next && <p className="truncate text-xs text-muted-foreground">Next: {next.title}</p>}
+        <p className="text-sm font-bold">{t('Finish setting up: {done} of {total} ready', { done: setup.done, total: setup.total })}</p>
+        {next && <p className="truncate text-xs text-muted-foreground">{t('Next: {title}', { title: next.title })}</p>}
       </div>
-      <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">Continue <ArrowRight className="h-4 w-4" aria-hidden="true" /></span>
+      <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">{t('Continue')}{' '}<ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /></span>
     </Link>
   );
 }

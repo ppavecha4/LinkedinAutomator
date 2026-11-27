@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { query } from '../db/client';
 import { env } from '../env';
 import { ApiError } from '../lib/errors';
+import { emailWords, requestLanguage } from '../lib/accountEmails';
 import { emailVerificationLink, issueToken, RESET_TTL_MINUTES } from '../lib/accountTokens';
 import { dashboardLink, mailerConfigured, sendMail } from '../lib/mailer';
 import { ok } from '../lib/response';
@@ -60,10 +61,11 @@ router.post(
         if (user?.password_hash) {
           try {
             const link = dashboardLink('/reset-password', await issueToken(user.user_id, 'reset'));
+            const words = emailWords(requestLanguage(req));
             await sendMail({
               to: email,
-              subject: 'Reset your password',
-              text: `Hi ${user.full_name ?? 'there'},\n\nSomeone asked to reset the password for this address. Choose a new one here:\n\n${link}\n\nThe link works once, for ${RESET_TTL_MINUTES} minutes. If it wasn't you, ignore this email: your password stays as it is.\n`,
+              subject: words.reset.subject,
+              text: `${words.hi(user.full_name)}\n\n${words.reset.body(link, RESET_TTL_MINUTES)}`,
             });
           } catch (e) {
             logger.warn('password reset email failed', { error: (e as Error).message });
@@ -130,7 +132,7 @@ router.post('/api/auth/resend-verification', auth, async (req: Request, res: Res
     const row = u.rows[0];
     if (!row) throw ApiError.notFound('user not found');
     if (row.email_verified_at) return ok(res, { ok: true, already_verified: true });
-    await emailVerificationLink(req.user!.id, row.email, row.full_name);
+    await emailVerificationLink(req.user!.id, row.email, row.full_name, requestLanguage(req));
     return ok(res, { ok: true });
   } catch (e) {
     next(e);

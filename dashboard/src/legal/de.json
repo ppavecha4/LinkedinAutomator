@@ -1,0 +1,161 @@
+{
+  "updated_label": "Zuletzt aktualisiert: 26. November 2026",
+  "back": "Zurück zur Anmeldung",
+  "translation_note": "Diese Übersetzung dient nur der Erleichterung. Weicht sie von der englischen Fassung ab, gilt die englische Fassung.",
+  "privacy": {
+    "title": "Datenschutzerklärung",
+    "sections": [
+      {
+        "title": "Wer wir sind",
+        "body": [
+          "Ritik Technologie Private Limited („wir“) betreibt AmiReach. Bei Ihrem Konto und Ihrem Team (Namen, geschäftliche E-Mail-Adressen, Anmeldedaten) entscheiden wir, wie die Daten verwendet werden. Bei den Kontaktdaten, die Sie hochladen oder von uns für Sie finden lassen (Personen, die Sie erreichen möchten), entscheiden Sie, und wir verarbeiten sie für Sie nach Ihren Weisungen."
+        ]
+      },
+      {
+        "title": "Was wir speichern",
+        "body": [
+          "Kontodaten: Ihr Name, Ihre geschäftliche E-Mail-Adresse, ein gesalzener Passwort-Hash (niemals das Passwort selbst), Ihr Unternehmensprofil und Ihre Anmeldeaktivität.",
+          "Kampagnendaten: die Listen, die Sie hochladen, für Sie gefundene Interessenten und Kontakte, die geschriebenen und gesendeten Nachrichten, Antworten, Abmeldungen und Rückläufer (unzustellbare Nachrichten) sowie eine Aufzeichnung der Vorgänge.",
+          "Zugangsgeheimnisse für Verbindungen: API-Schlüssel und App-Passwörter, die Sie verbinden, werden vor dem Speichern verschlüsselt und nie wieder angezeigt."
+        ]
+      },
+      {
+        "title": "Woher die Kontaktdaten stammen",
+        "body": [
+          "Aus Ihren Uploads und, wenn Sie die KI-Suche nutzen, von einem Anbieter für die Kundensuche, den Sie mit Ihrem eigenen Schlüssel verbinden (zum Beispiel Apollo). Sie benötigen eine Rechtsgrundlage, um diese Personen zu kontaktieren, und Sie bestätigen dies, wenn Sie eine Liste importieren."
+        ]
+      },
+      {
+        "title": "Wer sonst noch Daten verarbeitet (unsere Dienstleister)",
+        "body": [
+          "Wenn Sie uns bezahlen, der Zahlungsanbieter (Razorpay oder Stripe), der Ihre Karten- oder UPI-Daten direkt erhält; wir sehen und speichern diese nie.",
+          "Unser Anbieter für Cloud-Hosting und Datenbank; der KI-Anbieter, der Nachrichten schreibt und versteht (Anthropic) und der die für die jeweilige Nachricht erforderlichen Angaben zu Ihrem Unternehmen und zum Interessenten erhält; Twilio für WhatsApp und Ihr eigener E-Mail-Anbieter, die die von Ihnen gesendeten Nachrichten übermitteln; sowie, falls Sie ihn nutzen, Ihr Anbieter für die Kundensuche. Wir wählen Anbieter sorgfältig aus, und sie handeln nur, um den Dienst zu erbringen. Für die eigenen Konten der Kunden gelten deren eigene Vereinbarungen mit diesen Anbietern."
+        ]
+      },
+      {
+        "title": "Abmeldungen und Sperrliste",
+        "body": [
+          "Wenn jemand in irgendeiner Sprache darum bittet, nicht kontaktiert zu werden, werden seine Adresse und Nummer Ihrer Sperrliste hinzugefügt und vor jedem Versand erneut geprüft. Unzustellbare E-Mail-Adressen werden für den E-Mail-Versand gesperrt."
+        ]
+      },
+      {
+        "title": "Wie lange wir die Daten speichern",
+        "body": [
+          "Solange Ihr Konto aktiv ist. Hochgeladene Zeilen aus einem Import, den Sie abbrechen, werden sofort gelöscht. Wenn Sie Ihr Konto schließen, löschen oder anonymisieren wir Ihre Daten innerhalb von 30 Tagen, ausgenommen die Daten, die wir gesetzlich aufbewahren müssen."
+        ]
+      },
+      {
+        "title": "Sicherheit",
+        "body": [
+          "Die Daten jedes Unternehmens sind auf Datenbankebene voneinander getrennt, Zugangsgeheimnisse sind verschlüsselt, Sitzungen enden, wenn Sie ein Team verlassen oder Ihr Passwort ändern, und der Zugriff durch unsere Mitarbeitenden ist beschränkt und wird protokolliert. Kein System ist vollkommen sicher; informieren Sie uns sofort, wenn Sie ein Problem vermuten."
+        ]
+      },
+      {
+        "title": "Ihre Rechte und Kontakt",
+        "body": [
+          "Sie können auf Ihre Kontodaten zugreifen, sie berichtigen, exportieren und löschen. Personen, deren Daten in der Kampagne eines Kunden enthalten sind, können diesen Kunden (oder uns, und wir leiten die Anfrage weiter) bitten, Auskunft über die Daten zu geben, sie zu berichtigen oder zu löschen oder die Kontaktaufnahme einzustellen. Kontakt: info@appsontechnologies.in. Wie Sie Ihre Daten löschen lassen, erfahren Sie auf unserer Seite „Datenlöschung“. Wenn Sie sich in der EU, im Vereinigten Königreich, in Indien oder in einer anderen Region mit besonderen Vorschriften befinden, haben Sie möglicherweise auch das Recht, sich bei Ihrer Datenschutzbehörde zu beschweren."
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Nutzungsbedingungen",
+    "sections": [
+      {
+        "title": "Worum es geht",
+        "body": [
+          "AmiReach hilft Ihrem Unternehmen, potenzielle Kunden zu finden, persönliche Nachrichten in deren Sprache zu schreiben und sie über Ihre eigenen E-Mail- und WhatsApp-Konten zu versenden. Indem Sie ein Konto erstellen oder eine Einladung annehmen, stimmen Sie diesen Bedingungen in Ihrem eigenen Namen und im Namen Ihres Unternehmens zu."
+        ]
+      },
+      {
+        "title": "Ihr Konto",
+        "body": [
+          "Bewahren Sie Ihr Passwort sicher auf und informieren Sie uns, wenn Sie glauben, dass jemand anderes Zugriff auf Ihre Sitzung hat („Überall abmelden“ beendet alle Sitzungen). Der Inhaber des Unternehmenskontos ist dafür verantwortlich, wer zum Team gehört und was diese Personen tun dürfen."
+        ]
+      },
+      {
+        "title": "Ihre Pflichten bei der Kundenansprache",
+        "body": [
+          "Sie entscheiden, wer kontaktiert wird und was gesagt wird. Sie benötigen eine Rechtsgrundlage, um die Personen auf Ihren Listen zu kontaktieren (einschließlich einer Einwilligung, wo das Gesetz sie verlangt, etwa für WhatsApp in vielen Ländern), und Sie müssen die Anti-Spam-, Datenschutz- und Nachrichtenversandregeln einhalten, die für Sie und für die von Ihnen kontaktierten Personen gelten.",
+          "Sie müssen Abmeldungen beachten. Das Produkt sendet keine Nachrichten mehr an Personen, die sich abmelden, in welcher Sprache auch immer, aber Sie dürfen nicht versuchen, dies zu umgehen, und Sie dürfen keine Personen hochladen, die darum gebeten haben, nicht kontaktiert zu werden.",
+          "Sie sind für die Inhalte verantwortlich, die in Ihrem Namen gesendet werden. Nachrichten werden von der KI anhand der Angaben entworfen, die Sie uns machen; lesen Sie, was sie über Ihr Unternehmen schreibt, und korrigieren Sie es. Verwenden Sie das Produkt nicht für rechtswidrige, irreführende oder belästigende Zwecke oder zum Versenden von Spam, Betrugsnachrichten oder Schadsoftware."
+        ]
+      },
+      {
+        "title": "Ihre eigenen Konten und Schlüssel",
+        "body": [
+          "Nachrichten werden über die Konten versendet, die Sie verbinden (Ihr Postfach, Ihr Twilio-Konto, Ihr Schlüssel des KI-Anbieters, Ihr Schlüssel für die Kundensuche). Sie bezahlen diese Anbieter direkt und müssen deren Regeln einhalten; diese können Sie unabhängig von uns sperren. Schlüssel, die Sie uns geben, werden verschlüsselt gespeichert und nur verwendet, um Ihre Kampagnen durchzuführen. Wenn ein Konto nicht mehr funktioniert, pausieren wir, was davon abhängt."
+        ]
+      },
+      {
+        "title": "Anmeldegebühr und Erstattungen",
+        "body": [
+          "Wird eine Anmeldegebühr angezeigt, so wird sie einmalig berechnet, wenn Sie ein Unternehmenskonto erstellen und bevor das Konto genutzt werden kann. Der Betrag wird angezeigt, bevor Sie zahlen; in Indien ist die GST (indische Umsatzsteuer) enthalten. Es ist kein Abonnement.",
+          "Wenn Ihnen mehr als einmal etwas berechnet wurde oder Sie bezahlt haben und nicht auf Ihr Konto zugreifen konnten, schreiben Sie innerhalb von 7 Tagen eine E-Mail an info@appsontechnologies.in, und wir erstatten den zu viel gezahlten oder den vollen Betrag auf dasselbe Zahlungsmittel. Ansonsten ist die Gebühr nicht erstattungsfähig, sobald Ihr Konto geöffnet ist. Nichts in diesen Bedingungen schränkt eine gesetzlich vorgeschriebene Erstattung ein."
+        ]
+      },
+      {
+        "title": "Ihre Daten",
+        "body": [
+          "Ihre Daten gehören Ihnen, einschließlich Ihrer Listen und Nachrichten. Wir verwenden sie nur, um den Dienst für Sie zu erbringen. In der Datenschutzerklärung erfahren Sie, wie wir damit umgehen, einschließlich unserer Rolle bei den Kontaktdaten, die Sie hochladen."
+        ]
+      },
+      {
+        "title": "Sperrung und Beendigung",
+        "body": [
+          "Wir können ein Konto sperren, das gegen diese Bedingungen verstößt, anderen Personen oder unseren Systemen schadet oder Beschwerden oder viele unzustellbare Nachrichten verursacht; während der Sperrung werden die Kampagnen pausiert. Sie können die Nutzung des Dienstes jederzeit beenden. Wir können den Dienst mit Vorankündigung beenden; wir werden Ihnen eine Möglichkeit geben, Ihre Daten zu exportieren."
+        ]
+      },
+      {
+        "title": "Keine Garantien, Haftungsbeschränkung",
+        "body": [
+          "Wir arbeiten intensiv daran, den Dienst zuverlässig zu halten, er wird jedoch ohne Gewähr in seinem jeweils vorliegenden Zustand bereitgestellt. Wir versprechen keine Antworten, Termine oder Verkäufe und sind nicht für die Ergebnisse von Kampagnen verantwortlich, die Sie durchführen. Soweit gesetzlich zulässig, ist unsere Haftung auf die Gebühren begrenzt, die Sie uns in den 12 Monaten vor dem Problem gezahlt haben. Nichts in diesen Bedingungen beschränkt eine Haftung, die gesetzlich nicht beschränkt werden kann."
+        ]
+      },
+      {
+        "title": "Änderungen und Kontakt",
+        "body": [
+          "Wir können diese Bedingungen aktualisieren; über wesentliche Änderungen informieren wir Sie. Anwendbares Recht: das Recht Indiens. Fragen: info@appsontechnologies.in."
+        ]
+      }
+    ]
+  },
+  "data-deletion": {
+    "title": "Datenlöschung",
+    "sections": [
+      {
+        "title": "So bitten Sie uns, Ihre Daten zu löschen",
+        "body": [
+          "Schreiben Sie von der in Ihrem Konto hinterlegten Adresse eine E-Mail mit dem Betreff „Delete my data“ an info@appsontechnologies.in. Nennen Sie uns die E-Mail-Adresse (und gegebenenfalls die WhatsApp-Nummer), die gelöscht werden soll. Wir antworten möglicherweise, um zu bestätigen, dass wirklich Sie es sind, bevor wir etwas löschen.",
+          "Wir bestätigen per E-Mail, wenn dies erledigt ist, und schließen die Löschung innerhalb von 30 Tagen nach Bestätigung Ihrer Identität ab."
+        ]
+      },
+      {
+        "title": "Wenn Sie ein AmiReach-Konto haben",
+        "body": [
+          "Wir löschen Ihr Konto, die Anmeldedaten Ihrer Teammitglieder, Ihr Unternehmensprofil, Ihre Kampagnen, Listen, Nachrichten und Antworten sowie die von Ihnen eingerichteten Verbindungen (die verschlüsselten Schlüssel und Tokens werden vernichtet). Alles, was Sie über uns mit Meta oder WhatsApp verbunden haben, wird getrennt, und Sie können unseren Zugriff auch selbst in den Einstellungen Ihres Meta-Kontos entfernen.",
+          "Wir behalten nur, was wir gesetzlich aufbewahren müssen (zum Beispiel Rechnungen und Steuerunterlagen), sowie einen minimalen Eintrag auf der Sperrliste, wenn Sie auch darum gebeten haben, nicht kontaktiert zu werden."
+        ]
+      },
+      {
+        "title": "Wenn Sie eine Nachricht von einem unserer Kunden erhalten haben",
+        "body": [
+          "Unsere Kunden (Unternehmen) versenden mit unserer Software Nachrichten über ihre eigenen E-Mail- und WhatsApp-Konten. Wenn Sie möchten, dass Ihre Angaben entfernt werden, antworten Sie auf eine beliebige WhatsApp-Nachricht mit STOP oder nutzen Sie die Abmeldemöglichkeit in einer beliebigen E-Mail, und Sie werden nicht mehr kontaktiert.",
+          "Um Ihre Daten vollständig löschen zu lassen, schreiben Sie eine E-Mail an info@appsontechnologies.in mit der zu entfernenden E-Mail-Adresse oder WhatsApp-Nummer. Wir leiten die Anfrage an das Unternehmen weiter, das die Daten speichert und dafür verantwortlich ist, und wir können die Daten selbst löschen, soweit wir sie speichern. Ihre Adresse oder Nummer bleibt auf einer Sperrliste, damit Sie niemand erneut anschreibt."
+        ]
+      },
+      {
+        "title": "Kontakt",
+        "body": [
+          "Ritik Technologie Private Limited, info@appsontechnologies.in. Anwendbares Recht: das Recht Indiens."
+        ]
+      }
+    ]
+  },
+  "website": {
+    "title": "Diese Website",
+    "body": [
+      "Diese Website verwendet keine Tracking- und keine Werbe-Cookies. Wenn Sie eine Sprache wählen, merkt sich ein Cookie Ihre Wahl. Unser Hosting-Anbieter verarbeitet technische Daten wie Ihre IP-Adresse, um die Seiten auszuliefern."
+    ]
+  }
+}

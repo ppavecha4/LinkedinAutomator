@@ -1,0 +1,161 @@
+{
+  "updated_label": "Laatst bijgewerkt: 26 november 2026",
+  "back": "Terug naar inloggen",
+  "translation_note": "Dit is een vertaling voor je gemak. Als deze afwijkt van de Engelse versie, geldt de Engelse versie.",
+  "privacy": {
+    "title": "Privacybeleid",
+    "sections": [
+      {
+        "title": "Wie we zijn",
+        "body": [
+          "Ritik Technologie Private Limited (\"wij\") beheert AmiReach. Voor je account en team (namen, zakelijke e-mailadressen, inloggegevens) bepalen wij hoe gegevens worden gebruikt. Voor de contactgegevens die je uploadt of door ons voor je laat zoeken (mensen die je wilt bereiken) bepaal jij dat, en wij verwerken ze voor je, volgens jouw instructies."
+        ]
+      },
+      {
+        "title": "Wat we opslaan",
+        "body": [
+          "Accountgegevens: je naam, zakelijke e-mailadres, een wachtwoordhash met salt (nooit het wachtwoord zelf), je bedrijfsprofiel en inlogactiviteit.",
+          "Campagnegegevens: de lijsten die je uploadt, potentiële klanten en contacten die voor je zijn gevonden, de geschreven en verzonden berichten, reacties, afmeldingen en onbezorgbare berichten (bounces), en een logboek van wat er is gebeurd.",
+          "Geheime koppelingsgegevens: API-sleutels en app-wachtwoorden die je koppelt, worden vóór opslag versleuteld en nooit meer getoond."
+        ]
+      },
+      {
+        "title": "Waar contactgegevens vandaan komen",
+        "body": [
+          "Uit je uploads en, als je zoeken met AI gebruikt, van een dienst voor het zoeken van klanten die je koppelt (bijvoorbeeld Apollo) met je eigen sleutel. Je moet een wettelijke grondslag hebben om deze mensen te benaderen, en je bevestigt dat wanneer je een lijst importeert."
+        ]
+      },
+      {
+        "title": "Wie nog meer gegevens verwerkt (onze dienstverleners)",
+        "body": [
+          "Als je ons betaalt: de betaalaanbieder (Razorpay of Stripe), die je kaart- of UPI-gegevens rechtstreeks ontvangt; wij zien ze nooit en slaan ze nooit op.",
+          "Onze aanbieder van cloudhosting en databases; de AI-aanbieder die berichten schrijft en begrijpt (Anthropic), die de gegevens over je bedrijf en de potentiële klant ontvangt die voor elk bericht nodig zijn; Twilio, voor WhatsApp, en je eigen e-mailaanbieder, die de berichten overbrengen die je verstuurt; en, als je die gebruikt, je dienst voor het zoeken van klanten. We kiezen aanbieders zorgvuldig en zij handelen alleen om de dienst te leveren. Voor de eigen accounts van klanten gelden hun eigen overeenkomsten met die aanbieders."
+        ]
+      },
+      {
+        "title": "Afmeldingen en de blokkeerlijst",
+        "body": [
+          "Wanneer iemand, in welke taal dan ook, vraagt niet benaderd te worden, worden het adres en nummer van die persoon aan je blokkeerlijst toegevoegd en vóór elke verzending opnieuw gecontroleerd. E-mailadressen waarvan berichten onbezorgbaar waren (bounces), worden geblokkeerd voor e-mail."
+        ]
+      },
+      {
+        "title": "Hoe lang we gegevens bewaren",
+        "body": [
+          "Zolang je account actief is. Geüploade rijen van een import die je annuleert, worden direct verwijderd. Wanneer je je account sluit, verwijderen of anonimiseren we je gegevens binnen 30 dagen, behalve wat we wettelijk moeten bewaren."
+        ]
+      },
+      {
+        "title": "Beveiliging",
+        "body": [
+          "De gegevens van elk bedrijf zijn op databaseniveau van elkaar gescheiden, geheime gegevens worden versleuteld, sessies eindigen wanneer je een team verlaat of je wachtwoord wijzigt, en de toegang door onze medewerkers is beperkt en wordt vastgelegd. Geen enkel systeem is volledig veilig; meld het ons direct als je een probleem vermoedt."
+        ]
+      },
+      {
+        "title": "Je rechten en contact",
+        "body": [
+          "Je kunt je accountgegevens inzien, corrigeren, exporteren en verwijderen, en mensen van wie gegevens in een campagne van een klant staan, kunnen die klant (of ons, waarna wij het verzoek doorsturen) vragen die gegevens in te zien, te corrigeren of te verwijderen, of te stoppen met hen te benaderen. Contact: info@appsontechnologies.in. Zie onze pagina Gegevens verwijderen om je gegevens te laten verwijderen. Als je in de EU, het VK, India of een andere regio met specifieke regels bent, heb je mogelijk ook het recht om een klacht in te dienen bij je gegevensbeschermingsautoriteit."
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Servicevoorwaarden",
+    "sections": [
+      {
+        "title": "Wat dit is",
+        "body": [
+          "AmiReach helpt je bedrijf potentiële klanten te vinden, persoonlijke berichten in hun taal te schrijven en die te versturen vanuit je eigen e-mail- en WhatsApp-accounts. Door een account aan te maken of een uitnodiging te accepteren, ga je namens jezelf en je bedrijf akkoord met deze voorwaarden."
+        ]
+      },
+      {
+        "title": "Je account",
+        "body": [
+          "Bewaar je wachtwoord veilig en meld het ons als je denkt dat iemand anders je sessie gebruikt (\"Overal uitloggen\" beëindigt alle sessies). De eigenaar van het bedrijf is verantwoordelijk voor wie in het team zit en wat die personen mogen doen."
+        ]
+      },
+      {
+        "title": "Je verantwoordelijkheden bij acquisitie",
+        "body": [
+          "Jij bepaalt wie wordt benaderd en wat er wordt gezegd. Je moet een wettelijke grondslag hebben om de mensen op je lijsten te benaderen (inclusief toestemming waar de wet die vereist, zoals in veel landen voor WhatsApp), en je moet de regels over spam, privacy en berichtverkeer naleven die voor jou en voor de mensen die je benadert gelden.",
+          "Je moet afmeldingen respecteren. Het product stopt met het sturen van berichten aan iedereen die zich afmeldt, in welke taal dan ook, maar je mag niet proberen dat te omzeilen, en je mag geen mensen uploaden die hebben gevraagd niet benaderd te worden.",
+          "Je bent verantwoordelijk voor de inhoud die in jouw naam wordt verstuurd. Berichten worden door AI opgesteld op basis van de feiten die je ons geeft; lees wat die over je bedrijf schrijft en corrigeer het. Gebruik het product niet voor iets dat onwettig, misleidend of intimiderend is, of om spam, oplichting of malware te versturen."
+        ]
+      },
+      {
+        "title": "Je eigen accounts en sleutels",
+        "body": [
+          "Berichten worden verstuurd vanuit de accounts die je koppelt (je mailbox, je Twilio-account, de sleutel van je AI-aanbieder, je sleutel voor het zoeken van klanten). Je betaalt die aanbieders rechtstreeks en je moet hun regels naleven; zij kunnen je onafhankelijk van ons opschorten. Sleutels die je ons geeft, worden versleuteld opgeslagen en alleen gebruikt om je campagnes uit te voeren. Als een account niet meer werkt, pauzeren we wat ervan afhankelijk is."
+        ]
+      },
+      {
+        "title": "Aanmeldkosten en terugbetalingen",
+        "body": [
+          "Waar aanmeldkosten worden getoond, worden die één keer in rekening gebracht, wanneer je een bedrijfsaccount aanmaakt en voordat het account kan worden gebruikt. Het bedrag wordt getoond voordat je betaalt; in India is dit inclusief GST. Het is geen abonnement.",
+          "Als er meer dan één keer bij je is afgeschreven, of als je hebt betaald maar niet in je account kon komen, mail dan binnen 7 dagen naar info@appsontechnologies.in en we betalen het te veel betaalde of het volledige bedrag terug via dezelfde betaalmethode. In andere gevallen worden de kosten niet terugbetaald zodra je account open is. Niets hierin beperkt een terugbetaling die de wet vereist."
+        ]
+      },
+      {
+        "title": "Je gegevens",
+        "body": [
+          "Je gegevens zijn van jou, inclusief je lijsten en berichten. We gebruiken ze alleen om de dienst aan jou te leveren. Zie het Privacybeleid voor hoe we ermee omgaan, inclusief onze rol voor de contactgegevens die je uploadt."
+        ]
+      },
+      {
+        "title": "Opschorting en beëindiging",
+        "body": [
+          "We kunnen een account opschorten dat deze voorwaarden schendt, andere mensen of onze systemen schaadt, of klachten of veel onbezorgbare berichten (bounces) veroorzaakt; campagnes worden gepauzeerd zolang het account is opgeschort. Je kunt op elk moment stoppen met het gebruik van de dienst. Wij kunnen de dienst beëindigen na voorafgaande kennisgeving; we geven je dan een manier om je gegevens te exporteren."
+        ]
+      },
+      {
+        "title": "Geen garanties, beperking van aansprakelijkheid",
+        "body": [
+          "We doen ons best om de dienst betrouwbaar te houden, maar deze wordt geleverd zoals hij is. We beloven geen reacties, afspraken of verkopen, en we zijn niet verantwoordelijk voor de resultaten van campagnes die je kiest uit te voeren. Voor zover de wet dit toestaat, is onze aansprakelijkheid beperkt tot de bedragen die je ons hebt betaald in de 12 maanden vóór het probleem. Niets hierin beperkt aansprakelijkheid die wettelijk niet kan worden beperkt."
+        ]
+      },
+      {
+        "title": "Wijzigingen en contact",
+        "body": [
+          "We kunnen deze voorwaarden aanpassen; we laten je weten wanneer er belangrijke wijzigingen zijn. Toepasselijk recht: het recht van India. Vragen: info@appsontechnologies.in."
+        ]
+      }
+    ]
+  },
+  "data-deletion": {
+    "title": "Gegevens verwijderen",
+    "sections": [
+      {
+        "title": "Zo vraag je ons je gegevens te verwijderen",
+        "body": [
+          "Stuur vanaf het e-mailadres van je account een e-mail naar info@appsontechnologies.in met als onderwerp \"Delete my data\". Vermeld het e-mailadres (en het WhatsApp-nummer, indien van toepassing) dat je wilt laten verwijderen. We kunnen antwoorden om te bevestigen dat jij het echt bent voordat we iets verwijderen.",
+          "We bevestigen per e-mail wanneer het is gebeurd, en we voltooien de verwijdering binnen 30 dagen nadat we je identiteit hebben bevestigd."
+        ]
+      },
+      {
+        "title": "Als je een AmiReach-account hebt",
+        "body": [
+          "We verwijderen je account, de inloggegevens van je teamleden, je bedrijfsprofiel, je campagnes, lijsten, berichten en reacties, en de koppelingen die je hebt ingesteld (de versleutelde sleutels en tokens worden vernietigd). Alles wat je via ons aan Meta of WhatsApp hebt gekoppeld, wordt ontkoppeld, en je kunt onze toegang ook zelf intrekken in de instellingen van je Meta-account.",
+          "We bewaren alleen wat we wettelijk moeten bewaren (bijvoorbeeld facturen en belastinggegevens), en een minimale vermelding op de blokkeerlijst als je ook hebt gevraagd niet benaderd te worden."
+        ]
+      },
+      {
+        "title": "Als je een bericht hebt ontvangen van een van onze klanten",
+        "body": [
+          "Onze klanten (bedrijven) versturen berichten vanuit hun eigen e-mail- en WhatsApp-accounts met onze software. Wil je dat je gegevens worden verwijderd, antwoord dan STOP op een WhatsApp-bericht, of gebruik de afmeldmogelijkheid in een e-mail, en je wordt niet meer benaderd.",
+          "Wil je je gegevens volledig laten verwijderen, mail dan naar info@appsontechnologies.in met het e-mailadres of WhatsApp-nummer dat moet worden verwijderd. We sturen het verzoek door naar het bedrijf dat de gegevens bewaart en ervoor verantwoordelijk is, en we kunnen ze zelf verwijderen waar wij ze bewaren. Je adres of nummer blijft op een niet-benaderlijst staan, zodat niemand je opnieuw een bericht stuurt."
+        ]
+      },
+      {
+        "title": "Contact",
+        "body": [
+          "Ritik Technologie Private Limited, info@appsontechnologies.in. Toepasselijk recht: het recht van India."
+        ]
+      }
+    ]
+  },
+  "website": {
+    "title": "Deze website",
+    "body": [
+      "Deze website gebruikt geen trackingcookies en geen advertentiecookies. Als je een taal kiest, onthoudt een cookie je keuze. Onze hostingaanbieder verwerkt technische gegevens, zoals je IP-adres, om de pagina's te leveren."
+    ]
+  }
+}

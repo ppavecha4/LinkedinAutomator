@@ -10,6 +10,7 @@ import { Download, Loader2, ShieldCheck, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
+import { t } from '../i18n';
 import {
   Dialog,
   DialogContent,
@@ -30,8 +31,8 @@ interface ExportResult {
 type Counts = Record<string, number>;
 
 const LABELS: Record<string, string> = {
-  contacts: 'contact records', messages: 'messages', conversations: 'conversations', meetings: 'meetings',
-  events: 'timeline events', import_rows: 'uploaded rows', webhook_events: 'received events',
+  contacts: t('contact records'), messages: t('messages'), conversations: t('conversations'), meetings: t('meetings'),
+  events: t('timeline events'), import_rows: t('uploaded rows'), webhook_events: t('received events'),
 };
 
 export default function Privacy(): React.ReactElement {
@@ -64,7 +65,7 @@ export default function Privacy(): React.ReactElement {
         URL.revokeObjectURL(a.href);
       }
     } catch (err) {
-      toast.error(errorMessage(err, 'Could not look that person up.'));
+      toast.error(errorMessage(err, t('Could not look that person up.')));
     } finally {
       setBusy(null);
     }
@@ -79,7 +80,7 @@ export default function Privacy(): React.ReactElement {
       setEmail('');
       setPhone('');
     } catch (err) {
-      toast.error(errorMessage(err, 'Could not erase that person.'));
+      toast.error(errorMessage(err, t('Could not erase that person.')));
     } finally {
       setBusy(null);
     }
@@ -88,49 +89,48 @@ export default function Privacy(): React.ReactElement {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Settings"
-        title="Privacy requests"
-        description="When someone asks what you hold about them, or asks you to delete it, handle it here."
+        eyebrow={t('Settings')}
+        title={t('Privacy requests')}
+        description={t('When someone asks what you hold about them, or asks you to delete it, handle it here.')}
         icon={ShieldCheck}
       />
       {!allowed ? (
-        <p className="text-sm text-muted-foreground">Only owners and admins can handle privacy requests.</p>
+        <p className="text-sm text-muted-foreground">{t('Only owners and admins can handle privacy requests.')}</p>
       ) : (
         <form onSubmit={doExport} className="glass max-w-3xl space-y-5 rounded-2xl p-6" aria-labelledby="priv-title">
-          <h2 id="priv-title" className="text-base font-semibold">Find a person</h2>
+          <h2 id="priv-title" className="text-base font-semibold">{t('Find a person')}</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="priv-email">Email address</label>
+              <label className="label" htmlFor="priv-email">{t('Email address')}</label>
               <input id="priv-email" type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person@company.com" autoComplete="off" />
             </div>
             <div>
-              <label className="label" htmlFor="priv-phone">WhatsApp number</label>
+              <label className="label" htmlFor="priv-phone">{t('WhatsApp number')}</label>
               <input id="priv-phone" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+51 987 654 321" autoComplete="off" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Either one is enough. Only your own company's records are searched.</p>
+          <p className="text-xs text-muted-foreground">{t('Either one is enough. Only your own company\'s records are searched.')}</p>
           <div className="flex flex-wrap gap-3">
             <button type="submit" className="btn-primary" disabled={!ready || busy !== null}>
               {busy === 'export' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
-              Download their data
+              {t('Download their data')}
             </button>
             <button type="button" className="btn-secondary text-destructive" disabled={!ready || busy !== null} onClick={() => setConfirming(true)}>
               <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Erase their data…
+              {t('Erase their data…')}
             </button>
           </div>
 
           {result?.kind === 'export' && (
             <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
               {result.found
-                ? `Downloaded: ${Object.entries(result.counts).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${LABELS[k] ?? k}`).join(', ') || 'a do-not-contact entry'}.`
-                : 'You hold nothing about that person.'}
+                ? t('Downloaded: {items}.', { items: Object.entries(result.counts).filter(([, n]) => n > 0).map(([k, n]) => `${LABELS[k] ?? k}: ${n}`).join(', ') || t('a do-not-contact entry') })
+                : t('You hold nothing about that person.')}
             </p>
           )}
           {result?.kind === 'erase' && (
             <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
-              Erased: {Object.entries(result.counts).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${LABELS[k] ?? k}`).join(', ') || 'nothing was held'}.
-              They are on your do-not-contact list so nobody contacts them again.
+              {t('Erased: {items}. They are on your do-not-contact list so nobody contacts them again.', { items: Object.entries(result.counts).filter(([, n]) => n > 0).map(([k, n]) => `${LABELS[k] ?? k}: ${n}`).join(', ') || t('nothing was held') })}
             </p>
           )}
         </form>
@@ -139,17 +139,16 @@ export default function Privacy(): React.ReactElement {
       <Dialog open={confirming} onOpenChange={(o) => !o && busy === null && setConfirming(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Erase everything about this person?</DialogTitle>
+            <DialogTitle>{t('Erase everything about this person?')}</DialogTitle>
             <DialogDescription>
-              Their messages, conversations, meetings and timeline are deleted and their contact record is blanked.
-              This cannot be undone. A do-not-contact entry stays, so they are never contacted again.
+              {t('Their messages, conversations, meetings and timeline are deleted and their contact record is blanked. This cannot be undone. A do-not-contact entry stays, so they are never contacted again.')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button type="button" className="btn-secondary" onClick={() => setConfirming(false)} disabled={busy !== null}>Cancel</button>
+            <button type="button" className="btn-secondary" onClick={() => setConfirming(false)} disabled={busy !== null}>{t('Cancel')}</button>
             <button type="button" className="btn-primary" onClick={doErase} disabled={busy !== null}>
               {busy === 'erase' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Erase
+              {t('Erase')}
             </button>
           </DialogFooter>
         </DialogContent>

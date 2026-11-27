@@ -426,3 +426,9 @@
   background-size: 200% 100%;
   animation: shimmer 2.4s ease-in-out infinite;
 }
+
+/* Right to left (Arabic). Charts keep their own left-to-right drawing; Latin addresses and keys too. */
+[dir='rtl'] .recharts-wrapper { direction: ltr; }
+[dir='rtl'] input[type='email'], [dir='rtl'] input[type='url'], [dir='rtl'] input[type='password'], [dir='rtl'] input[type='tel'], [dir='rtl'] .font-mono { direction: ltr; text-align: right; }
+[dir='rtl'] body { letter-spacing: normal; font-family: 'Segoe UI', 'Noto Sans Arabic', 'Geeza Pro', Tahoma, system-ui, sans-serif; }
+[dir='rtl'] .uppercase, [dir='rtl'] [class*='tracking-'] { letter-spacing: normal; }

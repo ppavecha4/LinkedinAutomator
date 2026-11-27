@@ -54,7 +54,7 @@ export function useWhatsAppTemplates(enabled = true) {
     enabled,
     queryFn: async () => (await api.get<TemplatesView>('/api/whatsapp/templates')).data,
     // While anything waits for Meta, look again every minute (the server also checks on its own).
-    refetchInterval: (q) => (q.state.data?.templates.some((t) => t.status === 'PENDING') ? 60_000 : false),
+    refetchInterval: (q) => (q.state.data?.templates.some((item) => item.status === 'PENDING') ? 60_000 : false),
   });
 }
 

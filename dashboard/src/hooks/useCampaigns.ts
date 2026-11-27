@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { t } from '../i18n';
 import { api } from '../lib/api';
 import type {
   Campaign,
@@ -247,7 +248,7 @@ export function useEstimateProspects(_icp: Record<string, unknown>) {
     queryKey: ['estimate', 'placeholder'],
     queryFn: async () => ({
       estimate: null,
-      message: 'estimate endpoint not yet wired',
+      message: t('estimate endpoint not yet wired'),
     }),
     staleTime: Infinity,
   });

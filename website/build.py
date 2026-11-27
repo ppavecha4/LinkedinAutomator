@@ -4,7 +4,7 @@
     python3 website/build.py [--site-url https://example.com]
 
 Writes website/dist/ (not committed): /<lang>/ and /<lang>/signup/, a root page that picks a language, the
-legal pages (/privacy, /terms, /data-deletion, taken from the app's own text so the two never differ), a
+legal pages (/privacy, /terms, /data-deletion and /<lang>/privacy etc., taken from the app's own text), a
 404 page, the stylesheet, script and images, the _redirects and _headers files static hosts such as
 Netlify read, and, when the site has an address, what search and answer engines use: canonical and
 hreflang links, social cards, schema.org data, sitemap.xml, robots.txt and llms.txt.
@@ -37,14 +37,11 @@ from urllib.parse import quote
 HERE = Path(__file__).resolve().parent
 DIST = HERE / "dist"
 ICON = HERE.parent / "assets" / "brand" / "app-icon-1024.png"
-LEGAL_SOURCE = HERE.parent / "dashboard" / "src" / "pages" / "Legal.tsx"
-# address on the website -> (name of the list in Legal.tsx, page title)
-LEGAL_PAGES = {"privacy": ("PRIVACY", "Privacy Policy"), "terms": ("TERMS", "Terms of Service"),
-               "data-deletion": ("DELETION", "Data Deletion")}
-# Only true of this website, so it is added here and not to the app's pages.
-WEBSITE_PRIVACY = ("This website", ["This website uses no tracking and no advertising cookies. If you choose a language, "
-                                    "a cookie remembers your choice. Our hosting provider processes technical data such "
-                                    "as your IP address to deliver the pages."])
+# The legal text is the app's own (one file per language), so the two never differ.
+LEGAL_SOURCE = HERE.parent / "dashboard" / "src" / "legal"
+LEGAL_PAGES = ("privacy", "terms", "data-deletion")
+# The key of the footer link for each legal page, in the website's language files.
+LEGAL_LINKS = {"privacy": "footer_privacy", "terms": "footer_terms", "data-deletion": "footer_deletion"}
 
 
 def load_config() -> dict:
@@ -69,23 +66,13 @@ def e(text: str) -> str:
     return html.escape(text, quote=True)
 
 
-def legal_sections(name: str, source: Path = LEGAL_SOURCE) -> list[tuple[str, list[str]]]:
-    """The (title, paragraphs) of one document in the app's Legal.tsx."""
-    text = source.read_text(encoding="utf-8").replace("\r\n", "\n")
-    block = re.search(rf"const {name}: Section\[\] = \[\n(.*?)\n\];", text, re.S)
-    if not block:
-        raise SystemExit(f"{source.name}: cannot find the {name} document")
-    literal = r"'((?:\\.|[^'\\])*)'"
+def legal_text(lang: str, source: Path = LEGAL_SOURCE) -> dict:
+    return json.loads((source / f"{lang}.json").read_text(encoding="utf-8"))
 
-    def plain(value: str) -> str:
-        return re.sub(r"\\(.)", r"\1", value)
 
-    sections = []
-    for title, body in re.findall(r"\{ title: " + literal + r", body: \[(.*?)\n  \] \}", block.group(1), re.S):
-        sections.append((plain(title), [plain(p) for p in re.findall(literal, body)]))
-    if len(sections) != block.group(1).count("{ title:"):
-        raise SystemExit(f"{source.name}: could not read every section of {name}")
-    return sections
+def legal_path(cfg: dict, slug: str, lang: str) -> str:
+    """English stays at the plain address (/privacy/), which other services already point to."""
+    return slug if lang == cfg["default_language"] else f"{lang}/{slug}"
 
 
 def signup_fee_text(t: dict, cfg: dict) -> str:
@@ -152,7 +139,8 @@ def direction(cfg: dict, lang: str, always: bool = False) -> str:
 
 
 def head(cfg: dict, site_url: str, *, title: str, description: str, up: str, path: str, lang: str,
-         alternates: str | None = None, locale: str = "en_US", other_locales: tuple = (), graph: list | None = None) -> str:
+         alternates: str | None = None, locale: str = "en_US", other_locales: tuple = (), graph: list | None = None,
+         addresses: dict | None = None) -> str:
     """The shared <head>. `up` leads back to the site root; `alternates` is the path after the language."""
     seo = ""
     if site_url:
@@ -160,6 +148,9 @@ def head(cfg: dict, site_url: str, *, title: str, description: str, up: str, pat
         if alternates is not None:
             seo += "".join(f'  <link rel="alternate" hreflang="{c}" href="{e(site_url)}/{c}/{alternates}">\n' for c in cfg["languages"])
             seo += f'  <link rel="alternate" hreflang="x-default" href="{e(site_url)}/{cfg["default_language"]}/{alternates}">\n'
+        if addresses:
+            seo += "".join(f'  <link rel="alternate" hreflang="{c}" href="{e(site_url)}/{p}/">\n' for c, p in addresses.items())
+            seo += f'  <link rel="alternate" hreflang="x-default" href="{e(site_url)}/{addresses[cfg["default_language"]]}/">\n'
         seo += f'  <meta property="og:url" content="{e(site_url)}/{path}/">\n'
         seo += f'  <meta property="og:image" content="{e(site_url)}/social.png">\n'
         seo += '  <meta property="og:image:width" content="1200">\n  <meta property="og:image:height" content="630">\n'
@@ -196,7 +187,7 @@ def top_bar(t: dict, cfg: dict, names: dict, lang: str, *, up: str, after: str =
     switcher = "".join(
         f'<li><a href="{up}{code}/{after}" lang="{code}" hreflang="{code}" data-lang="{code}"{current if code == lang else ""}>{e(names[code])}</a></li>'
         for code in cfg["languages"])
-    signin = f'<a class="button ghost" href="{e(app)}/login">{e(t["nav_signin"])}</a>' if app else ""
+    signin = f'<a class="button ghost" href="{e(app)}/login?lang={lang}">{e(t["nav_signin"])}</a>' if app else ""
     join = "" if after else f'<a class="button" href="signup/">{e(t["cta_signup"] if signup_is_open(cfg) else t["cta_access"])}</a>'
     anchor = home if after else ""
     logo = home or "#main"
@@ -218,15 +209,13 @@ def top_bar(t: dict, cfg: dict, names: dict, lang: str, *, up: str, after: str =
   </header>"""
 
 
-def bottom(t: dict, cfg: dict, up: str) -> str:
+def bottom(t: dict, cfg: dict, up: str, lang: str) -> str:
     legal_note = f'<p class="muted">{e(t["footer_legal_note"])}</p>' if t["footer_legal_note"] else ""
+    links = "".join(f'\n        <a href="{up}{legal_path(cfg, slug, lang)}/">{e(t[key])}</a>' for slug, key in LEGAL_LINKS.items())
     return f"""  <footer>
     <div class="wrap">
       <p>&copy; 2026 {e(cfg["company"])}</p>
-      <p class="links">
-        <a href="{up}privacy/">{e(t["footer_privacy"])}</a>
-        <a href="{up}terms/">{e(t["footer_terms"])}</a>
-        <a href="{up}data-deletion/">{e(t["footer_deletion"])}</a>
+      <p class="links">{links}
         <a href="mailto:{e(cfg["contact_email"])}">{e(t["footer_contact"])}: {e(cfg["contact_email"])}</a>
       </p>
       {legal_note}
@@ -237,22 +226,38 @@ def bottom(t: dict, cfg: dict, up: str) -> str:
 """
 
 
-def legal_page(slug: str, cfg: dict, site_url: str) -> str:
-    name, title = LEGAL_PAGES[slug]
-    sections = legal_sections(name) + ([WEBSITE_PRIVACY] if slug == "privacy" else [])
-    body = "".join(f"<section><h2>{e(h)}</h2>{''.join(f'<p>{e(p)}</p>' for p in ps)}</section>" for h, ps in sections)
-    others = " ".join(f'<a href="../{s}/">{e(t)}</a>' for s, (_, t) in LEGAL_PAGES.items() if s != slug)
-    description = sections[0][1][0][:155].rsplit(" ", 1)[0] + "…"
+def legal_page(slug: str, lang: str, cfg: dict, names: dict, site_url: str) -> str:
+    doc = legal_text(lang)
+    title = doc[slug]["title"]
+    # What is only true of this website is added here and not to the app's pages.
+    sections = doc[slug]["sections"] + ([doc["website"]] if slug == "privacy" else [])
+    body = "".join(f"<section><h2>{e(s['title'])}</h2>{''.join(f'<p>{e(p)}</p>' for p in s['body'])}</section>" for s in sections)
+    path = legal_path(cfg, slug, lang)
+    up = "../" * (path.count("/") + 1)
+    home = f"{up}{lang}/"
+    others = " ".join(f'<a href="{up}{legal_path(cfg, other, lang)}/">{e(doc[other]["title"])}</a>' for other in LEGAL_PAGES if other != slug)
+    current = ' aria-current="true"'
+    switcher = "".join(
+        f'<li><a href="{up}{legal_path(cfg, slug, code)}/" lang="{code}" hreflang="{code}" data-lang="{code}"{current if code == lang else ""}>{e(names[code])}</a></li>'
+        for code in cfg["languages"])
+    note = f'<p class="notice">{e(doc["translation_note"])}</p>' if doc["translation_note"] else ""
+    first = sections[0]["body"][0]
+    description = first if len(first) <= 155 else first[:155].rsplit(" ", 1)[0] + "…"
+    heading = f'{title} - {cfg["brand"]}'
     graph = None
     if site_url:
-        graph = organisation(cfg, site_url) + web_page(site_url, slug, "en", title, description,
-                                                       [(cfg["brand"], "en"), (title, slug)])
-    top = head(cfg, site_url, title=f'{title} - {cfg["brand"]}', description=description, up="../", path=slug, lang="en", graph=graph)
+        graph = organisation(cfg, site_url) + web_page(site_url, path, lang, title, description, [(cfg["brand"], lang), (title, path)])
+    top = head(cfg, site_url, title=heading, description=description, up=up, path=path, lang=lang, graph=graph,
+               addresses={code: legal_path(cfg, slug, code) for code in cfg["languages"]})
+    language = load_locale(lang, cfg["brand"], cfg["company"])["nav_language"]
     return f"""{top}
 <body>
-  <header class="top"><div class="wrap bar"><a class="logo" href="../"><img src="../icon.png" alt="" width="32" height="32"><span>{e(cfg["brand"])}</span></a></div></header>
+  <header class="top"><div class="wrap bar"><a class="logo" href="{home}"><img src="{up}icon.png" alt="" width="32" height="32"><span>{e(cfg["brand"])}</span></a>
+    <div class="actions"><details class="lang"><summary aria-label="{e(language)}">{e(names[lang])}</summary><ul>{switcher}</ul></details></div></div></header>
   <main class="wrap narrow legal">
     <h1>{e(title)}</h1>
+    <p class="muted">{e(doc["updated_label"])}</p>
+    {note}
     {body}
     <p class="links">{others}</p>
   </main>
@@ -401,7 +406,7 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tup
     <section id="faq"><div class="wrap narrow"><div class="heading"><h2>{e(t["faq_title"])}</h2></div>{faq}</div></section>
     <section class="final"><div class="wrap"><div class="banner"><h2>{e(t["final_title"])}</h2><p>{e(t["final_open_text"] if opened else t["final_text"])}</p><p class="buttons"><a class="button light" href="signup/">{e(cta)}</a></p></div></div></section>
   </main>
-{bottom(t, cfg, "../")}"""
+{bottom(t, cfg, "../", lang)}"""
 
 
 def signup_page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tuple = ()) -> str:
@@ -410,15 +415,15 @@ def signup_page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, local
     steps = "".join(f'<li><h3>{e(s["title"])}</h3><p>{e(s["text"])}</p></li>' for s in t["signup_steps"])
     if opened:
         note = f'<p class="price">{e(signup_fee_text(t, cfg))}</p>'
-        button = f'<a class="button" href="{e(app)}/signup">{e(t["cta_signup"])}</a>'
+        button = f'<a class="button" href="{e(app)}/signup?lang={lang}">{e(t["cta_signup"])}</a>'
         extra = f'<p class="muted">{e(t["signup_form_note"])}</p>' if t["signup_form_note"] else ""
     else:
         note = f'<p role="status" class="notice">{e(t["signup_closed"])}</p>'
         mail = f"mailto:{cfg['contact_email']}?subject={quote(t['mail_subject'] + ' - ' + brand)}"
         button = f'<a class="button" href="{e(mail)}">{e(t["cta_access"])}</a>'
         extra = ""
-    account = f'<p>{e(t["signup_have_account"])} <a href="{e(app)}/login">{e(t["nav_signin"])}</a></p>' if app else ""
-    legal = " · ".join(f'<a href="../../{slug}/">{e(t[key])}</a>' for slug, key in (("terms", "footer_terms"), ("privacy", "footer_privacy")))
+    account = f'<p>{e(t["signup_have_account"])} <a href="{e(app)}/login?lang={lang}">{e(t["nav_signin"])}</a></p>' if app else ""
+    legal = " · ".join(f'<a href="../../{legal_path(cfg, slug, lang)}/">{e(t[LEGAL_LINKS[slug]])}</a>' for slug in ("terms", "privacy"))
 
     path = f"{lang}/signup"
     graph = None
@@ -450,7 +455,7 @@ def signup_page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, local
       </div>
     </div></section>
   </main>
-{bottom(t, cfg, "../../")}"""
+{bottom(t, cfg, "../../", lang)}"""
 
 
 def not_found_page(cfg: dict, locales: dict) -> str:
@@ -490,7 +495,11 @@ def sitemap_xml(cfg: dict, site_url: str) -> str:
         links = "".join(f'<xhtml:link rel="alternate" hreflang="{c}" href="{e(site_url)}/{c}/{after}"/>' for c in cfg["languages"])
         links += f'<xhtml:link rel="alternate" hreflang="x-default" href="{e(site_url)}/{cfg["default_language"]}/{after}"/>'
         urls += [f"  <url><loc>{e(site_url)}/{c}/{after}</loc>{links}</url>\n" for c in cfg["languages"]]
-    urls += [f"  <url><loc>{e(site_url)}/{slug}/</loc></url>\n" for slug in LEGAL_PAGES]
+    for slug in LEGAL_PAGES:
+        paths = {c: legal_path(cfg, slug, c) for c in cfg["languages"]}
+        links = "".join(f'<xhtml:link rel="alternate" hreflang="{c}" href="{e(site_url)}/{p}/"/>' for c, p in paths.items())
+        links += f'<xhtml:link rel="alternate" hreflang="x-default" href="{e(site_url)}/{paths[cfg["default_language"]]}/"/>'
+        urls += [f"  <url><loc>{e(site_url)}/{p}/</loc>{links}</url>\n" for p in paths.values()]
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
             f'xmlns:xhtml="http://www.w3.org/1999/xhtml">\n{"".join(urls)}</urlset>\n')
 
@@ -508,7 +517,8 @@ def llms_txt(t: dict, cfg: dict, names: dict, site_url: str) -> str:
     lines += ["## Pages", ""]
     lines += [f'- [{names[c]}]({site_url}/{c}/)' for c in cfg["languages"]]
     lines += [f'- [{t["signup_title"]}]({site_url}/{cfg["default_language"]}/signup/)']
-    lines += [f'- [{title}]({site_url}/{slug}/)' for slug, (_, title) in LEGAL_PAGES.items()]
+    legal = legal_text(cfg["default_language"])
+    lines += [f'- [{legal[slug]["title"]}]({site_url}/{slug}/)' for slug in LEGAL_PAGES]
     lines += ["", "## Company", "", f'{cfg["company"]}. Contact: {cfg["contact_email"]}', ""]
     return "\n".join(lines)
 
@@ -603,7 +613,8 @@ def build(site_url: str | None = None, out: Path = DIST) -> list[str]:
     files.update({f"{lang}/signup/index.html": signup_page(lang, t, cfg, names, site_url, og) for lang, t in locales.items()})
     files["index.html"] = root_page(cfg, names)
     files["404.html"] = not_found_page(cfg, locales)
-    files.update({f"{slug}/index.html": legal_page(slug, cfg, site_url) for slug in LEGAL_PAGES})
+    files.update({f"{legal_path(cfg, slug, lang)}/index.html": legal_page(slug, lang, cfg, names, site_url)
+                  for slug in LEGAL_PAGES for lang in cfg["languages"]})
     files["_redirects"] = netlify_redirects(cfg, site_url)
     files["_headers"] = HEADERS
     for asset in ("styles.css", "site.js"):

@@ -50,6 +50,8 @@ import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { LanguageSelect } from './LanguageSelect';
+import { t, tServer } from '../i18n';
 import { useCredentials, useOrganization } from '../hooks/useWorkspace';
 import { ACCOUNT_KINDS } from '../lib/workspace';
 import { api } from '../lib/api';
@@ -97,22 +99,22 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: '/', label: 'Overview', end: true, icon: LayoutDashboard, section: 'Workspace' },
-  { to: '/get-ready', label: 'Get ready', end: true, icon: ListChecks, section: 'Workspace', customerOnly: true },
-  { to: '/campaigns', label: 'Campaigns', end: false, icon: Sparkles, section: 'Workspace' },
-  { to: '/campaigns/plan', label: 'Plan with AI', end: true, icon: Wand2, section: 'Workspace', operatorOnly: true },
-  { to: '/prospects', label: 'Prospects', end: false, icon: Users, section: 'Workspace' },
-  { to: '/inbox', label: 'Inbox', end: false, icon: Inbox, section: 'Workspace' },
-  { to: '/calls', label: 'AI calls', end: false, icon: Phone, section: 'Workspace' },
-  { to: '/linkedin-drafts', label: 'LinkedIn Drafts', end: false, icon: Briefcase, section: 'Operator', operatorOnly: true },
-  { to: '/analytics', label: 'Analytics', end: false, icon: BarChart3, section: 'Insights' },
-  { to: '/settings/profile', label: 'Business profile', end: true, icon: Building2, section: 'Account' },
-  { to: '/settings/connections', label: 'Connected accounts', end: true, icon: Plug, section: 'Account' },
-  { to: '/settings/team', label: 'Team', end: true, icon: Users, section: 'Account', managerOnly: true },
-  { to: '/settings/privacy', label: 'Privacy requests', end: true, icon: ShieldCheck, section: 'Account', managerOnly: true },
-  { to: '/settings/plan', label: 'Plan & usage', end: true, icon: Gauge, section: 'Account' },
-  { to: '/platform', label: 'Companies', end: true, icon: Building2, section: 'Platform', platformOnly: true },
-  { to: '/settings', label: 'Settings', end: true, icon: SettingsIcon, section: 'Account' },
+  { to: '/', label: t('Overview'), end: true, icon: LayoutDashboard, section: t('Workspace') },
+  { to: '/get-ready', label: t('Get ready'), end: true, icon: ListChecks, section: t('Workspace'), customerOnly: true },
+  { to: '/campaigns', label: t('Campaigns'), end: false, icon: Sparkles, section: t('Workspace') },
+  { to: '/campaigns/plan', label: t('Plan with AI'), end: true, icon: Wand2, section: t('Workspace'), operatorOnly: true },
+  { to: '/prospects', label: t('Prospects'), end: false, icon: Users, section: t('Workspace') },
+  { to: '/inbox', label: t('Inbox'), end: false, icon: Inbox, section: t('Workspace') },
+  { to: '/calls', label: t('AI calls'), end: false, icon: Phone, section: t('Workspace') },
+  { to: '/linkedin-drafts', label: t('LinkedIn Drafts'), end: false, icon: Briefcase, section: t('Operator'), operatorOnly: true },
+  { to: '/analytics', label: t('Analytics'), end: false, icon: BarChart3, section: t('Insights') },
+  { to: '/settings/profile', label: t('Business profile'), end: true, icon: Building2, section: t('Account') },
+  { to: '/settings/connections', label: t('Connected accounts'), end: true, icon: Plug, section: t('Account') },
+  { to: '/settings/team', label: t('Team'), end: true, icon: Users, section: t('Account'), managerOnly: true },
+  { to: '/settings/privacy', label: t('Privacy requests'), end: true, icon: ShieldCheck, section: t('Account'), managerOnly: true },
+  { to: '/settings/plan', label: t('Plan & usage'), end: true, icon: Gauge, section: t('Account') },
+  { to: '/platform', label: t('Companies'), end: true, icon: Building2, section: t('Platform'), platformOnly: true },
+  { to: '/settings', label: t('Settings'), end: true, icon: SettingsIcon, section: t('Account') },
 ];
 
 /** Resolve the active NAV entry, handling `/campaigns/new` → `/campaigns`. */
@@ -128,15 +130,15 @@ function resolveCurrent(pathname: string): NavItem {
 function buildBreadcrumbs(pathname: string): { label: string; href?: string }[] {
   const current = resolveCurrent(pathname);
   const trail: { label: string; href?: string }[] = [
-    { label: 'Home', href: '/' },
+    { label: t('Home'), href: '/' },
   ];
   if (current.to !== '/') {
     trail.push({ label: current.label, href: current.to });
   }
   if (pathname.startsWith('/campaigns/new')) {
-    trail.push({ label: 'New campaign' });
+    trail.push({ label: t('New campaign') });
   } else if (/^\/campaigns\/[^/]+\/import$/.test(pathname)) {
-    trail.push({ label: 'Upload a list' });
+    trail.push({ label: t('Upload a list') });
   }
   return trail;
 }
@@ -157,7 +159,7 @@ export default function Layout(): React.ReactElement {
       await logout();
       navigate('/login', { replace: true });
     } catch (e) {
-      toast.error(errorMessage(e, 'Could not sign you out everywhere.'));
+      toast.error(errorMessage(e, t('Could not sign you out everywhere.')));
       setSigningOutAll(false);
     }
   }
@@ -166,9 +168,9 @@ export default function Layout(): React.ReactElement {
     setResending(true);
     try {
       await api.post('/api/auth/resend-verification');
-      toast.success('Verification email sent', { description: `Check ${user?.email}.` });
+      toast.success(t('Verification email sent'), { description: t('Check {email}.', { email: user?.email }) });
     } catch (e) {
-      toast.error(errorMessage(e, 'Could not send the email.'));
+      toast.error(errorMessage(e, t('Could not send the email.')));
     } finally {
       setResending(false);
     }
@@ -180,7 +182,7 @@ export default function Layout(): React.ReactElement {
     enabled: !bypassMode && !!user?.uid,
     staleTime: 60_000,
   });
-  const orgName = org?.name ?? (bypassMode ? 'Dev workspace' : 'Your company');
+  const orgName = org?.name ?? (bypassMode ? t('Dev workspace') : t('Your company'));
   const initials = orgName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'AI';
   const otherOrgs = (orgs ?? []).filter((o) => o.org_id !== user?.org_id);
   const { collapsed, toggle: toggleSidebar } = useSidebarCollapse();
@@ -201,7 +203,7 @@ export default function Layout(): React.ReactElement {
   const grouped = React.useMemo(() => {
     const map = new Map<string, NavItem[]>();
     NAV.filter((n) => (!n.operatorOnly || isOperator) && (!n.customerOnly || !isOperator) && (!n.managerOnly || isManager) && (!n.platformOnly || user?.platform_admin === true)).forEach((n) => {
-      const key = n.section ?? 'Other';
+      const key = n.section ?? t('Other');
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(n);
     });
@@ -222,15 +224,15 @@ export default function Layout(): React.ReactElement {
       <Dialog open={confirmSignOutAll} onOpenChange={setConfirmSignOutAll}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out everywhere?</DialogTitle>
+            <DialogTitle>{t('Sign out everywhere?')}</DialogTitle>
             <DialogDescription>
-              Every session you have, on every device and browser, ends now, including this one. You'll sign in again here. Use this if you lost a device or think someone else has your session.
+              {t('Every session you have, on every device and browser, ends now, including this one. You\'ll sign in again here. Use this if you lost a device or think someone else has your session.')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button type="button" className="btn-ghost" onClick={() => setConfirmSignOutAll(false)}>Cancel</button>
+            <button type="button" className="btn-ghost" onClick={() => setConfirmSignOutAll(false)}>{t('Cancel')}</button>
             <button type="button" className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={signingOutAll} onClick={signOutEverywhere}>
-              {signingOutAll && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Sign out everywhere
+              {signingOutAll && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{' '}{t('Sign out everywhere')}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -243,7 +245,7 @@ export default function Layout(): React.ReactElement {
           transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           className={cn(
             'shrink-0 hidden md:flex flex-col overflow-hidden',
-            'glass border-r border-border/60 sticky top-0 h-screen z-30',
+            'glass border-e border-border/60 sticky top-0 h-screen z-30',
           )}
         >
           {/* Brand */}
@@ -251,7 +253,7 @@ export default function Layout(): React.ReactElement {
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-lg shadow-primary/40">
                 <Sparkles className="h-5 w-5" />
-                <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
+                <span className="absolute -end-0.5 -top-0.5 flex h-3 w-3">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                   <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 border-2 border-background" />
                 </span>
@@ -262,7 +264,7 @@ export default function Layout(): React.ReactElement {
                     AmiReach
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Autonomous outbound
+                    {t('Autonomous outbound')}
                   </div>
                 </div>
               )}
@@ -278,12 +280,12 @@ export default function Layout(): React.ReactElement {
                 'hover:text-foreground hover:bg-card/90 transition-colors',
                 collapsed ? 'justify-center py-2.5 px-0' : 'py-2 px-3',
               )}
-              aria-label="Open command palette"
+              aria-label={t('Open command palette')}
             >
               <Search className="h-3.5 w-3.5 shrink-0" />
               {!collapsed && (
                 <>
-                  <span className="flex-1 text-left truncate">Search…</span>
+                  <span className="flex-1 text-start truncate">{t('Search…')}</span>
                   <span className="kbd">
                     <Command className="h-2.5 w-2.5" />K
                   </span>
@@ -364,10 +366,10 @@ export default function Layout(): React.ReactElement {
               <div className="glass-strong rounded-xl p-3.5 gradient-border">
                 <div className="flex items-center gap-1.5 text-xs font-semibold">
                   <Zap className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-gradient">Dev mode</span>
+                  <span className="text-gradient">{t('Dev mode')}</span>
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground leading-relaxed">
-                  Auth bypass: no sign-in required
+                  {t('Auth bypass: no sign-in required')}
                 </div>
               </div>
             )}
@@ -380,21 +382,21 @@ export default function Layout(): React.ReactElement {
                     'hover:text-foreground hover:bg-accent/40 transition-colors',
                     collapsed ? 'justify-center py-2' : 'py-1.5 px-3',
                   )}
-                  aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  aria-label={collapsed ? t('Expand sidebar') : t('Collapse sidebar')}
                 >
                   <ChevronsLeft
                     className={cn(
                       'h-4 w-4 transition-transform',
-                      collapsed && 'rotate-180',
+                      collapsed ? 'rotate-180 rtl:rotate-0' : 'rtl:rotate-180',
                     )}
                   />
-                  {!collapsed && <span>Collapse</span>}
-                  {!collapsed && <span className="ml-auto kbd">⌘B</span>}
+                  {!collapsed && <span>{t('Collapse')}</span>}
+                  {!collapsed && <span className="ms-auto kbd">⌘B</span>}
                 </button>
               </TooltipTrigger>
               {collapsed && (
                 <TooltipContent side="right">
-                  Expand sidebar (⌘B)
+                  {t('Expand sidebar (⌘B)')}
                 </TooltipContent>
               )}
             </Tooltip>
@@ -416,7 +418,7 @@ export default function Layout(): React.ReactElement {
               size="icon"
               className="md:hidden"
               onClick={toggleSidebar}
-              aria-label="Toggle sidebar"
+              aria-label={t('Toggle sidebar')}
             >
               <PanelLeft className="h-4 w-4" />
             </Button>
@@ -425,6 +427,8 @@ export default function Layout(): React.ReactElement {
             <Breadcrumb items={breadcrumbs} className="hidden sm:flex" />
 
             <div className="flex-1" />
+
+            <LanguageSelect />
 
             {/* Quick action: New campaign */}
             <Tooltip>
@@ -436,10 +440,10 @@ export default function Layout(): React.ReactElement {
                   onClick={() => navigate('/campaigns/new')}
                 >
                   <PlusCircle className="h-4 w-4" />
-                  <span className="hidden md:inline">New campaign</span>
+                  <span className="hidden md:inline">{t('New campaign')}</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Launch a new outbound run</TooltipContent>
+              <TooltipContent>{t('Launch a new outbound run')}</TooltipContent>
             </Tooltip>
 
             <Separator orientation="vertical" className="h-6 hidden sm:block" />
@@ -452,8 +456,8 @@ export default function Layout(): React.ReactElement {
                   size="icon"
                   aria-label={
                     resolvedTheme === 'dark'
-                      ? 'Switch to light mode'
-                      : 'Switch to dark mode'
+                      ? t('Switch to light mode')
+                      : t('Switch to dark mode')
                   }
                   onClick={toggleTheme}
                   className="rounded-full h-9 w-9"
@@ -465,15 +469,15 @@ export default function Layout(): React.ReactElement {
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Toggle theme</TooltipContent>
+              <TooltipContent>{t('Toggle theme')}</TooltipContent>
             </Tooltip>
 
             {/* Avatar dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex items-center gap-2 glass rounded-full pl-1 pr-3 py-1 hover:bg-card/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="User menu"
+                  className="flex items-center gap-2 glass rounded-full ps-1 pe-3 py-1 hover:bg-card/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={t('User menu')}
                 >
                   <Avatar className="h-7 w-7">
                     <AvatarFallback>{initials}</AvatarFallback>
@@ -495,7 +499,7 @@ export default function Layout(): React.ReactElement {
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
                       <Users className="h-4 w-4" />
-                      Switch company
+                      {t('Switch company')}
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
                       <DropdownMenuItem disabled>
@@ -511,7 +515,7 @@ export default function Layout(): React.ReactElement {
                               navigate('/', { replace: true });
                               window.location.reload(); // drop every cached query of the old company
                             } catch (e) {
-                              toast.error(errorMessage(e, 'Could not switch company.'));
+                              toast.error(errorMessage(e, t('Could not switch company.')));
                             }
                           }}
                         >
@@ -524,22 +528,22 @@ export default function Layout(): React.ReactElement {
                 )}
                 <DropdownMenuItem onSelect={() => navigate('/settings/profile')}>
                   <User className="h-4 w-4" />
-                  Business profile
+                  {t('Business profile')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate('/settings')}>
                   <SettingsIcon className="h-4 w-4" />
-                  Settings
+                  {t('Settings')}
                   <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => palette.setOpen(true)}>
                   <Search className="h-4 w-4" />
-                  Command palette
+                  {t('Command palette')}
                   <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <HelpCircle className="h-4 w-4" />
-                  Help & docs
+                  {t('Help & docs')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -550,12 +554,12 @@ export default function Layout(): React.ReactElement {
                   }}
                 >
                   <LogOut className="h-4 w-4" />
-                  Sign out
+                  {t('Sign out')}
                 </DropdownMenuItem>
                 {!bypassMode && (
                   <DropdownMenuItem onSelect={() => setConfirmSignOutAll(true)}>
                     <LogOut className="h-4 w-4" />
-                    Sign out everywhere
+                    {t('Sign out everywhere')}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -569,39 +573,39 @@ export default function Layout(): React.ReactElement {
                 <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 sm:flex-row sm:items-center">
                   <div className="flex-1 text-sm">
                     <span className="font-semibold">
-                      {brokenAccounts.length === 1 ? 'A connected account stopped working' : `${brokenAccounts.length} connected accounts stopped working`}.
+                      {brokenAccounts.length === 1 ? t('A connected account stopped working') : t('{count} connected accounts stopped working', { count: brokenAccounts.length })}.
                     </span>{' '}
                     <span className="text-muted-foreground">
                       {brokenAccounts.map((c) => ACCOUNT_KINDS.find((k) => k.providers.some((p) => p.id === c.provider))?.title ?? c.provider).join(', ')}
-                      {brokenAccounts[0].last_error ? `: ${brokenAccounts[0].last_error}` : ''} Sending that needs it is on hold; nothing is lost.
+                      {brokenAccounts[0].last_error ? `: ${tServer(brokenAccounts[0].last_error)}` : ''} {t('Sending that needs it is on hold; nothing is lost.')}
                     </span>
                   </div>
-                  <button type="button" className="btn-secondary shrink-0" onClick={() => navigate('/settings/connections')}>Fix it</button>
+                  <button type="button" className="btn-secondary shrink-0" onClick={() => navigate('/settings/connections')}>{t('Fix it')}</button>
                 </div>
               )}
               {needsVerification && (
                 <div role="status" className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 sm:flex-row sm:items-center">
                   <div className="flex-1 text-sm">
-                    <span className="font-semibold">Verify your email address.</span>{' '}
+                    <span className="font-semibold">{t('Verify your email address.')}</span>{' '}
                     <span className="text-muted-foreground">
-                      We sent a link to {user?.email}. You can set everything up now, but launching a campaign needs it.
+                      {t('We sent a link to {email}. You can set everything up now, but launching a campaign needs it.', { email: user?.email })}
                     </span>
                   </div>
                   <button type="button" className="btn-secondary shrink-0" onClick={resendVerification} disabled={resending}>
-                    {resending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Resend the link
+                    {resending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{' '}{t('Resend the link')}
                   </button>
                 </div>
               )}
               {needsOnboarding && (
                 <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:flex-row sm:items-center">
                   <div className="flex-1 text-sm">
-                    <span className="font-semibold">Finish setting up {orgName}.</span>{' '}
+                    <span className="font-semibold">{t('Finish setting up {orgName}.', { orgName })}</span>{' '}
                     <span className="text-muted-foreground">
-                      The AI needs your business profile before it can find prospects and write for you.
+                      {t('The AI needs your business profile before it can find prospects and write for you.')}
                     </span>
                   </div>
                   <button type="button" className="btn-primary shrink-0" onClick={() => navigate('/onboarding')}>
-                    Continue setup <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    {t('Continue setup')}{' '}<ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
                   </button>
                 </div>
               )}

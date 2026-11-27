@@ -26,6 +26,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { label } from '../lib/labels';
 import FunnelChart from '../components/FunnelChart';
 import StatusBadge from '../components/StatusBadge';
 import { PageHeader } from '../components/ui/page-header';
@@ -37,11 +38,12 @@ import {
   usePitchPerformance,
 } from '../hooks/useAnalytics';
 import { formatNumber, formatPercent, num } from '../lib/format';
+import { locale, t } from '../i18n';
 
 const PITCH_LABELS: Record<string, string> = {
-  ai_agents: 'AI Agents',
-  rpa_workflow: 'RPA / Workflow',
-  consulting: 'Consulting',
+  ai_agents: t('AI Agents'),
+  rpa_workflow: t('RPA / Workflow'),
+  consulting: t('Consulting'),
 };
 
 /**
@@ -93,7 +95,7 @@ export default function Analytics() {
     meeting: num(row.meeting_rate_pct),
   }));
   const channelData = (channel.data ?? []).map((row) => ({
-    label: row.channel,
+    label: label(row.channel),
     sent: num(row.sent),
     delivered: num(row.delivered),
     replied: num(row.replied),
@@ -113,34 +115,34 @@ export default function Analytics() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Insights"
-        title="Analytics"
-        description="Full-funnel metrics across every campaign. Polled every 60 seconds, rounded to whole numbers."
+        eyebrow={t('Insights')}
+        title={t('Analytics')}
+        description={t('Full-funnel metrics across every campaign. Polled every 60 seconds, rounded to whole numbers.')}
         icon={BarChart3}
       />
 
       {/* ═══ Hero KPI strip ═══════════════════════════════════════ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Prospects discovered"
+          label={t('Prospects discovered')}
           value={heroStats.discovered}
           icon={Users}
           tone="primary"
         />
         <StatCard
-          label="Contacted"
+          label={t('Contacted')}
           value={heroStats.contacted}
           icon={Mail}
           tone="sky"
         />
         <StatCard
-          label="Replies"
+          label={t('Replies')}
           value={heroStats.replied}
           icon={MessageSquare}
           tone="emerald"
         />
         <StatCard
-          label="Meetings booked"
+          label={t('Meetings booked')}
           value={heroStats.meetings}
           icon={CalendarCheck}
           tone="violet"
@@ -153,7 +155,7 @@ export default function Analytics() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
             <TrendingUp className="h-4 w-4" />
           </div>
-          <h2 className="text-base font-semibold">Overall funnel</h2>
+          <h2 className="text-base font-semibold">{t('Overall funnel')}</h2>
         </div>
         <FunnelChart metrics={funnel.data?.funnel} />
       </section>
@@ -165,10 +167,10 @@ export default function Analytics() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 text-violet-500">
               <Target className="h-4 w-4" />
             </div>
-            <h2 className="text-base font-semibold">Pitch performance</h2>
+            <h2 className="text-base font-semibold">{t('Pitch performance')}</h2>
           </div>
-          <p className="text-xs text-muted-foreground mb-4 ml-10">
-            Which pitch angle converts best (higher is better).
+          <p className="text-xs text-muted-foreground mb-4 ms-10">
+            {t('Which pitch angle converts best (higher is better).')}
           </p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -207,13 +209,13 @@ export default function Analytics() {
                 />
                 <Bar
                   dataKey="reply"
-                  name="Reply rate"
+                  name={t('Reply rate')}
                   fill="hsl(var(--primary))"
                   radius={[6, 6, 0, 0]}
                 />
                 <Bar
                   dataKey="meeting"
-                  name="Meeting rate"
+                  name={t('Meeting rate')}
                   fill="#10b981"
                   radius={[6, 6, 0, 0]}
                 />
@@ -222,7 +224,7 @@ export default function Analytics() {
           </div>
           {pitchData.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-2">
-              No pitch data yet.
+              {t('No pitch data yet.')}
             </div>
           )}
         </section>
@@ -232,10 +234,10 @@ export default function Analytics() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-500">
               <LineChartIcon className="h-4 w-4" />
             </div>
-            <h2 className="text-base font-semibold">Channel performance</h2>
+            <h2 className="text-base font-semibold">{t('Channel performance')}</h2>
           </div>
-          <p className="text-xs text-muted-foreground mb-4 ml-10">
-            Sent → delivered → replied per channel.
+          <p className="text-xs text-muted-foreground mb-4 ms-10">
+            {t('Sent → delivered → replied per channel.')}
           </p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -273,19 +275,19 @@ export default function Analytics() {
                 />
                 <Bar
                   dataKey="sent"
-                  name="Sent"
+                  name={t('Sent')}
                   fill="hsl(var(--muted-foreground))"
                   radius={[6, 6, 0, 0]}
                 />
                 <Bar
                   dataKey="delivered"
-                  name="Delivered"
+                  name={t('Delivered')}
                   fill="hsl(var(--primary))"
                   radius={[6, 6, 0, 0]}
                 />
                 <Bar
                   dataKey="replied"
-                  name="Replied"
+                  name={t('Replied')}
                   fill="#10b981"
                   radius={[6, 6, 0, 0]}
                 />
@@ -294,7 +296,7 @@ export default function Analytics() {
           </div>
           {channelData.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-2">
-              No channel data yet.
+              {t('No channel data yet.')}
             </div>
           )}
         </section>
@@ -306,18 +308,18 @@ export default function Analytics() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
             <BarChart3 className="h-4 w-4" />
           </div>
-          <h2 className="text-base font-semibold">Campaign comparison</h2>
+          <h2 className="text-base font-semibold">{t('Campaign comparison')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-6 py-3 text-left font-semibold">Name</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-right font-semibold">Prospects</th>
-                <th className="px-4 py-3 text-right font-semibold">Reply %</th>
-                <th className="px-4 py-3 text-right font-semibold">Meeting %</th>
-                <th className="px-6 py-3 text-right font-semibold">Launched</th>
+                <th className="px-6 py-3 text-start font-semibold">{t('Name')}</th>
+                <th className="px-4 py-3 text-start font-semibold">{t('Status')}</th>
+                <th className="px-4 py-3 text-end font-semibold">{t('Prospects')}</th>
+                <th className="px-4 py-3 text-end font-semibold">{t('Reply %')}</th>
+                <th className="px-4 py-3 text-end font-semibold">{t('Meeting %')}</th>
+                <th className="px-6 py-3 text-end font-semibold">{t('Launched')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -327,17 +329,17 @@ export default function Analytics() {
                   <td className="px-4 py-3">
                     <StatusBadge status={row.status} />
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-end tabular-nums">
                     {formatNumber(row.total_prospects)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-end tabular-nums">
                     {formatPercent(row.reply_rate_pct)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-end tabular-nums">
                     {formatPercent(row.meeting_rate_pct)}
                   </td>
-                  <td className="px-6 py-3 text-right text-xs text-muted-foreground">
-                    {new Date(row.created_at).toLocaleDateString()}
+                  <td className="px-6 py-3 text-end text-xs text-muted-foreground">
+                    {new Date(row.created_at).toLocaleDateString(locale())}
                   </td>
                 </tr>
               ))}
@@ -347,7 +349,7 @@ export default function Analytics() {
                     colSpan={6}
                     className="px-6 py-12 text-center text-xs text-muted-foreground"
                   >
-                    No campaigns yet — launch one from the Campaigns page.
+                    {t('No campaigns yet — launch one from the Campaigns page.')}
                   </td>
                 </tr>
               )}
@@ -362,14 +364,13 @@ export default function Analytics() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
             <CalendarCheck className="h-4 w-4" />
           </div>
-          <h2 className="text-base font-semibold">Recent meetings</h2>
+          <h2 className="text-base font-semibold">{t('Recent meetings')}</h2>
         </div>
-        <p className="text-xs text-muted-foreground mb-3 ml-10">
-          Meetings booked across all campaigns.
+        <p className="text-xs text-muted-foreground mb-3 ms-10">
+          {t('Meetings booked across all campaigns.')}
         </p>
         <div className="text-xs text-muted-foreground py-8 border border-dashed border-border/80 rounded-xl text-center bg-grid-subtle">
-          No <code className="text-foreground/70">/api/meetings</code> endpoint
-          yet — this feed populates once the meetings-list endpoint is added.
+          {t('The list of meetings is not available yet.')}
         </div>
       </section>
     </div>

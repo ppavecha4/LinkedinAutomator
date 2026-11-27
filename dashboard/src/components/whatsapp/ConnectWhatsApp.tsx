@@ -14,6 +14,7 @@ import { CheckCircle2, Loader2, MessageCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
+import { t } from '../../i18n';
 import { type MetaSignupConfig, useConnectMeta, useMetaSignupConfig } from '../../hooks/useMetaSignup';
 import { useCredentials, useRemoveCredential } from '../../hooks/useWorkspace';
 import { errorMessage } from '../../lib/authContext';
@@ -32,7 +33,7 @@ const META_ORIGINS = ['https://www.facebook.com', 'https://web.facebook.com'];
 function loadFacebookSdk(cfg: MetaSignupConfig): Promise<FacebookSdk> {
   return new Promise((resolve, reject) => {
     const init = () => {
-      if (!window.FB) return reject(new Error('Meta did not load'));
+      if (!window.FB) return reject(new Error(t('Meta did not load')));
       window.FB.init({ appId: cfg.app_id ?? '', autoLogAppEvents: false, xfbml: false, version: cfg.graph_version ?? 'v23.0' });
       resolve(window.FB);
     };
@@ -41,7 +42,7 @@ function loadFacebookSdk(cfg: MetaSignupConfig): Promise<FacebookSdk> {
     const s = document.createElement('script');
     s.src = 'https://connect.facebook.net/en_US/sdk.js';
     s.async = true;
-    s.onerror = () => reject(new Error('Could not load Meta\'s sign-up. An ad blocker may be stopping it.'));
+    s.onerror = () => reject(new Error(t('Could not load Meta\'s sign-up. An ad blocker may be stopping it.')));
     document.body.appendChild(s);
   });
 }
@@ -67,8 +68,8 @@ export function ConnectWhatsApp({ canManage }: { canManage: boolean }): React.Re
     connect.mutate(
       { code: code.current, waba_id: ids.current.waba_id, ...(ids.current.phone_number_id ? { phone_number_id: ids.current.phone_number_id } : {}) },
       {
-        onSuccess: (c) => { setProblem(''); toast.success(`WhatsApp connected: ${String((c.meta as Record<string, unknown>)?.display_phone_number ?? 'your number')}`); },
-        onError: (e) => setProblem(errorMessage(e, 'Could not finish connecting WhatsApp.')),
+        onSuccess: (c) => { setProblem(''); toast.success(t('WhatsApp connected: {number}', { number: String((c.meta as Record<string, unknown>)?.display_phone_number ?? t('your number')) })); },
+        onError: (e) => setProblem(errorMessage(e, t('Could not finish connecting WhatsApp.'))),
         onSettled: () => setBusy('idle'),
       },
     );
@@ -85,10 +86,10 @@ export function ConnectWhatsApp({ canManage }: { canManage: boolean }): React.Re
         finish();
       } else if (msg.event === 'CANCEL') {
         setBusy('idle');
-        setProblem('Sign-up was closed before it finished. Press Connect WhatsApp to continue where you left off.');
+        setProblem(t('Sign-up was closed before it finished. Press Connect WhatsApp to continue where you left off.'));
       } else if (msg.data?.error_message) {
         setBusy('idle');
-        setProblem(`Meta says: ${msg.data.error_message}`);
+        setProblem(t('Meta says: {error_message}', { error_message: msg.data.error_message }));
       }
     };
     window.addEventListener('message', onMessage);
@@ -122,7 +123,7 @@ export function ConnectWhatsApp({ canManage }: { canManage: boolean }): React.Re
       );
     } catch (e) {
       setBusy('idle');
-      setProblem(errorMessage(e, 'Could not open Meta\'s sign-up.'));
+      setProblem(errorMessage(e, t('Could not open Meta\'s sign-up.')));
     }
   };
 
@@ -131,44 +132,43 @@ export function ConnectWhatsApp({ canManage }: { canManage: boolean }): React.Re
       <div className="flex items-start gap-3">
         <MessageCircle className="mt-0.5 h-5 w-5 text-primary" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <h2 id="whatsapp-connect-title" className="text-base font-semibold">Connect WhatsApp</h2>
+          <h2 id="whatsapp-connect-title" className="text-base font-semibold">{t('Connect WhatsApp')}</h2>
           {mine ? (
             <>
               <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                Connected: {String(metaOf.display_phone_number ?? 'your number')}{metaOf.verified_name ? ` (${String(metaOf.verified_name)})` : ''}
+                {t('Connected: {number}', { number: String(metaOf.display_phone_number ?? t('your number')) })}{metaOf.verified_name ? ` (${String(metaOf.verified_name)})` : ''}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">Your messages go out from this number, straight through WhatsApp.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('Your messages go out from this number, straight through WhatsApp.')}</p>
               {canManage && (
                 <button
                   type="button"
                   className="btn-secondary mt-3 inline-flex items-center gap-1.5 text-sm"
                   disabled={remove.isPending}
                   onClick={() => {
-                    if (!window.confirm('Disconnect this WhatsApp number? Campaigns that use WhatsApp will stop sending until you connect again.')) return;
-                    remove.mutate(mine.id, { onError: (e) => toast.error(errorMessage(e, 'Could not disconnect.')) });
+                    if (!window.confirm(t('Disconnect this WhatsApp number? Campaigns that use WhatsApp will stop sending until you connect again.'))) return;
+                    remove.mutate(mine.id, { onError: (e) => toast.error(errorMessage(e, t('Could not disconnect.'))) });
                   }}
                 >
                   {remove.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
-                  Disconnect
+                  {t('Disconnect')}
                 </button>
               )}
             </>
           ) : (
             <>
               <p className="mt-1 text-sm text-muted-foreground">
-                Sign in with Facebook, pick (or create) your WhatsApp Business account and verify your number. It takes a couple of minutes
-                and there is nothing to copy or paste. Messages go out from your own number.
+                {t('Sign in with Facebook, pick (or create) your WhatsApp Business account and verify your number. It takes a couple of minutes and there is nothing to copy or paste. Messages go out from your own number.')}
               </p>
               {canManage ? (
                 <button type="button" className="btn-primary mt-3 inline-flex items-center gap-2" onClick={start} disabled={busy !== 'idle'}>
                   {busy !== 'idle' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                  {busy === 'finishing' ? 'Connecting your number…' : busy === 'opening' ? 'Opening Meta…' : 'Connect WhatsApp'}
+                  {busy === 'finishing' ? t('Connecting your number…') : busy === 'opening' ? t('Opening Meta…') : t('Connect WhatsApp')}
                 </button>
               ) : (
-                <p className="mt-2 text-xs text-muted-foreground">Ask an owner or admin to connect WhatsApp.</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t('Ask an owner or admin to connect WhatsApp.')}</p>
               )}
-              <p className="mt-3 text-xs text-muted-foreground">Already use Twilio for WhatsApp? Keep using it with the card below instead.</p>
+              <p className="mt-3 text-xs text-muted-foreground">{t('Already use Twilio for WhatsApp? Keep using it with the card below instead.')}</p>
             </>
           )}
           {problem && <p role="alert" className="mt-3 text-sm text-destructive">{problem}</p>}

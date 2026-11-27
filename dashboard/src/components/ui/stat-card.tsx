@@ -66,7 +66,7 @@ export function StatCard({
   deltaLabel,
   className,
 }: StatCardProps): React.ReactElement {
-  const t = TONE_STYLES[tone];
+  const item = TONE_STYLES[tone];
   const deltaPositive = typeof delta === 'number' && delta >= 0;
 
   return (
@@ -80,7 +80,7 @@ export function StatCard({
       className={cn(
         'spotlight glass rounded-2xl p-5 transition-all',
         'hover:shadow-xl',
-        t.glow,
+        item.glow,
         className,
       )}
     >
@@ -92,8 +92,8 @@ export function StatCard({
           <div
             className={cn(
               'flex h-9 w-9 items-center justify-center rounded-xl',
-              t.bg,
-              t.text,
+              item.bg,
+              item.text,
             )}
           >
             <Icon className="h-4 w-4" />

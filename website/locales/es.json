@@ -82,7 +82,7 @@
     },
     {
       "q": "¿En qué idiomas pueden ir los mensajes?",
-      "a": "La IA escribe en el idioma del destinatario. Por ahora, las pantallas del producto están en inglés."
+      "a": "La IA escribe en el idioma del destinatario. Las pantallas de la aplicación están disponibles en español, inglés, portugués, alemán, neerlandés y árabe."
     },
     {
       "q": "¿Desde dónde se envían los mensajes?",
@@ -98,7 +98,7 @@
   "footer_privacy": "Política de privacidad",
   "footer_terms": "Condiciones",
   "footer_deletion": "Eliminación de datos",
-  "footer_legal_note": "Los documentos legales están disponibles en inglés.",
+  "footer_legal_note": "",
   "footer_contact": "Contacto",
   "hero_badges": [
     "Correo y WhatsApp",
@@ -151,7 +151,7 @@
   "signup_closed": "El registro en línea se abrirá pronto. Envíanos un correo breve y te avisaremos cuando puedas crear tu cuenta.",
   "signup_fee_text": "Cuota única de alta: {inr} en la India (IVA indio incluido) o {usd} en el resto del mundo. No es una suscripción.",
   "signup_have_account": "¿Ya tienes una cuenta?",
-  "signup_form_note": "El formulario de registro y el producto están en inglés.",
+  "signup_form_note": "",
   "pricing_open_text": "Estamos ultimando los planes mensuales. Cualquier otro precio se muestra antes de pagarlo, con los impuestos que correspondan.",
   "final_open_text": "Crea tu cuenta y la IA te ayudará a preparar tu primera campaña.",
   "faq_cost_q": "¿Cuánto cuesta {brand}?",

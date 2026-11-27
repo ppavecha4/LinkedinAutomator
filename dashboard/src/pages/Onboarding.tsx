@@ -12,6 +12,8 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { LanguageSelect } from '../components/LanguageSelect';
+import { t } from '../i18n';
 import { mergeWebsiteDraft, SampleMessage, WebsiteReader } from '../components/profile/ai';
 import {
   CompanyForm,
@@ -35,11 +37,11 @@ import {
 } from '../lib/profile';
 
 const STEPS: Array<{ label: string; title: string; intro: string; sections: Section[] }> = [
-  { label: 'Your business', title: 'Your business', intro: 'Start with your website. The AI reads it and fills in what it can; you check and correct.', sections: ['company'] },
-  { label: 'What you sell', title: 'What you sell', intro: 'The AI only ever says what you tell it here. Nothing is invented.', sections: ['offer'] },
-  { label: 'Ideal customers', title: 'Your ideal customers', intro: 'Who should the agent look for, and who must it never contact?', sections: ['customers', 'rules'] },
-  { label: 'How you sound', title: 'How you sound', intro: 'Messages go out in your name. Set the voice once; it applies in every language.', sections: ['voice'] },
-  { label: 'Review', title: "Here's how the AI understands you", intro: 'Check it before anything is sent. You can change everything later in Business profile.', sections: [] },
+  { label: t('Your business'), title: t('Your business'), intro: t('Start with your website. The AI reads it and fills in what it can; you check and correct.'), sections: ['company'] },
+  { label: t('What you sell'), title: t('What you sell'), intro: t('The AI only ever says what you tell it here. Nothing is invented.'), sections: ['offer'] },
+  { label: t('Ideal customers'), title: t('Your ideal customers'), intro: t('Who should the agent look for, and who must it never contact?'), sections: ['customers', 'rules'] },
+  { label: t('How you sound'), title: t('How you sound'), intro: t('Messages go out in your name. Set the voice once; it applies in every language.'), sections: ['voice'] },
+  { label: t('Review'), title: t('Here\'s how the AI understands you'), intro: t('Check it before anything is sent. You can change everything later in Business profile.'), sections: [] },
 ];
 
 export default function Onboarding(): React.ReactElement {
@@ -47,14 +49,14 @@ export default function Onboarding(): React.ReactElement {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label={t('Loading')} />
       </div>
     );
   }
   if (error || !data) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6 text-sm text-destructive">
-        {errorMessage(error, 'Could not load your business profile.')}
+        {errorMessage(error, t('Could not load your business profile.'))}
       </div>
     );
   }
@@ -91,7 +93,7 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
       }
       return true;
     } catch (e) {
-      setError(errorMessage(e, 'Could not save. Check the fields and try again.'));
+      setError(errorMessage(e, t('Could not save. Check the fields and try again.')));
       return false;
     } finally {
       setSaving(false);
@@ -113,10 +115,10 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
     try {
       await complete.mutateAsync(understanding?.offering);
       await refresh();
-      toast.success('Setup done', { description: 'Next: a few quick steps to get ready to send.' });
+      toast.success(t('Setup done'), { description: t('Next: a few quick steps to get ready to send.') });
       navigate('/get-ready', { replace: true });
     } catch (e) {
-      setError(errorMessage(e, 'Could not finish setup. Try again.'));
+      setError(errorMessage(e, t('Could not finish setup. Try again.')));
     }
   }
 
@@ -128,9 +130,9 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
               <Sparkles className="h-4 w-4" aria-hidden="true" />
             </span>
-            Set up {org?.name ?? draft.company.name ?? 'your business'}
+            {t('Set up {name}', { name: org?.name ?? draft.company.name ?? t('your business') })}
           </div>
-          <nav aria-label="Setup steps" className="order-3 flex w-full gap-1 overflow-x-auto pb-1 xl:order-none xl:w-auto xl:flex-1 xl:justify-center xl:pb-0">
+          <nav aria-label={t('Setup steps')} className="order-3 flex w-full gap-1 overflow-x-auto pb-1 xl:order-none xl:w-auto xl:flex-1 xl:justify-center xl:pb-0">
             {STEPS.map((s, i) => (
               <button
                 key={s.label}
@@ -156,8 +158,9 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
               </button>
             ))}
           </nav>
-          <button type="button" className="btn-secondary ml-auto px-4 py-2 text-sm font-semibold xl:ml-0" onClick={finishLater} disabled={saving}>
-            Save and finish later
+          <LanguageSelect className="ms-auto xl:ms-0" />
+          <button type="button" className="btn-secondary px-4 py-2 text-sm font-semibold" onClick={finishLater} disabled={saving}>
+            {t('Save and finish later')}
           </button>
         </div>
       </header>
@@ -202,17 +205,17 @@ function Wizard({ initial }: { initial: ProfileResponse }): React.ReactElement {
 
         <div className="mt-10 flex items-center justify-between border-t border-border/60 pt-6">
           <button type="button" className="btn-ghost" onClick={() => go(step - 1)} disabled={step === 0 || saving}>
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+            <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{' '}{t('Back')}
           </button>
           {step < STEPS.length - 1 ? (
             <button type="button" className="btn-primary" onClick={() => go(step + 1)} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Continue <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              {t('Continue')}{' '}<ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
             </button>
           ) : (
             <button type="button" className="btn-primary" onClick={finish} disabled={complete.isPending}>
               {complete.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              {understanding ? 'Looks right — finish setup' : 'Finish setup'}
+              {understanding ? t('Looks right — finish setup') : t('Finish setup')}
             </button>
           )}
         </div>
@@ -246,7 +249,7 @@ function Review({
     try {
       onUnderstanding(await mutateAsync());
     } catch (e) {
-      setError(errorMessage(e, 'The AI could not summarise your business right now.'));
+      setError(errorMessage(e, t('The AI could not summarise your business right now.')));
     } finally {
       setBusy(false);
     }
@@ -267,57 +270,57 @@ function Review({
     <div className="space-y-5">
       <article className="glass rounded-2xl p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">In one paragraph</h2>
+          <h2 className="text-base font-semibold">{t('In one paragraph')}</h2>
           {o && (
             <button type="button" className="btn-ghost px-2 text-xs" onClick={run} disabled={busy}>
-              <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} aria-hidden="true" /> Redo
+              <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} aria-hidden="true" />{' '}{t('Redo')}
             </button>
           )}
         </div>
         {busy && !o ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Reading your profile…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{' '}{t('Reading your profile…')}
           </p>
         ) : o ? (
           <p className="text-sm leading-relaxed">{o.description || o.value_proposition}</p>
         ) : (
           <div className="space-y-2 text-sm">
             <p className="text-destructive">{error}</p>
-            <p className="text-muted-foreground">You can still finish setup and come back to this from Business profile.</p>
-            <button type="button" className="btn-secondary" onClick={run} disabled={busy}>Try again</button>
+            <p className="text-muted-foreground">{t('You can still finish setup and come back to this from Business profile.')}</p>
+            <button type="button" className="btn-secondary" onClick={run} disabled={busy}>{t('Try again')}</button>
           </div>
         )}
       </article>
 
       <article className="glass rounded-2xl p-5">
-        <h2 className="mb-3 text-base font-semibold">Who it will look for</h2>
+        <h2 className="mb-3 text-base font-semibold">{t('Who it will look for')}</h2>
         <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Roles</dt>
+          <dt className="text-muted-foreground">{t('Roles')}</dt>
           <dd>{(o?.icp.titles.length ? o.icp.titles : profile.customers.roles ?? []).join(', ') || '—'}</dd>
-          <dt className="text-muted-foreground">Industries</dt>
+          <dt className="text-muted-foreground">{t('Industries')}</dt>
           <dd>{(o?.icp.industries.length ? o.icp.industries : profile.customers.industries ?? []).join(', ') || '—'}</dd>
-          <dt className="text-muted-foreground">Where</dt>
+          <dt className="text-muted-foreground">{t('Where')}</dt>
           <dd>{(profile.customers.countries ?? []).map(countryName).join(', ') || '—'}</dd>
-          <dt className="text-muted-foreground">Writes in</dt>
-          <dd>{(profile.company.languages_handled ?? []).map(languageName).join(', ') || 'Each prospect\'s own language'}</dd>
-          <dt className="text-muted-foreground">Skips</dt>
+          <dt className="text-muted-foreground">{t('Writes in')}</dt>
+          <dd>{(profile.company.languages_handled ?? []).map(languageName).join(', ') || t('Each prospect\'s own language')}</dd>
+          <dt className="text-muted-foreground">{t('Skips')}</dt>
           <dd>
-            {never} on your never-contact list
+            {t('{count} on your never-contact list', { count: never })}
             {blocked.length ? ` · ${blocked.map(countryName).join(', ')}` : ''}
           </dd>
         </dl>
         {o?.routing.angles.length ? (
           <>
-            <h3 className="mt-5 mb-2 text-sm font-semibold">What it will lead with</h3>
+            <h3 className="mt-5 mb-2 text-sm font-semibold">{t('What it will lead with')}</h3>
             <ul className="space-y-2 text-sm">
               {o.routing.angles.map((a) => (
                 <li key={a.label}>
                   <span className="font-medium">{a.label}</span>
-                  <span className="text-muted-foreground"> — for {a.fits}: {a.lead_with}</span>
+                  <span className="text-muted-foreground">{' '}{t('— for {fits}: {lead_with}', { fits: a.fits, lead_with: a.lead_with })}</span>
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-sm"><span className="text-muted-foreground">Asks for:</span> {o.routing.cta}</p>
+            <p className="mt-3 text-sm"><span className="text-muted-foreground">{t('Asks for:')}</span> {o.routing.cta}</p>
           </>
         ) : null}
       </article>

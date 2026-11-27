@@ -1761,3 +1761,19 @@ Run against a throwaway container, never the VPS first:
    `ON CONFLICT (user_id)` still behave.
 
 Before deploying to the VPS: take a `pg_dump`, then run Flyway as usual.
+
+## Screen languages (2026-11-27)
+
+The app, the website and the legal pages are in English, Spanish, Portuguese, German, Dutch and Arabic
+(right to left).
+
+- **App** (`dashboard/src/i18n/`): the English sentence is the key (`t()`, `tn()` for counts, `rich()` for
+  sentences with links, `msg()` for values that stay English in data). One file per language in `locales/`;
+  the server's sentences are listed in `server-messages.json`. After adding or changing text, add it to every
+  language and run `npm run i18n:check` in `dashboard/`.
+- The language comes from `?lang=`, else the saved choice, else the browser. The picker reloads the page.
+- Use `ms-`/`me-`/`start-`/`end-` classes, never left/right ones, so Arabic mirrors.
+- **Legal pages**: `dashboard/src/legal/<lang>.json`, read by the app and the website. English applies.
+- **Emails**: verification, password reset and invitation follow the screen language
+  (`services/api/src/lib/accountEmails.ts`). Account-problem and ownership emails are in English.
+- Translations were machine-made and have not been read by native speakers or a lawyer.

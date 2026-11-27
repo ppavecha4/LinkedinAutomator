@@ -8,6 +8,7 @@
  */
 import { animate, useInView } from 'framer-motion';
 import * as React from 'react';
+import { locale } from '../../i18n';
 
 interface AnimatedNumberProps {
   value: number;
@@ -18,7 +19,7 @@ interface AnimatedNumberProps {
 
 export function AnimatedNumber({
   value,
-  format = (n) => n.toLocaleString(),
+  format = (n) => n.toLocaleString(locale()),
   duration = 0.9,
   className,
 }: AnimatedNumberProps): React.ReactElement {

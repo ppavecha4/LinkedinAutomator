@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 
 import clsx from 'clsx';
 
+import { t } from '../../i18n';
 import {
   useCreateCampaign,
   useLaunchCampaign,
@@ -40,18 +41,18 @@ interface CampaignFormProps {
 }
 
 const STEPS = [
-  { label: 'Basics', description: 'Name, goal, sender, tone' },
-  { label: 'ICP Criteria', description: 'Who to target' },
-  { label: 'Sequence', description: 'Channels + cadence' },
-  { label: 'Review', description: 'Launch or save' },
+  { label: t('Basics'), description: t('Name, goal, sender, tone') },
+  { label: t('ICP Criteria'), description: t('Who to target') },
+  { label: t('Sequence'), description: t('Channels + cadence') },
+  { label: t('Review'), description: t('Launch or save') },
 ];
 
 function validateBasics(draft: WizardDraft): Partial<Record<keyof WizardDraft, string>> {
   const errors: Partial<Record<keyof WizardDraft, string>> = {};
-  if (!draft.name.trim()) errors.name = 'required';
-  if (!draft.sender_name.trim()) errors.sender_name = 'required';
-  if (!draft.sender_company.trim()) errors.sender_company = 'required';
-  if (!draft.value_proposition.trim()) errors.value_proposition = 'required';
+  if (!draft.name.trim()) errors.name = t('Required');
+  if (!draft.sender_name.trim()) errors.sender_name = t('Required');
+  if (!draft.sender_company.trim()) errors.sender_company = t('Required');
+  if (!draft.value_proposition.trim()) errors.value_proposition = t('Required');
   return errors;
 }
 
@@ -221,14 +222,14 @@ export default function CampaignForm({
       {step < STEPS.length - 1 && (
         <div className="flex justify-between">
           <button className="btn-ghost" onClick={goBack} disabled={step === 0}>
-            ← Back
+            {t('← Back')}
           </button>
           <button
             className="btn-primary"
             onClick={goNext}
             disabled={step === 0 && Object.keys(basicsErrors).length > 0}
           >
-            Next →
+            {t('Next →')}
           </button>
         </div>
       )}

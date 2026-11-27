@@ -11,6 +11,7 @@
 import { Loader2, Mail, MessageSquare, Briefcase, Inbox as InboxIcon } from 'lucide-react';
 import * as React from 'react';
 
+import { t } from '../i18n';
 import { PageHeader } from '../components/ui/page-header';
 import {
   useInbox,
@@ -23,7 +24,7 @@ const CHANNEL_META: Record<
   string,
   { icon: React.ReactNode; label: string; color: string }
 > = {
-  email: { icon: <Mail className="h-3.5 w-3.5" />, label: 'Email', color: 'text-sky-500' },
+  email: { icon: <Mail className="h-3.5 w-3.5" />, label: t('Email'), color: 'text-sky-500' },
   linkedin: { icon: <Briefcase className="h-3.5 w-3.5" />, label: 'LinkedIn', color: 'text-[#0a66c2]' },
   whatsapp: { icon: <MessageSquare className="h-3.5 w-3.5" />, label: 'WhatsApp', color: 'text-emerald-500' },
 };
@@ -55,9 +56,9 @@ export default function Inbox(): React.ReactElement {
   return (
     <div>
       <PageHeader
-        eyebrow="Conversations"
-        title="Inbox"
-        description="Every reply across email, LinkedIn, and WhatsApp — in one feed."
+        eyebrow={t('Conversations')}
+        title={t('Inbox')}
+        description={t('Every reply across email, LinkedIn, and WhatsApp — in one feed.')}
         icon={InboxIcon}
       />
 
@@ -73,18 +74,18 @@ export default function Inbox(): React.ReactElement {
                 : 'border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            {c === 'all' ? 'All channels' : CHANNEL_META[c].label}
+            {c === 'all' ? t('All channels') : CHANNEL_META[c].label}
           </button>
         ))}
-        <label className="ml-2 flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+        <label className="ms-2 flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
           <input
             type="checkbox"
             checked={unreadOnly}
             onChange={(e) => setUnreadOnly(e.target.checked)}
           />
-          Needs reply only
+          {t('Needs reply only')}
           {list.data?.unread ? (
-            <span className="ml-1 rounded-full bg-rose-500 text-white text-[10px] px-1.5 py-0.5">
+            <span className="ms-1 rounded-full bg-rose-500 text-white text-[10px] px-1.5 py-0.5">
               {list.data.unread}
             </span>
           ) : null}
@@ -100,8 +101,7 @@ export default function Inbox(): React.ReactElement {
             </div>
           ) : conversations.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              No conversations yet. Replies land here automatically as
-              prospects respond.
+              {t('No conversations yet. Replies land here automatically as prospects respond.')}
             </div>
           ) : (
             <ul className="divide-y divide-slate-100 max-h-[70vh] overflow-y-auto">
@@ -121,7 +121,7 @@ export default function Inbox(): React.ReactElement {
         <div className="glass rounded-xl min-h-[400px]">
           {!selected ? (
             <div className="h-full flex items-center justify-center p-8 text-sm text-muted-foreground">
-              Select a conversation to view the thread.
+              {t('Select a conversation to view the thread.')}
             </div>
           ) : thread.isLoading ? (
             <div className="p-8 flex justify-center">
@@ -149,7 +149,7 @@ function ConversationRow({
     <li>
       <button
         onClick={onClick}
-        className={`w-full text-left px-4 py-3 transition-colors ${
+        className={`w-full text-start px-4 py-3 transition-colors ${
           active ? 'bg-brand-light/60' : 'hover:bg-slate-50'
         }`}
       >
@@ -157,7 +157,7 @@ function ConversationRow({
           <span className="font-medium text-sm text-slate-800 truncate">
             {c.full_name}
             {c.needs_reply && (
-              <span className="ml-2 inline-block h-2 w-2 rounded-full bg-rose-500 align-middle" />
+              <span className="ms-2 inline-block h-2 w-2 rounded-full bg-rose-500 align-middle" />
             )}
           </span>
           <span className="text-[10px] text-slate-400 shrink-0">
@@ -189,7 +189,7 @@ function ThreadView({
   if (!thread?.contact) {
     return (
       <div className="p-8 text-center text-sm text-muted-foreground">
-        Conversation not found.
+        {t('Conversation not found.')}
       </div>
     );
   }
@@ -205,13 +205,13 @@ function ThreadView({
               {ct.title} · {ct.company_name} {ct.country ? `· ${ct.country}` : ''}
             </div>
           </div>
-          <div className="text-right text-[11px] text-slate-400">
+          <div className="text-end text-[11px] text-slate-400">
             <div>{ct.campaign_name}</div>
             <div className="uppercase tracking-wide">{ct.prospect_status}</div>
             {ct.service_line && (
               <div className="text-slate-500">
                 {ct.service_line.replace('_', ' ')}
-                {ct.market_tier ? ` · tier ${ct.market_tier}` : ''}
+                {ct.market_tier ? t(' · tier {market_tier}', { market_tier: ct.market_tier }) : ''}
               </div>
             )}
           </div>
@@ -222,7 +222,7 @@ function ThreadView({
       <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[56vh]">
         {thread.messages.length === 0 ? (
           <div className="text-sm text-muted-foreground text-center py-8">
-            No messages recorded on this thread yet.
+            {t('No messages recorded on this thread yet.')}
           </div>
         ) : (
           thread.messages.map((m) => (
@@ -254,10 +254,10 @@ function ThreadView({
 
       {/* Reply hint (manual for now) */}
       <div className="border-t border-slate-100 p-3 text-[11px] text-slate-400">
-        Reply from your{' '}
+        {t('Reply from your')}{' '}
         {ct.email && (
           <a href={`mailto:${ct.email}`} className="text-brand underline">
-            email
+            {t('email')}
           </a>
         )}
         {ct.linkedin_url && (
@@ -273,8 +273,8 @@ function ThreadView({
             </a>
           </>
         )}
-        {ct.whatsapp_number && <> · WhatsApp {ct.whatsapp_number}</>}
-        . Inbound replies are captured automatically.
+        {ct.whatsapp_number && <>{' '}{t('· WhatsApp {whatsapp_number}', { whatsapp_number: ct.whatsapp_number })}</>}
+        {t('. Inbound replies are captured automatically.')}
       </div>
     </div>
   );

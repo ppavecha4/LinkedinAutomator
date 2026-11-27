@@ -68,8 +68,9 @@ A new language: add `locales/<code>.json`, list it in `site.json`, add its routi
 - **On other static hosting:** upload the contents of `website/dist/`. The front page then picks the
   language from the browser.
 
-The legal pages (`/privacy/`, `/terms/`, `/data-deletion/`) are built from the app's
-`dashboard/src/pages/Legal.tsx`: change the text there and rebuild. The sharing picture is `src/social.png`.
+The legal pages (`/privacy/`, `/terms/`, `/data-deletion/`, and `/<lang>/privacy/` etc.) are built from the
+app's `dashboard/src/legal/<lang>.json`: change the text there, in every language, and rebuild. English is the
+version that applies. The sharing picture is `src/social.png`.
 
 ## Before launch
 

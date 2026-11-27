@@ -38,6 +38,8 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 
+import { label } from '../lib/labels';
+import { t } from '../i18n';
 import {
   useLinkedInDrafts,
   useMarkDraftSent,
@@ -107,7 +109,7 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
   // Step number badge — connection_request vs follow-up gets different label.
   const stepLabel =
     draft.sequence_step != null
-      ? `Step ${draft.sequence_step}`
+      ? t('Step {number}', { number: draft.sequence_step })
       : 'LinkedIn';
 
   return (
@@ -133,13 +135,13 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
             </Badge>
             {draft.pitch_type && (
               <Badge variant="secondary" className="text-[10px] py-0 h-4">
-                {draft.pitch_type.replace(/_/g, ' ')}
+                {label(draft.pitch_type)}
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-1.5 font-semibold">
             <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="truncate">{draft.contact_name ?? 'Unknown'}</span>
+            <span className="truncate">{draft.contact_name ?? t('Unknown')}</span>
           </div>
           {(draft.contact_title || draft.company_name) && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
@@ -166,15 +168,15 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Open LinkedIn profile in new tab"
+                aria-label={t('Open LinkedIn profile in new tab')}
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
             </TooltipTrigger>
             <TooltipContent>
               {isFallback
-                ? 'Open LinkedIn search (Apollo Free tier did not return a direct profile URL)'
-                : 'Open profile'}
+                ? t('Open LinkedIn search (Apollo Free tier did not return a direct profile URL)')
+                : t('Open profile')}
             </TooltipContent>
           </Tooltip>
         )}
@@ -189,19 +191,19 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
       />
       <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-3">
         <span>
-          {body.length} / 300 characters
+          {t('{count} / 300 characters', { count: body.length })}
           {body.length > 300 && (
-            <span className="text-rose-500 font-medium ml-1">— over limit</span>
+            <span className="text-rose-500 font-medium ms-1">{t('— over limit')}</span>
           )}
         </span>
         {body.length > 300 && draft.sequence_step === 1 && (
           <span className="text-rose-500">
-            LinkedIn rejects connection notes over 300 characters
+            {t('LinkedIn rejects connection notes over 300 characters')}
           </span>
         )}
         {body.length > 280 && body.length <= 300 && draft.sequence_step === 1 && (
           <span className="text-amber-500">
-            Approaching the 300-char LinkedIn limit
+            {t('Approaching the 300-char LinkedIn limit')}
           </span>
         )}
       </div>
@@ -218,12 +220,12 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
           {copied ? (
             <>
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Copied — paste in LinkedIn
+              {t('Copied — paste in LinkedIn')}
             </>
           ) : (
             <>
               <Copy className="h-3.5 w-3.5" />
-              {isFallback ? 'Copy + search on LinkedIn' : 'Copy + open profile'}
+              {isFallback ? t('Copy + search on LinkedIn') : t('Copy + open profile')}
             </>
           )}
         </Button>
@@ -236,16 +238,16 @@ function DraftCard({ draft }: { draft: LinkedInDraft }) {
           {done || markSent.isSuccess ? (
             <>
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-              Sent
+              {t('Sent')}
             </>
           ) : (
-            'Mark sent'
+            t('Mark sent')
           )}
         </Button>
       </div>
       {markSent.isError && (
         <div className="mt-2 text-xs text-rose-500">
-          Failed to mark sent — try again.
+          {t('Failed to mark sent — try again.')}
         </div>
       )}
     </div>
@@ -261,9 +263,9 @@ export default function LinkedInDrafts(): React.ReactElement {
   return (
     <div>
       <PageHeader
-        eyebrow="Operator queue"
-        title="LinkedIn Drafts"
-        description="AI-personalised LinkedIn messages awaiting your manual send. Copy the message, open the profile, send it from LinkedIn, then mark it sent."
+        eyebrow={t('Operator queue')}
+        title={t('LinkedIn Drafts')}
+        description={t('AI-personalised LinkedIn messages awaiting your manual send. Copy the message, open the profile, send it from LinkedIn, then mark it sent.')}
         icon={Briefcase}
       />
 
@@ -272,11 +274,7 @@ export default function LinkedInDrafts(): React.ReactElement {
         <div className="flex items-center gap-2">
           <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>
-            Why drafts? LinkedIn does not expose an outbound DM API to standard
-            business accounts. The orchestrator generates personalised copy
-            (suppression-checked + rate-limited) and you click-send manually
-            from LinkedIn. When Sales Navigator API access is granted, this
-            queue will auto-drain.
+            {t('Why drafts? LinkedIn does not expose an outbound DM API to standard business accounts. The orchestrator generates personalised copy (suppression-checked + rate-limited) and you click-send manually from LinkedIn. When Sales Navigator API access is granted, this queue will auto-drain.')}
           </span>
         </div>
       </div>
@@ -290,8 +288,8 @@ export default function LinkedInDrafts(): React.ReactElement {
       ) : !drafts || drafts.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title="No LinkedIn drafts pending"
-          description="Drafts will appear here as the orchestrator processes prospects with a LinkedIn step in their sequence."
+          title={t('No LinkedIn drafts pending')}
+          description={t('Drafts will appear here as the orchestrator processes prospects with a LinkedIn step in their sequence.')}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

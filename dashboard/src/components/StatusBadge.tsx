@@ -4,6 +4,7 @@
 
 import clsx from 'clsx';
 
+import { label } from '../lib/labels';
 import type { CampaignStatus, ProspectStatus } from '../lib/types';
 
 type AnyStatus = CampaignStatus | ProspectStatus | string;
@@ -32,7 +33,7 @@ export default function StatusBadge({ status }: { status: AnyStatus }) {
         cls,
       )}
     >
-      {status.replace('_', ' ')}
+      {label(status)}
     </span>
   );
 }

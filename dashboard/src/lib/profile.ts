@@ -5,6 +5,8 @@
  * mirror it.
  */
 
+import { languageName, locale, regionName, t } from '../i18n';
+
 export const TONES = ['professional', 'consultative', 'direct', 'friendly'] as const;
 export type Tone = (typeof TONES)[number];
 
@@ -15,19 +17,19 @@ export const SIGNALS = ['new_markets', 'trade_fairs', 'hiring', 'funding', 'new_
 export type Signal = (typeof SIGNALS)[number];
 
 export const SIGNAL_LABELS: Record<Signal, string> = {
-  new_markets: 'Expanding to new export markets',
-  trade_fairs: 'Exhibiting at a trade fair',
-  hiring: 'Hiring relevant staff',
-  funding: 'Recent funding or a new plant',
-  new_product: 'Launching a new product',
-  tenders: 'Publishing tenders',
+  new_markets: t('Expanding to new export markets'),
+  trade_fairs: t('Exhibiting at a trade fair'),
+  hiring: t('Hiring relevant staff'),
+  funding: t('Recent funding or a new plant'),
+  new_product: t('Launching a new product'),
+  tenders: t('Publishing tenders'),
 };
 
 export const TONE_LABELS: Record<Tone, string> = {
-  professional: 'Professional',
-  consultative: 'Consultative',
-  direct: 'Direct',
-  friendly: 'Friendly',
+  professional: t('Professional'),
+  consultative: t('Consultative'),
+  direct: t('Direct'),
+  friendly: t('Friendly'),
 };
 
 export interface OfferItem {
@@ -147,12 +149,15 @@ const ISO_COUNTRIES = (
   'TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'
 ).split(' ');
 
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
-const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+const englishRegionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
-export function countryName(code: string): string {
+/** The country's name on screen. */
+export const countryName = regionName;
+
+/** The English name, for values the server stores and searches with (never the screen language). */
+export function englishCountryName(code: string): string {
   try {
-    return regionNames.of(code) ?? code;
+    return englishRegionNames.of(code) ?? code;
   } catch {
     return code;
   }
@@ -160,7 +165,7 @@ export function countryName(code: string): string {
 
 export const COUNTRIES: Array<{ code: string; name: string }> = ISO_COUNTRIES
   .map((code) => ({ code, name: countryName(code) }))
-  .sort((a, b) => a.name.localeCompare(b.name));
+  .sort((a, b) => a.name.localeCompare(b.name, locale()));
 
 /** Languages the engine writes well in (orchestrator agents/language.py). */
 export const LANGUAGES = [
@@ -168,13 +173,7 @@ export const LANGUAGES = [
   'ja', 'ko', 'zh', 'he',
 ] as const;
 
-export function languageName(code: string): string {
-  try {
-    return languageNames.of(code) ?? code;
-  } catch {
-    return code;
-  }
-}
+export { languageName };
 
 export const EMPTY_PROFILE: Profile = { company: {}, offer: {}, customers: {}, voice: {}, rules: {} };
 

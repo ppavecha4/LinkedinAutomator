@@ -16,6 +16,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { t } from '../i18n';
 import { PageHeader } from '../components/ui/page-header';
 import {
   usePlanCampaign,
@@ -31,9 +32,9 @@ const CHANNEL_EMOJI: Record<string, string> = {
 };
 
 const EXAMPLES = [
-  'Book discovery calls with CTOs at Series A-C US fintechs hiring backend engineers',
-  'Get staff-augmentation deals with engineering leaders at UK & German SaaS scale-ups',
-  'Reach heads of IT at mid-market manufacturers in India needing SAP/Salesforce contractors',
+  t('Book discovery calls with CTOs at Series A-C US fintechs hiring backend engineers'),
+  t('Get staff-augmentation deals with engineering leaders at UK & German SaaS scale-ups'),
+  t('Reach heads of IT at mid-market manufacturers in India needing SAP/Salesforce contractors'),
 ];
 
 export default function CampaignPlanner(): React.ReactElement {
@@ -56,7 +57,7 @@ export default function CampaignPlanner(): React.ReactElement {
       });
       setPlan(p);
     } catch (e) {
-      toast.error('Planning failed', { description: (e as Error).message });
+      toast.error(t('Planning failed'), { description: (e as Error).message });
     }
   };
 
@@ -79,14 +80,14 @@ export default function CampaignPlanner(): React.ReactElement {
       const created = await create.mutateAsync(toPayload(plan));
       if (thenLaunch) {
         await launch.mutateAsync(created.id);
-        toast.success('Campaign approved & launched');
+        toast.success(t('Campaign approved & launched'));
         navigate(`/?launched=${created.id}`);
       } else {
-        toast.success('Saved as draft');
+        toast.success(t('Saved as draft'));
         navigate(`/campaigns/${created.id}/edit`);
       }
     } catch (e) {
-      toast.error('Approval failed', { description: (e as Error).message });
+      toast.error(t('Approval failed'), { description: (e as Error).message });
     }
   };
 
@@ -95,20 +96,20 @@ export default function CampaignPlanner(): React.ReactElement {
   return (
     <div>
       <PageHeader
-        eyebrow="AI planner"
-        title="Plan a campaign"
-        description="Describe your goal. The orchestrator designs the full campaign — you just approve."
+        eyebrow={t('AI planner')}
+        title={t('Plan a campaign')}
+        description={t('Describe your goal. The orchestrator designs the full campaign — you just approve.')}
         icon={Wand2}
       />
 
       {/* Goal input */}
       <div className="card mb-6">
         <label className="text-sm font-medium text-slate-700">
-          What do you want this campaign to achieve?
+          {t('What do you want this campaign to achieve?')}
         </label>
         <textarea
           className="input mt-2 w-full min-h-[90px] text-sm"
-          placeholder="e.g. Book discovery calls with CTOs at US fintech startups hiring engineers…"
+          placeholder={t('e.g. Book discovery calls with CTOs at US fintech startups hiring engineers…')}
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
         />
@@ -134,7 +135,7 @@ export default function CampaignPlanner(): React.ReactElement {
             ) : (
               <Sparkles className="h-4 w-4" />
             )}
-            {planner.isPending ? 'Designing…' : 'Generate plan'}
+            {planner.isPending ? t('Designing…') : t('Generate plan')}
           </button>
         </div>
       </div>
@@ -142,18 +143,18 @@ export default function CampaignPlanner(): React.ReactElement {
       {planner.isPending && (
         <div className="card text-center py-10 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-          Researching the market and designing your campaign…
+          {t('Researching the market and designing your campaign…')}
         </div>
       )}
 
       {/* Proposal */}
       {plan && !planner.isPending && (
         <div className="space-y-4">
-          <div className="card border-l-4 border-brand">
+          <div className="card border-s-4 border-brand">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Proposed campaign
+                  {t('Proposed campaign')}
                 </div>
                 <h3 className="text-lg font-semibold text-slate-800">
                   {plan.name}
@@ -172,7 +173,7 @@ export default function CampaignPlanner(): React.ReactElement {
           {/* Rationale */}
           <div className="card bg-amber-50/50 border border-amber-100">
             <div className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">
-              Why this plan
+              {t('Why this plan')}
             </div>
             <p className="text-sm text-slate-700 leading-relaxed">
               {plan.rationale}
@@ -183,24 +184,24 @@ export default function CampaignPlanner(): React.ReactElement {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card">
               <h4 className="text-sm font-semibold text-slate-800 mb-3">
-                Target (ICP)
+                {t('Target (ICP)')}
               </h4>
-              <Field label="Countries" values={plan.icp_criteria.countries} />
-              <Field label="Titles" values={plan.icp_criteria.titles} />
-              <Field label="Industries" values={plan.icp_criteria.industries} />
-              <Field label="Company size" values={plan.icp_criteria.company_sizes} />
-              <Field label="Intent keywords" values={plan.icp_criteria.intent_keywords} />
+              <Field label={t('Countries')} values={plan.icp_criteria.countries} />
+              <Field label={t('Titles')} values={plan.icp_criteria.titles} />
+              <Field label={t('Industries')} values={plan.icp_criteria.industries} />
+              <Field label={t('Company size')} values={plan.icp_criteria.company_sizes} />
+              <Field label={t('Intent keywords')} values={plan.icp_criteria.intent_keywords} />
             </div>
 
             <div className="card">
               <h4 className="text-sm font-semibold text-slate-800 mb-3">
-                Sequence &amp; cadence
+                {t('Sequence & cadence')}
               </h4>
               <ol className="space-y-2">
                 {plan.sequence_steps.map((s) => (
                   <li key={s.step_number} className="flex items-start gap-2 text-sm">
                     <span className="shrink-0 mt-0.5 text-[11px] font-mono text-slate-400">
-                      Day {s.delay_days}
+                      {t('Day {delay_days}', { delay_days: s.delay_days })}
                     </span>
                     <span>{CHANNEL_EMOJI[s.channel] ?? '•'}</span>
                     <span className="text-slate-700">{s.action}</span>
@@ -209,17 +210,15 @@ export default function CampaignPlanner(): React.ReactElement {
               </ol>
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 space-y-1">
                 <div>
-                  Channels:{' '}
+                  {t('Channels:')}{' '}
                   {plan.channels_enabled
                     .map((c) => `${CHANNEL_EMOJI[c]} ${c}`)
                     .join('  ')}
                 </div>
                 <div>
-                  Daily limits: email {plan.daily_limits.email} · linkedin{' '}
-                  {plan.daily_limits.linkedin} · whatsapp{' '}
-                  {plan.daily_limits.whatsapp}
+                  {t('Daily limits: email {email} · linkedin {linkedin} · whatsapp {whatsapp}', { email: plan.daily_limits.email, linkedin: plan.daily_limits.linkedin, whatsapp: plan.daily_limits.whatsapp })}
                 </div>
-                <div>Batch size: {plan.batch_size} prospects</div>
+                <div>{t('Batch size: {batch_size} prospects', { batch_size: plan.batch_size })}</div>
               </div>
             </div>
           </div>
@@ -231,14 +230,14 @@ export default function CampaignPlanner(): React.ReactElement {
               onClick={() => setPlan(null)}
               disabled={busy}
             >
-              Discard
+              {t('Discard')}
             </button>
             <button
               className="btn-secondary"
               onClick={() => approve(false)}
               disabled={busy}
             >
-              Save as draft
+              {t('Save as draft')}
             </button>
             <button
               className="btn-primary"
@@ -250,7 +249,7 @@ export default function CampaignPlanner(): React.ReactElement {
               ) : (
                 <Rocket className="h-4 w-4" />
               )}
-              Approve &amp; launch
+              {t('Approve & launch')}
             </button>
           </div>
         </div>

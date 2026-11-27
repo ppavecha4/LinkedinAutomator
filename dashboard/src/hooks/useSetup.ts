@@ -7,6 +7,7 @@
  * blocked (needs an earlier step first).
  */
 
+import { t } from '../i18n';
 import { useBilling } from './useBilling';
 import { useFirstCampaign } from './useFirstCampaign';
 import { useMetaSignupConfig } from './useMetaSignup';
@@ -67,10 +68,10 @@ export function useSetup(): Setup {
   const onboarded = !!profile.data?.onboarding.completed_at;
   steps.push({
     id: 'business',
-    title: 'Tell us about your business',
-    detail: onboarded ? 'The AI knows what you sell and who to look for.' : 'Five short steps. The AI reads your website and fills most of it in.',
+    title: t('Tell us about your business'),
+    detail: onboarded ? t('The AI knows what you sell and who to look for.') : t('Five short steps. The AI reads your website and fills most of it in.'),
     state: onboarded ? 'done' : 'todo',
-    action: onboarded ? { label: 'Review', to: '/settings/profile' } : { label: 'Start', to: '/onboarding' },
+    action: onboarded ? { label: t('Review'), to: '/settings/profile' } : { label: t('Start'), to: '/onboarding' },
   });
 
   // 2. The AI that writes the messages: included in the plan, unless it is used up or the platform has none.
@@ -79,10 +80,10 @@ export function useSetup(): Setup {
   const includedAi = !!ai?.managed && !ai.exhausted;
   steps.push(
     ownAi || includedAi
-      ? { id: 'ai', title: 'The AI that writes your messages', detail: ownAi ? 'Using your own AI account.' : 'Included in your plan: nothing to connect.', state: 'done' }
+      ? { id: 'ai', title: t('The AI that writes your messages'), detail: ownAi ? t('Using your own AI account.') : t('Included in your plan: nothing to connect.'), state: 'done' }
       : ai?.managed && ai.exhausted
-        ? { id: 'ai', title: 'The AI that writes your messages', detail: 'The AI included in your plan is used up this month. Upgrade, or connect your own AI account.', state: 'todo', action: { label: 'See plans', to: '/settings/plan' } }
-        : { id: 'ai', title: 'The AI that writes your messages', detail: 'Connect your own AI account so it can write for you.', state: 'todo', action: { label: 'Connect', to: '/settings/connections?connect=anthropic' } },
+        ? { id: 'ai', title: t('The AI that writes your messages'), detail: t('The AI included in your plan is used up this month. Upgrade, or connect your own AI account.'), state: 'todo', action: { label: t('See plans'), to: '/settings/plan' } }
+        : { id: 'ai', title: t('The AI that writes your messages'), detail: t('Connect your own AI account so it can write for you.'), state: 'todo', action: { label: t('Connect'), to: '/settings/connections?connect=anthropic' } },
   );
 
   // 3. Email.
@@ -91,12 +92,12 @@ export function useSetup(): Setup {
     const broken = connectedFor(creds.data, EMAIL_PROVIDERS);
     steps.push({
       id: 'email',
-      title: 'Send email from your own address',
-      detail: ok ? 'Your email address is connected and checked.'
-        : broken?.status === 'FAILED' && broken.last_error ? `It did not work: ${broken.last_error}`
-        : 'Connect the mailbox your messages go out from, so replies come back to you.',
+      title: t('Send email from your own address'),
+      detail: ok ? t('Your email address is connected and checked.')
+        : broken?.status === 'FAILED' && broken.last_error ? t('It did not work: {last_error}', { last_error: broken.last_error })
+        : t('Connect the mailbox your messages go out from, so replies come back to you.'),
       state: ok ? 'done' : 'todo',
-      action: ok ? undefined : { label: broken ? 'Fix it' : 'Connect email', to: '/settings/connections?connect=google_workspace' },
+      action: ok ? undefined : { label: broken ? t('Fix it') : t('Connect email'), to: '/settings/connections?connect=google_workspace' },
     });
   }
 
@@ -108,29 +109,29 @@ export function useSetup(): Setup {
     const twilioBroken = connectedFor(creds.data, ['twilio']);
     steps.push({
       id: 'whatsapp',
-      title: 'Connect WhatsApp',
-      detail: twilioOk ? 'Your WhatsApp account is connected and checked.'
-        : twilioBroken?.status === 'FAILED' && twilioBroken.last_error ? `It did not work: ${twilioBroken.last_error}`
-        : oneClick ? 'Sign in with Facebook and pick your WhatsApp number. It takes a couple of minutes: nothing to copy or paste.'
-        : 'WhatsApp goes through your Twilio account. It takes about ten minutes the first time.',
+      title: t('Connect WhatsApp'),
+      detail: twilioOk ? t('Your WhatsApp account is connected and checked.')
+        : twilioBroken?.status === 'FAILED' && twilioBroken.last_error ? t('It did not work: {last_error}', { last_error: twilioBroken.last_error })
+        : oneClick ? t('Sign in with Facebook and pick your WhatsApp number. It takes a couple of minutes: nothing to copy or paste.')
+        : t('WhatsApp goes through your Twilio account. It takes about ten minutes the first time.'),
       state: twilioOk ? 'done' : 'todo',
-      action: twilioOk ? undefined : { label: twilioBroken ? 'Fix it' : 'Connect WhatsApp', to: oneClick && !twilioBroken ? '/settings/connections#whatsapp-connect' : '/settings/connections?connect=twilio' },
+      action: twilioOk ? undefined : { label: twilioBroken ? t('Fix it') : t('Connect WhatsApp'), to: oneClick && !twilioBroken ? '/settings/connections#whatsapp-connect' : '/settings/connections?connect=twilio' },
     });
 
     const rows = templates.data?.templates ?? [];
     const ready = (templates.data?.languages ?? []).some((l) => l.ready);
-    const pending = rows.some((t) => t.status === 'PENDING');
-    const drafts = rows.some((t) => t.status === 'DRAFT' || t.status === 'REJECTED');
+    const pending = rows.some((item) => item.status === 'PENDING');
+    const drafts = rows.some((item) => item.status === 'DRAFT' || item.status === 'REJECTED');
     steps.push({
       id: 'whatsapp-messages',
-      title: 'Get your WhatsApp messages approved',
-      detail: ready ? 'Approved by WhatsApp: ready to send.'
-        : !twilioOk ? 'We write these for you once WhatsApp is connected.'
-        : pending ? 'Sent to WhatsApp for approval. This takes from a few minutes to a day: we start using them as soon as they are approved.'
-        : drafts ? 'Your messages are written. Read them, then send them for approval.'
-        : 'WhatsApp must approve your first messages. We write them for you and send them in.',
+      title: t('Get your WhatsApp messages approved'),
+      detail: ready ? t('Approved by WhatsApp: ready to send.')
+        : !twilioOk ? t('We write these for you once WhatsApp is connected.')
+        : pending ? t('Sent to WhatsApp for approval. This takes from a few minutes to a day: we start using them as soon as they are approved.')
+        : drafts ? t('Your messages are written. Read them, then send them for approval.')
+        : t('WhatsApp must approve your first messages. We write them for you and send them in.'),
       state: ready ? 'done' : !twilioOk ? 'blocked' : pending ? 'waiting' : 'todo',
-      action: ready || !twilioOk || pending ? undefined : { label: drafts ? 'Review and send' : 'Write my messages', to: '/settings/connections#wa-messages-title' },
+      action: ready || !twilioOk || pending ? undefined : { label: drafts ? t('Review and send') : t('Write my messages'), to: '/settings/connections#wa-messages-title' },
     });
   }
 
@@ -145,25 +146,25 @@ export function useSetup(): Setup {
   const hasCampaign = (view?.existing_campaigns ?? 0) > 0;
   steps.push({
     id: 'first-campaign',
-    title: 'Create your first campaign',
-    detail: hasCampaign ? 'You have a campaign.'
-      : !ready ? 'The AI proposes it for you as soon as the steps above are done: you only press a button.'
-      : view?.proposal ? 'The AI has a campaign ready for you to look over.'
-      : (view?.blockers[0] ?? 'Almost there.'),
+    title: t('Create your first campaign'),
+    detail: hasCampaign ? t('You have a campaign.')
+      : !ready ? t('The AI proposes it for you as soon as the steps above are done: you only press a button.')
+      : view?.proposal ? t('The AI has a campaign ready for you to look over.')
+      : (view?.blockers[0] ?? t('Almost there.')),
     state: hasCampaign ? 'done' : ready && view?.proposal ? 'todo' : 'blocked',
-    action: hasCampaign ? { label: 'View campaigns', to: '/campaigns' } : undefined,
+    action: hasCampaign ? { label: t('View campaigns'), to: '/campaigns' } : undefined,
   });
 
   // 7. People and launch: the draft needs people before anything can be sent.
   const latest = view?.latest ?? null;
   steps.push({
     id: 'launch',
-    title: 'Add your people and launch',
-    detail: !latest ? 'Once your campaign is created, you add the people to reach and launch it.'
-      : latest.status === 'DRAFT' ? 'Add the people you want to reach, then launch.'
-      : 'Your campaign is running.',
+    title: t('Add your people and launch'),
+    detail: !latest ? t('Once your campaign is created, you add the people to reach and launch it.')
+      : latest.status === 'DRAFT' ? t('Add the people you want to reach, then launch.')
+      : t('Your campaign is running.'),
     state: !latest ? 'blocked' : latest.status === 'DRAFT' ? 'todo' : 'done',
-    action: latest && latest.status === 'DRAFT' ? { label: 'Add my people', to: `/campaigns/${latest.id}/import` } : undefined,
+    action: latest && latest.status === 'DRAFT' ? { label: t('Add my people'), to: `/campaigns/${latest.id}/import` } : undefined,
   });
 
   // "waiting" counts as not done yet but is nothing the person can speed up.

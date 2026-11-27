@@ -16,6 +16,7 @@
 
 import * as React from 'react';
 
+import { t, tServer } from '../i18n';
 import { api, ApiClientError } from './api';
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
@@ -211,7 +212,7 @@ export function useAuth(): AuthContextValue {
 }
 
 /** Turn an API error into one sentence a person can act on. */
-export function errorMessage(e: unknown, fallback = 'Something went wrong. Try again.'): string {
+export function errorMessage(e: unknown, fallback = t('Something went wrong. Try again.')): string {
   const msg = rawErrorMessage(e, fallback);
   return msg.charAt(0).toUpperCase() + msg.slice(1);
 }
@@ -222,9 +223,9 @@ function rawErrorMessage(e: unknown, fallback: string): string {
     if (issues?.length) {
       const first = issues[0];
       const where = Array.isArray(first.path) && first.path.length ? `${first.path.join(' › ')}: ` : '';
-      return `${where}${first.message ?? e.message}`;
+      return `${where}${first.message ? tServer(first.message) : e.message}`;
     }
-    if (e.status === 429) return 'Too many attempts. Wait a few minutes and try again.';
+    if (e.status === 429) return t('Too many attempts. Wait a few minutes and try again.');
     return e.message || fallback;
   }
   return fallback;

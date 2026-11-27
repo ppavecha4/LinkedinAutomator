@@ -82,7 +82,7 @@
     },
     {
       "q": "In welchen Sprachen können die Nachrichten sein?",
-      "a": "Die KI schreibt in der Sprache der Empfänger. Die Oberfläche des Produkts ist derzeit auf Englisch."
+      "a": "Die KI schreibt in der Sprache der Empfänger. Die Oberfläche der App gibt es auf Deutsch, Englisch, Spanisch, Portugiesisch, Niederländisch und Arabisch."
     },
     {
       "q": "Von wem werden die Nachrichten versendet?",
@@ -98,7 +98,7 @@
   "footer_privacy": "Datenschutzerklärung",
   "footer_terms": "Nutzungsbedingungen",
   "footer_deletion": "Datenlöschung",
-  "footer_legal_note": "Die Rechtstexte sind auf Englisch verfügbar.",
+  "footer_legal_note": "",
   "footer_contact": "Kontakt",
   "hero_badges": [
     "E-Mail und WhatsApp",
@@ -151,7 +151,7 @@
   "signup_closed": "Die Online-Registrierung wird bald freigeschaltet. Schreiben Sie uns kurz, und wir melden uns, sobald Sie Ihr Konto anlegen können.",
   "signup_fee_text": "Einmalige Anmeldegebühr: {inr} in Indien (inklusive indischer Umsatzsteuer) oder {usd} in anderen Ländern. Kein Abonnement.",
   "signup_have_account": "Sie haben bereits ein Konto?",
-  "signup_form_note": "Das Registrierungsformular und das Produkt sind auf Englisch.",
+  "signup_form_note": "",
   "pricing_open_text": "Die monatlichen Tarife werden noch festgelegt. Jeder weitere Preis wird vor der Zahlung angezeigt, einschließlich anfallender Steuern.",
   "final_open_text": "Erstellen Sie Ihr Konto, und die KI hilft Ihnen bei Ihrer ersten Kampagne.",
   "faq_cost_q": "Was kostet {brand}?",

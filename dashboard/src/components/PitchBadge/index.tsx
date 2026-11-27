@@ -8,6 +8,7 @@
 
 import clsx from 'clsx';
 
+import { t } from '../../i18n';
 import type { PitchType } from '../../lib/types';
 
 interface Props {
@@ -16,9 +17,9 @@ interface Props {
 }
 
 const LABELS: Record<PitchType, string> = {
-  ai_agents: 'AI Agents',
-  rpa_workflow: 'RPA / Workflow',
-  consulting: 'Consulting',
+  ai_agents: t('AI Agents'),
+  rpa_workflow: t('RPA / Workflow'),
+  consulting: t('Consulting'),
 };
 
 const STYLES: Record<PitchType, string> = {

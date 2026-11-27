@@ -5,6 +5,7 @@
 
 import clsx from 'clsx';
 
+import { t } from '../../i18n';
 import { useEstimateProspects } from '../../hooks/useCampaigns';
 
 import TagInput from './TagInput';
@@ -37,7 +38,7 @@ export default function StepICP({ draft, onChange }: Props) {
   return (
     <div className="space-y-5">
       <div>
-        <label className="label">Industries</label>
+        <label className="label">{t('Industries')}</label>
         <div className="flex flex-wrap gap-2">
           {INDUSTRY_OPTIONS.map((industry) => {
             const on = draft.industries.includes(industry);
@@ -55,7 +56,7 @@ export default function StepICP({ draft, onChange }: Props) {
                     : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
                 )}
               >
-                {industry}
+                {t(industry)}
               </button>
             );
           })}
@@ -63,7 +64,7 @@ export default function StepICP({ draft, onChange }: Props) {
       </div>
 
       <div>
-        <label className="label">Company size</label>
+        <label className="label">{t('Company size')}</label>
         <div className="flex flex-wrap gap-4">
           {COMPANY_SIZE_OPTIONS.map((size) => (
             <label key={size} className="flex items-center gap-2 text-sm text-slate-700">
@@ -81,7 +82,7 @@ export default function StepICP({ draft, onChange }: Props) {
       </div>
 
       <div>
-        <label className="label">Countries</label>
+        <label className="label">{t('Countries')}</label>
         <div className="grid grid-cols-2 gap-3">
           {Object.entries(COUNTRY_GROUPS).map(([region, countries]) => (
             <div key={region}>
@@ -103,7 +104,7 @@ export default function StepICP({ draft, onChange }: Props) {
                           : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400',
                       )}
                     >
-                      {c}
+                      {t(c)}
                     </button>
                   );
                 })}
@@ -114,37 +115,37 @@ export default function StepICP({ draft, onChange }: Props) {
       </div>
 
       <div>
-        <label className="label">Target titles</label>
+        <label className="label">{t('Target titles')}</label>
         <TagInput
           values={draft.titles}
           onChange={(next) => onChange({ titles: next })}
           suggestions={TITLE_SUGGESTIONS}
-          placeholder="CTO, VP Operations, …"
+          placeholder={t('CTO, VP Operations, …')}
         />
       </div>
 
       <div>
-        <label className="label">Intent keywords (optional)</label>
+        <label className="label">{t('Intent keywords (optional)')}</label>
         <TagInput
           values={draft.intent_keywords}
           onChange={(next) => onChange({ intent_keywords: next })}
           suggestions={INTENT_SUGGESTIONS}
-          placeholder="AI engineer, digital transformation…"
+          placeholder={t('AI engineer, digital transformation…')}
         />
       </div>
 
       <div className="rounded-md bg-slate-50 border border-slate-200 p-4 text-sm">
-        <div className="text-xs uppercase text-slate-400 mb-1">Live estimate</div>
+        <div className="text-xs uppercase text-slate-400 mb-1">{t('Live estimate')}</div>
         {estimate.data?.estimate == null ? (
           <div className="text-slate-500">
-            ~ estimate unavailable{' '}
+            {t('~ estimate unavailable')}{' '}
             <span className="text-slate-400">
-              ({estimate.data?.message ?? 'loading…'})
+              ({estimate.data?.message ?? t('loading…')})
             </span>
           </div>
         ) : (
           <div className="text-lg font-semibold text-slate-800">
-            ~{estimate.data.estimate} prospects
+            {t('~{estimate} prospects', { estimate: estimate.data.estimate })}
           </div>
         )}
       </div>

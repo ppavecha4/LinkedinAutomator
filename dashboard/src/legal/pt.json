@@ -1,0 +1,161 @@
+{
+  "updated_label": "Última atualização: 26 de novembro de 2026",
+  "back": "Voltar ao início de sessão",
+  "translation_note": "Esta é uma tradução disponibilizada por conveniência. Em caso de divergência em relação à versão inglesa, aplica-se a versão inglesa.",
+  "privacy": {
+    "title": "Política de Privacidade",
+    "sections": [
+      {
+        "title": "Quem somos",
+        "body": [
+          "A Ritik Technologie Private Limited (\"nós\") gere a AmiReach. Quanto aos dados da sua conta e equipa (nomes, e-mails de trabalho, dados de início de sessão), somos nós que decidimos como são usados. Quanto aos dados de contacto que carrega ou que nos pede para encontrar (as pessoas que quer contactar), é você quem decide e nós tratamo-los por sua conta, segundo as suas instruções."
+        ]
+      },
+      {
+        "title": "O que guardamos",
+        "body": [
+          "Dados da conta: o seu nome, e-mail de trabalho, um hash da palavra-passe com salt (nunca a própria palavra-passe), o perfil da sua empresa e a atividade de início de sessão.",
+          "Dados das campanhas: as listas que carrega, os potenciais clientes e contactos encontrados para si, as mensagens escritas e enviadas, as respostas, os pedidos de remoção e as devoluções, e um registo do que aconteceu.",
+          "Segredos das ligações: as chaves de API e as palavras-passe de aplicação que liga são cifradas antes de serem armazenadas e nunca mais são mostradas."
+        ]
+      },
+      {
+        "title": "De onde vêm os dados de contacto",
+        "body": [
+          "Dos ficheiros que carrega e, se usar a pesquisa com IA, de um fornecedor de pesquisa de clientes que ligue (por exemplo, a Apollo) com a sua própria chave. Tem de ter um fundamento legal para contactar estas pessoas e confirma-o quando importa uma lista."
+        ]
+      },
+      {
+        "title": "Quem mais trata dados (os nossos prestadores de serviços)",
+        "body": [
+          "Se nos pagar, o fornecedor de pagamentos (Razorpay ou Stripe), que recolhe diretamente os dados do seu cartão ou UPI; nunca os vemos nem os armazenamos.",
+          "O nosso fornecedor de alojamento na nuvem e de base de dados; o fornecedor de IA que escreve e compreende as mensagens (Anthropic), que recebe os factos sobre o seu negócio e sobre o potencial cliente necessários para cada mensagem; a Twilio, para o WhatsApp, e o seu próprio fornecedor de e-mail, que transportam as mensagens que envia; e, se o usar, o seu fornecedor de pesquisa de clientes. Escolhemos os fornecedores com cuidado e estes atuam apenas para prestar o serviço. As contas próprias dos clientes regem-se pelos acordos que estes celebraram com esses fornecedores."
+        ]
+      },
+      {
+        "title": "Pedidos de remoção e lista de exclusão",
+        "body": [
+          "Quando alguém pede para não ser contactado, em qualquer idioma, o respetivo endereço e número são adicionados à sua lista de exclusão e verificados novamente antes de cada envio. Os endereços de e-mail cujas mensagens são devolvidas ficam excluídos do envio de e-mails."
+        ]
+      },
+      {
+        "title": "Durante quanto tempo os conservamos",
+        "body": [
+          "Enquanto a sua conta estiver ativa. As linhas carregadas numa importação que cancele são eliminadas de imediato. Quando encerra a sua conta, eliminamos ou anonimizamos os seus dados no prazo de 30 dias, exceto o que tivermos de conservar por lei."
+        ]
+      },
+      {
+        "title": "Segurança",
+        "body": [
+          "Os dados de cada empresa estão isolados ao nível da base de dados, os segredos são cifrados, as sessões terminam quando sai de uma equipa ou altera a sua palavra-passe, e o acesso pelo nosso pessoal é limitado e registado. Nenhum sistema é perfeitamente seguro; informe-nos de imediato se suspeitar de um problema."
+        ]
+      },
+      {
+        "title": "Os seus direitos e contacto",
+        "body": [
+          "Pode aceder aos dados da sua conta, corrigi-los, exportá-los e eliminá-los, e as pessoas cujos dados constem de uma campanha de um cliente podem pedir a esse cliente (ou a nós, e nós transmitimos o pedido) que lhes dê acesso aos dados, os corrija ou os elimine, ou que deixe de as contactar. Contacto: info@appsontechnologies.in. Para que os seus dados sejam eliminados, consulte a nossa página de Eliminação de dados. Se estiver na UE, no Reino Unido, na Índia ou noutra região com regras específicas, poderá também ter o direito de apresentar uma reclamação à sua autoridade de proteção de dados."
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Termos de Serviço",
+    "sections": [
+      {
+        "title": "O que é este serviço",
+        "body": [
+          "A AmiReach ajuda a sua empresa a encontrar potenciais clientes, a escrever mensagens personalizadas no idioma deles e a enviá-las a partir das suas próprias contas de e-mail e WhatsApp. Ao criar uma conta ou ao aceitar um convite, aceita estes termos em seu nome e em nome da sua empresa."
+        ]
+      },
+      {
+        "title": "A sua conta",
+        "body": [
+          "Mantenha a sua palavra-passe em segurança e informe-nos se achar que outra pessoa tem acesso à sua sessão (\"Terminar todas as sessões\" encerra todas as sessões). O proprietário da empresa é responsável por quem faz parte da equipa e pelo que essas pessoas podem fazer."
+        ]
+      },
+      {
+        "title": "As suas responsabilidades nos contactos comerciais",
+        "body": [
+          "É você que decide quem é contactado e o que é dito. Tem de ter um fundamento legal para contactar as pessoas das suas listas (incluindo o consentimento quando a lei o exige, como acontece com o WhatsApp em muitos países) e tem de cumprir as regras antisspam, de privacidade e de envio de mensagens que se aplicam a si e às pessoas que contacta.",
+          "Tem de respeitar os pedidos de remoção. O produto deixa de enviar mensagens a quem pedir remoção, em qualquer idioma, mas não pode tentar contornar isso nem pode carregar pessoas que pediram para não ser contactadas.",
+          "É responsável pelo conteúdo enviado em seu nome. As mensagens são redigidas por IA a partir dos factos que nos fornece; leia o que escreve sobre o seu negócio e corrija-o. Não use o produto para nada que seja ilegal, enganoso ou constitua assédio, nem para enviar spam, burlas ou software malicioso."
+        ]
+      },
+      {
+        "title": "As suas próprias contas e chaves",
+        "body": [
+          "As mensagens saem das contas que liga (a sua caixa de correio, a sua conta Twilio, a chave do seu fornecedor de IA, a sua chave de pesquisa de clientes). Paga diretamente a esses fornecedores e tem de cumprir as regras deles; eles podem suspendê-lo independentemente de nós. As chaves que nos fornece são armazenadas cifradas e usadas apenas para executar as suas campanhas. Se uma conta deixar de funcionar, pausamos o que dela depende."
+        ]
+      },
+      {
+        "title": "Taxa de registo e reembolsos",
+        "body": [
+          "Quando é apresentada uma taxa de registo, esta é cobrada uma única vez, quando cria uma conta de empresa e antes de a conta poder ser usada. O montante é apresentado antes de pagar; na Índia, inclui GST. Não é uma subscrição.",
+          "Se lhe foi cobrado mais do que uma vez, ou se pagou e não conseguiu entrar na sua conta, envie um e-mail para info@appsontechnologies.in no prazo de 7 dias e reembolsaremos o valor em excesso ou a totalidade do montante para o mesmo método de pagamento. Nos restantes casos, a taxa não é reembolsável depois de a sua conta estar aberta. Nada do aqui disposto limita um reembolso exigido por lei."
+        ]
+      },
+      {
+        "title": "Os seus dados",
+        "body": [
+          "Os seus dados pertencem-lhe, incluindo as suas listas e mensagens. Usamo-los apenas para lhe prestar o serviço. Consulte a Política de Privacidade para saber como os tratamos, incluindo o nosso papel em relação aos dados de contacto que carrega."
+        ]
+      },
+      {
+        "title": "Suspensão e cessação",
+        "body": [
+          "Podemos suspender uma conta que viole estes termos, que prejudique outras pessoas ou os nossos sistemas, ou que gere queixas ou um volume elevado de devoluções; as campanhas ficam em pausa enquanto a conta estiver suspensa. Pode deixar de usar o serviço em qualquer momento. Podemos pôr termo ao serviço mediante aviso prévio; disponibilizar-lhe-emos uma forma de exportar os seus dados."
+        ]
+      },
+      {
+        "title": "Ausência de garantias e limites de responsabilidade",
+        "body": [
+          "Esforçamo-nos por manter o serviço fiável, mas este é fornecido tal como está. Não prometemos respostas, reuniões nem vendas e não somos responsáveis pelos resultados das campanhas que decidir executar. Na medida permitida por lei, a nossa responsabilidade está limitada às taxas que nos pagou nos 12 meses anteriores ao problema. Nada do aqui disposto limita responsabilidades que não possam ser limitadas por lei."
+        ]
+      },
+      {
+        "title": "Alterações e contacto",
+        "body": [
+          "Podemos atualizar estes termos; informá-lo-emos sobre alterações substanciais. Lei aplicável: as leis da Índia. Questões: info@appsontechnologies.in."
+        ]
+      }
+    ]
+  },
+  "data-deletion": {
+    "title": "Eliminação de dados",
+    "sections": [
+      {
+        "title": "Como nos pedir a eliminação dos seus dados",
+        "body": [
+          "Envie um e-mail para info@appsontechnologies.in a partir do endereço associado à sua conta, com o assunto \"Eliminar os meus dados\". Indique-nos o endereço de e-mail (e o número de WhatsApp, se houver) que quer ver eliminado. Poderemos responder para confirmar que é realmente você antes de eliminarmos seja o que for.",
+          "Confirmamos por e-mail quando estiver feito e concluímos a eliminação no prazo de 30 dias após a confirmação da sua identidade."
+        ]
+      },
+      {
+        "title": "Se tem uma conta AmiReach",
+        "body": [
+          "Eliminamos a sua conta, os dados de início de sessão dos membros da sua equipa, o perfil da sua empresa, as suas campanhas, listas, mensagens e respostas, e as ligações que configurou (as chaves cifradas e os tokens são destruídos). Tudo o que ligou à Meta ou ao WhatsApp através de nós é desligado, e também pode retirar o nosso acesso por si nas definições da sua conta Meta.",
+          "Conservamos apenas o que a lei nos obriga a conservar (por exemplo, faturas e registos fiscais) e uma entrada mínima na lista de exclusão, caso também tenha pedido para não ser contactado."
+        ]
+      },
+      {
+        "title": "Se recebeu uma mensagem de um dos nossos clientes",
+        "body": [
+          "Os nossos clientes (empresas) enviam mensagens a partir das suas próprias contas de e-mail e WhatsApp usando o nosso software. Se quiser que os seus dados sejam removidos, responda STOP a qualquer mensagem de WhatsApp, ou use a opção de remoção em qualquer e-mail, e não voltará a ser contactado.",
+          "Para que os seus dados sejam totalmente eliminados, envie um e-mail para info@appsontechnologies.in com o endereço de e-mail ou o número de WhatsApp a remover. Transmitimos o pedido à empresa que detém os dados, que é responsável por eles, e podemos eliminá-los nós próprios quando os detivermos. O seu endereço ou número permanece numa lista de não contactar, para que ninguém volte a enviar-lhe mensagens."
+        ]
+      },
+      {
+        "title": "Contacto",
+        "body": [
+          "Ritik Technologie Private Limited, info@appsontechnologies.in. Lei aplicável: as leis da Índia."
+        ]
+      }
+    ]
+  },
+  "website": {
+    "title": "Este site",
+    "body": [
+      "Este site não usa cookies de rastreio nem de publicidade. Se escolher um idioma, um cookie memoriza a sua escolha. O nosso fornecedor de alojamento trata dados técnicos, como o seu endereço IP, para apresentar as páginas."
+    ]
+  }
+}

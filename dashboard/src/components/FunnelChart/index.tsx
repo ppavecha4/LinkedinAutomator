@@ -16,6 +16,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { t } from '../../i18n';
 import { formatNumber, num } from '../../lib/format';
 import type { FunnelMetrics } from '../../lib/types';
 
@@ -24,12 +25,12 @@ interface Props {
 }
 
 const STAGE_ORDER: Array<{ key: keyof FunnelMetrics; label: string }> = [
-  { key: 'discovered', label: 'Discovered' },
-  { key: 'enriched', label: 'Enriched' },
-  { key: 'contacted', label: 'Contacted' },
-  { key: 'opened', label: 'Opened' },
-  { key: 'replied', label: 'Replied' },
-  { key: 'meeting_booked', label: 'Meeting Booked' },
+  { key: 'discovered', label: t('Discovered') },
+  { key: 'enriched', label: t('Enriched') },
+  { key: 'contacted', label: t('Contacted') },
+  { key: 'opened', label: t('Opened') },
+  { key: 'replied', label: t('Replied') },
+  { key: 'meeting_booked', label: t('Meeting Booked') },
 ];
 
 export default function FunnelChart({ metrics }: Props) {
@@ -72,9 +73,9 @@ export default function FunnelChart({ metrics }: Props) {
             formatter={(value: number, _name, item) => {
               const conv = item?.payload?.conversion;
               if (conv != null) {
-                return [`${formatNumber(value)}  (${conv}% vs prev)`, 'count'];
+                return [t('{number}  ({percent}% of the step before)', { number: formatNumber(value), percent: conv }), t('count')];
               }
-              return [formatNumber(value), 'count'];
+              return [formatNumber(value), t('count')];
             }}
           />
           <Bar dataKey="count" fill="#2563eb" radius={[0, 4, 4, 0]}>
@@ -89,7 +90,7 @@ export default function FunnelChart({ metrics }: Props) {
       </ResponsiveContainer>
       {allZero && (
         <div className="-mt-80 h-80 flex items-center justify-center text-sm text-slate-400">
-          No activity yet — launch a campaign to populate the funnel.
+          {t('No activity yet — launch a campaign to populate the funnel.')}
         </div>
       )}
     </div>

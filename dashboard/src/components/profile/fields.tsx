@@ -6,6 +6,7 @@
 import { Globe, Plus, X } from 'lucide-react';
 import * as React from 'react';
 
+import { t } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { COUNTRIES, countryName, LANGUAGES, languageName } from '../../lib/profile';
 
@@ -40,7 +41,7 @@ export function FromWebsite(): React.ReactElement {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-primary">
       <Globe className="h-3 w-3" aria-hidden="true" />
-      from website
+      {t('from website')}
     </span>
   );
 }
@@ -76,7 +77,7 @@ export function TagInput({
           type="button"
           className="chip-removable"
           onClick={() => onChange(values.filter((x) => x !== v))}
-          aria-label={`Remove ${v}`}
+          aria-label={t('Remove {v}', { v })}
         >
           {v}
           <X className="h-3 w-3" aria-hidden="true" />
@@ -95,7 +96,7 @@ export function TagInput({
           }
         }}
         onBlur={() => commit(draft)}
-        placeholder={values.length ? '' : (placeholder ?? 'Type and press Enter')}
+        placeholder={values.length ? '' : (placeholder ?? t('Type and press Enter'))}
         className="flex-1 min-w-[140px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
     </div>
@@ -200,7 +201,7 @@ function CodePicker({
           type="button"
           className="chip-removable"
           onClick={() => onChange(values.filter((v) => v !== c))}
-          aria-label={`Remove ${nameOf(c)}`}
+          aria-label={t('Remove {c}', { c: nameOf(c) })}
         >
           {nameOf(c)}
           <X className="h-3 w-3" aria-hidden="true" />
@@ -243,7 +244,7 @@ export function CountriesPicker(props: {
     <CodePicker
       {...props}
       max={props.max ?? 40}
-      addLabel={props.addLabel ?? 'Add country'}
+      addLabel={props.addLabel ?? t('Add country')}
       options={COUNTRIES}
       nameOf={countryName}
     />
@@ -258,7 +259,7 @@ export function LanguagesPicker(props: {
   onChange: (next: string[]) => void;
 }): React.ReactElement {
   return (
-    <CodePicker {...props} max={10} addLabel="Add language" options={LANGUAGE_OPTIONS} nameOf={languageName} />
+    <CodePicker {...props} max={10} addLabel={t('Add language')} options={LANGUAGE_OPTIONS} nameOf={languageName} />
   );
 }
 
@@ -273,7 +274,7 @@ export function CountrySelect({
 }): React.ReactElement {
   return (
     <select id={id} className="input" value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)}>
-      <option value="">Choose a country</option>
+      <option value="">{t('Choose a country')}</option>
       {COUNTRIES.map((c) => (
         <option key={c.code} value={c.code}>
           {c.name}

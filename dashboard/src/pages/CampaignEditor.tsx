@@ -19,6 +19,7 @@ import { ArrowLeft, Pencil } from 'lucide-react';
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { t } from '../i18n';
 import { AuditTimeline } from '../components/AuditTimeline';
 import CampaignForm from '../components/CampaignForm';
 import { campaignToDraft } from '../components/CampaignForm/types';
@@ -43,9 +44,9 @@ export default function CampaignEditor(): React.ReactElement {
     return (
       <div>
         <PageHeader
-          eyebrow="Edit"
-          title="Edit campaign"
-          description="Loading…"
+          eyebrow={t('Edit')}
+          title={t('Edit campaign')}
+          description={t('Loading…')}
           icon={Pencil}
         />
         <div className="space-y-4">
@@ -60,14 +61,14 @@ export default function CampaignEditor(): React.ReactElement {
     return (
       <div>
         <PageHeader
-          eyebrow="Edit"
-          title="Campaign not found"
-          description="The campaign id in the URL doesn't match any record."
+          eyebrow={t('Edit')}
+          title={t('Campaign not found')}
+          description={t('The campaign id in the URL doesn\'t match any record.')}
           icon={Pencil}
         />
         <Link to="/campaigns" className="btn-secondary">
-          <ArrowLeft className="h-4 w-4" />
-          Back to campaigns
+          <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+          {t('Back to campaigns')}
         </Link>
       </div>
     );
@@ -84,14 +85,14 @@ export default function CampaignEditor(): React.ReactElement {
   return (
     <div>
       <PageHeader
-        eyebrow="Edit"
+        eyebrow={t('Edit')}
         title={campaign.campaign.name}
-        description="Update sender info, ICP, sequence, or daily limits. Changes save in place — they don't relaunch the campaign or duplicate it."
+        description={t('Update sender info, ICP, sequence, or daily limits. Changes save in place — they don\'t relaunch the campaign or duplicate it.')}
         icon={Pencil}
         actions={
           <Link to="/campaigns" className="btn-secondary">
-            <ArrowLeft className="h-4 w-4" />
-            Back
+            <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+            {t('Back')}
           </Link>
         }
       />
@@ -100,11 +101,9 @@ export default function CampaignEditor(): React.ReactElement {
         Surfacing the most-confusing edit-mode caveat right at the top so
         operators understand what an ICP change does (and doesn't) do.
       */}
-      <div className="glass rounded-xl p-4 mb-6 text-xs text-muted-foreground border-l-4 border-amber-500">
-        <strong className="text-foreground">Heads up:</strong> changes to
-        the ICP criteria don't retroactively affect prospects already
-        discovered for this campaign — they only apply to subsequent
-        batches. Edit safely; we keep the existing pipeline intact.
+      <div className="glass rounded-xl p-4 mb-6 text-xs text-muted-foreground border-s-4 border-amber-500">
+        <strong className="text-foreground">{t('Heads up:')}</strong>{' '}
+        {t('changes to the ideal customer criteria do not affect prospects already found for this campaign; they apply to later batches only. Edit safely: the existing pipeline stays as it is.')}
       </div>
 
       {/* Heyreach link status — only the LinkedIn channel uses this. */}

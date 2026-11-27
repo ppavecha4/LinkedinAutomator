@@ -51,7 +51,7 @@ class SiteTest(unittest.TestCase):
                             "about_text", "signup_title", "signup_text", "signup_closed", "signup_fee_text", "faq_cost_q",
                             "auto_title", "auto_text", "planned_text"):
                     self.assertNotEqual(t[key], english[key], f"{lang}.{key} is still English")
-                self.assertTrue(t["footer_legal_note"], f"{lang}: say that the legal pages are in English")
+                self.assertTrue(build.legal_text(lang)["translation_note"], f"{lang}: say that English applies")
 
     def test_pages_build_with_the_right_language_and_links(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -73,33 +73,36 @@ class SiteTest(unittest.TestCase):
                 ours = "|".join(re.escape(u.split("://", 1)[1]) for u in ("https://example.test", CFG["app_url"]) if u)
                 self.assertNotRegex(text, rf'(?:src|href)="https?://(?!(?:{ours})[/"])', "no third-party files")
             sitemap = (out / "sitemap.xml").read_text(encoding="utf-8")
-            self.assertEqual(sitemap.count("<loc>"), 2 * len(CFG["languages"]) + len(build.LEGAL_PAGES))
+            self.assertEqual(sitemap.count("<loc>"), (2 + len(build.LEGAL_PAGES)) * len(CFG["languages"]))
             ElementTree.fromstring(sitemap.encode("utf-8"))                  # well-formed
             build.build("", out)                                            # without an address: no search files
             self.assertFalse((out / "sitemap.xml").exists())
             self.assertNotIn("canonical", (out / "en" / "index.html").read_text(encoding="utf-8"))
 
     def test_legal_pages_carry_every_section_of_the_apps_own_text(self):
-        source = build.LEGAL_SOURCE.read_text(encoding="utf-8")
+        english = build.legal_text("en")
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             build.build("https://example.test", out)
-            total = 0
-            for slug, (name, title) in build.LEGAL_PAGES.items():
-                sections = build.legal_sections(name)
-                total += len(sections)
-                self.assertTrue(sections and all(paragraphs for _, paragraphs in sections), name)
-                text = (out / slug / "index.html").read_text(encoding="utf-8")
-                self.assertIn(f"<h1>{title}</h1>", text)
-                for heading, _ in sections:
-                    self.assertIn(f"<h2>{build.e(heading)}</h2>", text)
-                self.assertNotIn("\\'", text)
-            self.assertEqual(total, source.count("{ title:"))
-            privacy = (out / "privacy" / "index.html").read_text(encoding="utf-8")
-            self.assertIn("Ritik Technologie Private Limited", privacy)
-            self.assertIn("Customers&#x27; own accounts", privacy)             # an escaped quote came through whole
-            self.assertIn("This website", privacy)
-            self.assertIn('href="../privacy/"', (out / "es" / "index.html").read_text(encoding="utf-8"))
+            for lang in CFG["languages"]:
+                doc = build.legal_text(lang)
+                for slug in build.LEGAL_PAGES:
+                    # The same sections and paragraphs in every language: nothing left out in translation.
+                    self.assertEqual([len(x["body"]) for x in doc[slug]["sections"]],
+                                     [len(x["body"]) for x in english[slug]["sections"]], f"{lang} {slug}")
+                    path = build.legal_path(CFG, slug, lang)
+                    text = (out / path / "index.html").read_text(encoding="utf-8")
+                    self.assertIn(f"<h1>{build.e(doc[slug]['title'])}</h1>", text)
+                    for section in doc[slug]["sections"]:
+                        self.assertIn(f"<h2>{build.e(section['title'])}</h2>", text)
+                    self.assertEqual("class=\"notice\"" in text, lang != "en", f"{lang} {slug}")
+                    for must in ("info@appsontechnologies.in",) if slug != "privacy" else ("Ritik Technologie Private Limited",):
+                        self.assertIn(must, text, f"{lang} {slug}")
+                    if lang != "en":
+                        self.assertNotEqual(doc[slug]["sections"][0]["body"], english[slug]["sections"][0]["body"], f"{lang} {slug} is still English")
+                home = (out / lang / "index.html").read_text(encoding="utf-8")
+                self.assertIn(f'href="../{build.legal_path(CFG, "privacy", lang)}/"', home)
+            self.assertIn(build.e(english["website"]["title"]), (out / "privacy" / "index.html").read_text(encoding="utf-8"))
 
     def test_sign_in_shows_only_when_the_app_has_an_address(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,7 +122,7 @@ class SiteTest(unittest.TestCase):
             out = Path(tmp)
             build.build(None, out)
             for lang in CFG["languages"]:
-                self.assertIn(f'href="{CFG["app_url"]}/login">', (out / lang / "index.html").read_text(encoding="utf-8"))
+                self.assertIn(f'href="{CFG["app_url"]}/login?lang={lang}">', (out / lang / "index.html").read_text(encoding="utf-8"))
 
     def build_with(self, out: Path, **settings) -> None:
         original = build.load_config
@@ -140,8 +143,8 @@ class SiteTest(unittest.TestCase):
                     home = unescape((out / lang / "index.html").read_text(encoding="utf-8"))
                     self.assertIn('<a class="button" href="signup/">', home, lang)
                     self.assertIn(f'<h1>{t["signup_title"]}</h1>', signup)
-                    self.assertIn('href="https://app.example.test/login"', signup)
-                    self.assertEqual('href="https://app.example.test/signup"' in signup, opened, lang)
+                    self.assertIn(f'href="https://app.example.test/login?lang={lang}"', signup)
+                    self.assertEqual(f'href="https://app.example.test/signup?lang={lang}"' in signup, opened, lang)
                     self.assertEqual("mailto:" + CFG["contact_email"] + "?subject=" in signup, not opened, lang)
                     for page_text in (signup, home):                          # a price only once it can be paid
                         self.assertEqual(CFG["signup_fee"]["inr"] in page_text, opened, lang)
@@ -158,7 +161,8 @@ class SiteTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             self.build_with(out, app_signup=False)
-            for path in [*CFG["languages"], *(f"{x}/signup" for x in CFG["languages"]), *build.LEGAL_PAGES]:
+            for path in [*CFG["languages"], *(f"{x}/signup" for x in CFG["languages"]),
+                         *(build.legal_path(CFG, slug, x) for slug in build.LEGAL_PAGES for x in CFG["languages"])]:
                 text = (out / path / "index.html").read_text(encoding="utf-8")
                 self.assertEqual(text.count("<h1>"), 1, path)
                 self.assertRegex(text, r'<title>[^<]{10,90}</title>', path)
@@ -264,7 +268,8 @@ class SiteTest(unittest.TestCase):
                 rules = z.read(".htaccess").decode()
             wanted = {"index.html", "404.html", ".htaccess", "styles.css", "site.js", "icon.png", "social.png", "sitemap.xml",
                       "robots.txt", "llms.txt"}
-            wanted |= {f"{x}/index.html" for x in [*CFG["languages"], *build.LEGAL_PAGES]}
+            wanted |= {f"{x}/index.html" for x in CFG["languages"]}
+            wanted |= {f"{build.legal_path(CFG, slug, x)}/index.html" for slug in build.LEGAL_PAGES for x in CFG["languages"]}
             wanted |= {f"{x}/signup/index.html" for x in CFG["languages"]}
             wanted |= {f"img/{p.name}" for p in (HERE / "src" / "img").glob("*.svg")}
             self.assertEqual(names, wanted)

@@ -2,6 +2,7 @@
  * ProspectTable — filterable table on the /prospects page.
  */
 
+import { t } from '../../i18n';
 import { formatRelative } from '../../lib/format';
 import type { Contact, Prospect } from '../../lib/types';
 import PitchBadge from '../PitchBadge';
@@ -29,7 +30,7 @@ export default function ProspectTable({ prospects, onRowClick }: Props) {
   if (prospects.length === 0) {
     return (
       <div className="card text-center text-sm text-slate-400 py-12">
-        No prospects match the current filters.
+        {t('No prospects match the current filters.')}
       </div>
     );
   }
@@ -39,13 +40,13 @@ export default function ProspectTable({ prospects, onRowClick }: Props) {
       <table className="w-full text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
           <tr>
-            <th className="px-4 py-3 text-left">Company</th>
-            <th className="px-4 py-3 text-left">Contact</th>
-            <th className="px-4 py-3 text-left">Title</th>
-            <th className="px-4 py-3 text-left">Pitch</th>
-            <th className="px-4 py-3 text-left">Status</th>
-            <th className="px-4 py-3 text-left">Last activity</th>
-            <th className="px-4 py-3 text-left">Channels</th>
+            <th className="px-4 py-3 text-start">{t('Company')}</th>
+            <th className="px-4 py-3 text-start">{t('Contact')}</th>
+            <th className="px-4 py-3 text-start">{t('Title')}</th>
+            <th className="px-4 py-3 text-start">{t('Pitch')}</th>
+            <th className="px-4 py-3 text-start">{t('Status')}</th>
+            <th className="px-4 py-3 text-start">{t('Last activity')}</th>
+            <th className="px-4 py-3 text-start">{t('Channels')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">

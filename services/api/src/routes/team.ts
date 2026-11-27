@@ -27,6 +27,7 @@ import { query, withTransaction } from '../db/client';
 import { env } from '../env';
 import { issueToken, RESET_TTL_MINUTES } from '../lib/accountTokens';
 import { ApiError } from '../lib/errors';
+import { emailWords, requestLanguage } from '../lib/accountEmails';
 import { dashboardLink, mailerConfigured, sendMail } from '../lib/mailer';
 import { assertCanAddSeat } from '../lib/quota';
 import { ok } from '../lib/response';
@@ -130,11 +131,9 @@ router.post('/api/team/invites', manage, validate({ body: inviteBody }), async (
     if (mailerConfigured()) {
       try {
         const org = await query<{ name: string }>(`SELECT name FROM organizations`);
-        await sendMail({
-          to: email,
-          subject: `You're invited to ${org.rows[0]?.name ?? 'a team'} on AmiReach`,
-          text: `You've been invited to join ${org.rows[0]?.name ?? 'a team'} as ${role}.\n\nAccept here:\n\n${link}\n\nThe link works once, for ${env.inviteTtlDays} days.\n`,
-        });
+        const words = emailWords(requestLanguage(req));
+        const team = org.rows[0]?.name ?? null;
+        await sendMail({ to: email, subject: words.invite.subject(team), text: words.invite.body(team, role, link, env.inviteTtlDays) });
         emailed = true;
       } catch (e) {
         emailError = 'the email could not be sent; share the link yourself';
@@ -244,11 +243,8 @@ router.post('/api/team/members/:userId/reset-link', manage, validate({ params: u
     let emailed = false;
     if (mailerConfigured()) {
       try {
-        await sendMail({
-          to: target.email,
-          subject: 'Reset your password',
-          text: `Your administrator started a password reset for you. Choose a new password here:\n\n${link}\n\nThe link works once, for ${RESET_TTL_MINUTES} minutes.\n`,
-        });
+        const words = emailWords(requestLanguage(req));
+        await sendMail({ to: target.email, subject: words.reset.subject, text: words.adminReset.body(link, RESET_TTL_MINUTES) });
         emailed = true;
       } catch (e) {
         logger.warn('reset email failed', { error: (e as Error).message });
