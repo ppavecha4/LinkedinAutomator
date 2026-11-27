@@ -29,7 +29,7 @@
     },
     {
       "title": "Lance e leia as respostas",
-      "text": "As mensagens saem das suas contas e os lembretes são enviados por si. As respostas chegam a uma única caixa de entrada e os lembretes param quando alguém responde."
+      "text": "As mensagens saem das suas contas e o seguimento é enviado por si. As respostas chegam a uma única caixa com uma proposta de resposta, e o seguimento para quando alguém responde."
     }
   ],
   "features_title": "O que recebe",
@@ -158,15 +158,15 @@
   "faq_more": [
     {
       "q": "O que faz a {brand} automaticamente?",
-      "a": "Depois de lançar uma campanha, encontra potenciais clientes através da sua conta de pesquisa ou usa a sua lista, escreve e envia mensagens pessoais, envia lembretes, pára-os quando alguém responde e respeita os pedidos de remoção."
+      "a": "Depois de lançar uma campanha, encontra potenciais clientes com a sua conta de pesquisa ou usa a sua lista, escreve e envia mensagens pessoais, faz o seguimento, para quando alguém responde, prepara respostas e respeita pedidos de remoção."
     },
     {
       "q": "A {brand} responde às mensagens por mim?",
-      "a": "Ainda não. Quando alguém responde, os lembretes param e a resposta aparece na sua caixa de entrada para responder. Estão planeadas respostas com IA, com passagem para si."
+      "a": "Sim, se ativar. Por predefinição redige um rascunho que lê e envia. Em modo automático responde às respostas habituais e indica-o; chamadas, preços, reclamações e o que não for claro passam para si."
     },
     {
       "q": "Alguma coisa é enviada sem a minha aprovação?",
-      "a": "Não. Primeiro revê a campanha e as mensagens, e nada é enviado até a lançar. Depois, os lembretes seguem o calendário e param quando alguém responde."
+      "a": "Não. Verifica primeiro a campanha e as mensagens, e nada é enviado até a lançar. Depois, o seguimento é enviado conforme o plano. As respostas aguardam a sua aprovação, salvo se ativar as respostas automáticas."
     },
     {
       "q": "Preciso das minhas próprias contas de e-mail e WhatsApp?",
@@ -184,9 +184,9 @@
   "example_reply": "Quinta-feira dá-nos jeito. Envie os detalhes.",
   "auto_title": "A sua angariação comercial em piloto automático",
   "auto_text": "Descreva o seu negócio uma vez. Depois de lançar, a {brand} mantém a campanha em andamento e mostra-lhe quem respondeu.",
-  "planned_label": "Planeado a seguir",
-  "planned_title": "Respostas com IA",
-  "planned_text": "Responder por si às mensagens habituais e passar-lhe a conversa quando for precisa uma pessoa ou uma chamada. Ainda não está disponível.",
+  "replies_label": "Respostas",
+  "replies_title": "As respostas são tratadas e quem decide é a sua empresa",
+  "replies_text": "A {brand} redige uma resposta para enviar. Se escolher, responde sozinha às respostas habituais por e-mail e WhatsApp e indica que é automático. Chamadas, preços, reclamações e o que não for claro passam para si.",
   "auto_steps": [
     {
       "who": "Você",
@@ -210,8 +210,8 @@
     },
     {
       "who": "Você",
-      "title": "Assume quando respondem",
-      "text": "As respostas são reunidas numa única caixa de entrada. Responde do seu e-mail e marca a chamada."
+      "title": "Intervenha quando importa",
+      "text": "São preparados rascunhos de resposta ou, se ativar, as habituais são enviadas por si. Quando é preciso uma chamada ou uma decisão, é a sua vez."
     }
   ]
 }

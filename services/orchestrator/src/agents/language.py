@@ -182,6 +182,24 @@ UNSUBSCRIBE_LINES = {
 }
 
 
+# Said at the foot of every answer the AI sends on its own: people are told when no person wrote it.
+AUTO_REPLY_NOTES = {
+    "en": "This reply was written automatically by {company}'s assistant. Reply here and a person can take over.",
+    "es": "Esta respuesta la ha escrito automáticamente el asistente de {company}. Responde aquí y una persona puede continuar.",
+    "pt": "Esta resposta foi escrita automaticamente pelo assistente da {company}. Responda aqui e uma pessoa pode continuar.",
+    "fr": "Cette réponse a été rédigée automatiquement par l'assistant de {company}. Répondez ici et une personne pourra prendre le relais.",
+    "de": "Diese Antwort wurde automatisch vom Assistenten von {company} verfasst. Antworten Sie hier, dann kann ein Mensch übernehmen.",
+    "it": "Questa risposta è stata scritta automaticamente dall'assistente di {company}. Rispondi qui e una persona potrà continuare.",
+    "nl": "Dit antwoord is automatisch geschreven door de assistent van {company}. Reageer hier en iemand kan het overnemen.",
+    "ar": "كُتب هذا الرد تلقائياً بواسطة مساعد {company}. ردّ هنا ليتولى أحد موظفينا المتابعة.",
+    "hi": "यह जवाब {company} के सहायक ने अपने-आप लिखा है। यहाँ जवाब दें तो कोई व्यक्ति आगे बात कर सकता है।",
+}
+
+
+def auto_reply_note(tag: str | None, company: str) -> str:
+    return (AUTO_REPLY_NOTES.get(primary(tag or "en")) or AUTO_REPLY_NOTES["en"]).format(company=company or "us")
+
+
 def unsubscribe_line(tag: str | None, company: str) -> str:
     """The footer's unsubscribe sentence (without the link) in `tag`."""
     return (UNSUBSCRIBE_LINES.get(primary(tag or "en")) or UNSUBSCRIBE_LINES["en"]).format(company=company or "us")

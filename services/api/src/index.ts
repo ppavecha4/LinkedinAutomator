@@ -20,6 +20,7 @@ import { env } from './env';
 import { logger } from './logger';
 import { ApiError } from './lib/errors';
 import { startAccountHealth } from './lib/accountHealth';
+import { startReplyHandover } from './lib/replyHandover';
 import { closeRedis, pingRedis } from './lib/redis';
 import { auth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
@@ -229,6 +230,8 @@ server.listen(port, () => {
   });
   // Hourly re-check of connected accounts (local-auth deployments only).
   startAccountHealth();
+  // Tell companies about conversations the assistant handed to a person.
+  startReplyHandover();
   // Checks and alerts: database, redis, cron / backup heartbeats (slice 6.3).
   startOpsMonitor();
   // Follow WhatsApp templates that are waiting for Meta, so approved ones start sending by themselves (slice 9.1).

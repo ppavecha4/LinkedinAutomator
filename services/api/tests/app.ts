@@ -19,6 +19,7 @@ import settingsRouter from '../src/routes/settings';
 import credentialsRouter from '../src/routes/credentials';
 import organizationRouter from '../src/routes/organization';
 import importsRouter from '../src/routes/imports';
+import inboxRouter from '../src/routes/inbox';
 import offeringsRouter from '../src/routes/offerings';
 import profileRouter from '../src/routes/profile';
 import authRouter from '../src/routes/auth';
@@ -87,6 +88,7 @@ export function buildApp(): express.Express {
   app.use(settingsRouter);
   app.use(credentialsRouter);
   app.use(organizationRouter);
+  app.use(inboxRouter);
   app.use(importsRouter);
   app.use(offeringsRouter);
   app.use(whatsappMetaRouter);

@@ -29,7 +29,7 @@
     },
     {
       "title": "Starten und Antworten lesen",
-      "text": "Die Nachrichten gehen von Ihren Konten aus, Erinnerungen werden für Sie versendet. Antworten landen in einem Posteingang, und Erinnerungen enden, sobald jemand antwortet."
+      "text": "Die Nachrichten gehen von Ihren Konten aus und Erinnerungen werden für Sie versendet. Antworten landen mit einem Antwortvorschlag in einem Posteingang, und die Erinnerungen enden, sobald jemand antwortet."
     }
   ],
   "features_title": "Das bekommen Sie",
@@ -158,15 +158,15 @@
   "faq_more": [
     {
       "q": "Was erledigt {brand} automatisch?",
-      "a": "Nach dem Start einer Kampagne findet es Interessenten über Ihr Konto zur Kundensuche oder nutzt Ihre Liste, schreibt und versendet persönliche Nachrichten, verschickt Erinnerungen, stoppt sie bei einer Antwort und beachtet Abmeldungen."
+      "a": "Nach dem Start einer Kampagne findet es Interessenten über Ihr Konto zur Kundensuche oder nutzt Ihre Liste, schreibt und sendet persönliche Nachrichten, verschickt Erinnerungen, beendet sie bei einer Antwort, entwirft Antworten und beachtet Abmeldungen."
     },
     {
       "q": "Beantwortet {brand} Antworten für mich?",
-      "a": "Noch nicht. Wenn jemand antwortet, enden die Erinnerungen und die Antwort erscheint in Ihrem Posteingang. KI-Antworten mit Übergabe an Sie sind geplant."
+      "a": "Ja, wenn Sie es einschalten. Standardmäßig schreibt es einen Entwurf, den Sie lesen und senden. Im automatischen Modus beantwortet es Routinefälle und weist darauf hin; Anrufe, Preise, Beschwerden und Unklares gehen an Sie."
     },
     {
       "q": "Wird etwas ohne meine Freigabe versendet?",
-      "a": "Nein. Sie prüfen zuerst die Kampagne und ihre Nachrichten, und nichts wird versendet, bevor Sie starten. Danach gehen Erinnerungen nach Zeitplan raus und enden, sobald jemand antwortet."
+      "a": "Nein. Sie prüfen zuerst die Kampagne und ihre Nachrichten, und nichts wird gesendet, bevor Sie starten. Danach gehen die Erinnerungen nach Plan raus. Antworten warten auf Ihre Freigabe, außer Sie schalten automatische Antworten ein."
     },
     {
       "q": "Brauche ich eigene E-Mail- und WhatsApp-Konten?",
@@ -184,9 +184,9 @@
   "example_reply": "Donnerstag passt uns. Bitte senden Sie die Details.",
   "auto_title": "Ihre Kundenansprache auf Autopilot",
   "auto_text": "Beschreiben Sie Ihr Geschäft einmal. Nach dem Start hält {brand} die Kampagne am Laufen und zeigt Ihnen, wer geantwortet hat.",
-  "planned_label": "Als Nächstes geplant",
-  "planned_title": "KI-Antworten",
-  "planned_text": "Routineantworten für Sie beantworten und an Sie übergeben, wenn eine Person oder ein Anruf nötig ist. Das ist noch nicht verfügbar.",
+  "replies_label": "Antworten",
+  "replies_title": "Antworten werden bearbeitet, Sie behalten die Kontrolle",
+  "replies_text": "{brand} schreibt einen Antwortentwurf, den Sie senden. Wenn Sie möchten, beantwortet es Routinefälle per E-Mail und WhatsApp selbst und weist darauf hin, dass dies automatisch geschieht. Anrufe, Preise, Beschwerden und Unklares gehen an Sie.",
   "auto_steps": [
     {
       "who": "Sie",
@@ -210,8 +210,8 @@
     },
     {
       "who": "Sie",
-      "title": "Sie übernehmen bei Antworten",
-      "text": "Antworten werden in einem Posteingang gesammelt. Sie antworten aus Ihrem Postfach und vereinbaren das Gespräch."
+      "title": "Sie übernehmen, wenn es zählt",
+      "text": "Antworten werden für Sie entworfen oder, wenn Sie es einschalten, Routinefälle für Sie gesendet. Wenn ein Anruf oder eine Entscheidung nötig ist, sind Sie dran."
     }
   ]
 }

@@ -384,7 +384,7 @@ def page(lang: str, t: dict, cfg: dict, names: dict, site_url: str, locales: tup
     <section id="about"><div class="wrap narrow center"><h2>{e(t["about_title"])}</h2><p class="statement">{e(t["about_text"])}</p></div></section>
     <section id="autopilot" class="tint"><div class="wrap"><div class="heading"><h2>{e(t["auto_title"])}</h2><p class="lead">{e(t["auto_text"])}</p></div>
       <ol class="flow">{flow}</ol>
-      <div class="planned"><span class="who">{e(t["planned_label"])}</span><h3>{e(t["planned_title"])}</h3><p>{e(t["planned_text"])}</p></div>
+      <div class="replies"><span class="who">{e(t["replies_label"])}</span><h3>{e(t["replies_title"])}</h3><p>{e(t["replies_text"])}</p></div>
     </div></section>
     <section><div class="wrap"><div class="heading"><h2>{e(t["compare_title"])}</h2><p class="lead">{e(t["compare_text"])}</p></div>
       <div class="two compare">
@@ -508,7 +508,7 @@ def llms_txt(t: dict, cfg: dict, names: dict, site_url: str) -> str:
     """A plain summary for AI assistants (llmstxt.org), made from the English page's own words."""
     lines = [f'# {cfg["brand"]}', "", f'> {t["about_text"]}', "", f'## {t["auto_title"]}', ""]
     lines += [f'{i}. {s["who"]}: {s["title"]}. {s["text"]}' for i, s in enumerate(t["auto_steps"], 1)]
-    lines += ["", f'{t["planned_label"]}: {t["planned_title"]}. {t["planned_text"]}', "", f'## {t["features_title"]}', ""]
+    lines += ["", f'{t["replies_label"]}: {t["replies_title"]}. {t["replies_text"]}', "", f'## {t["features_title"]}', ""]
     lines += [f'- {f["title"]}: {f["text"]}' for f in t["features"]]
     lines += ["", f'## {t["how_title"]}', ""]
     lines += [f'{i}. {s["title"]}: {s["text"]}' for i, s in enumerate(t["steps"], 1)]

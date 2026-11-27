@@ -49,7 +49,7 @@ class SiteTest(unittest.TestCase):
             if lang != "en":
                 for key in ("hero_title", "hero_text", "cta_access", "example_body", "pricing_text", "final_title",
                             "about_text", "signup_title", "signup_text", "signup_closed", "signup_fee_text", "faq_cost_q",
-                            "auto_title", "auto_text", "planned_text"):
+                            "auto_title", "auto_text", "replies_text"):
                     self.assertNotEqual(t[key], english[key], f"{lang}.{key} is still English")
                 self.assertTrue(build.legal_text(lang)["translation_note"], f"{lang}: say that English applies")
 
@@ -210,22 +210,23 @@ class SiteTest(unittest.TestCase):
                 ElementTree.fromstring(art)
                 self.assertNotRegex(art, r'<script|<style| style="|href="(?!#)', picture.name)
 
-    def test_what_is_not_built_yet_is_said_to_be_planned(self):
-        # The app does not answer replies by itself. Remove this only when it does.
+    def test_what_the_site_says_about_replies_matches_the_app(self):
+        # The app drafts answers by default and sends them only when a company switches that on
+        # (database V40: reply_mode default 'draft'). The site must not promise more than that.
+        migration = (HERE.parent / "database" / "migrations" / "V40__auto_replies.sql").read_text(encoding="utf-8")
+        self.assertIn("DEFAULT 'draft'", migration)
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             build.build("https://example.test", out)
             for lang in CFG["languages"]:
                 t = build.load_locale(lang, CFG["brand"], CFG["company"])
                 text = unescape((out / lang / "index.html").read_text(encoding="utf-8"))
-                self.assertIn(f'<span class="who">{t["planned_label"]}</span><h3>{t["planned_title"]}</h3>', text)
+                self.assertIn(f'<span class="who">{t["replies_label"]}</span><h3>{t["replies_title"]}</h3>', text)
                 self.assertEqual(text.count('class="card stage-step'), 5)
                 self.assertEqual(text.count('class="card stage-step auto"'), 3)
-                for step in t["auto_steps"]:
-                    self.assertNotIn(t["planned_title"], step["title"])
             llms = (out / "llms.txt").read_text(encoding="utf-8")
-            self.assertIn("This is not available yet.", llms)
-            self.assertIn("Does AmiReach answer replies for me?\nNot yet.", llms)
+            self.assertIn("Yes, if you switch it on. By default it writes a draft that you read and send.", llms)
+            self.assertNotIn("not available yet", llms)
 
     def test_arabic_reads_right_to_left_and_gulf_visitors_get_it(self):
         self.assertEqual(CFG["countries"]["ar"], ["SA"])

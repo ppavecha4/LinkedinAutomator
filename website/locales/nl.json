@@ -29,7 +29,7 @@
     },
     {
       "title": "Start en lees de reacties",
-      "text": "De berichten gaan vanaf je eigen accounts en herinneringen worden voor je verstuurd. Reacties komen in één inbox en herinneringen stoppen zodra iemand antwoordt."
+      "text": "Berichten gaan vanaf je eigen accounts en herinneringen worden voor je verstuurd. Reacties komen met een voorgesteld antwoord in één inbox, en herinneringen stoppen zodra iemand antwoordt."
     }
   ],
   "features_title": "Wat je krijgt",
@@ -158,15 +158,15 @@
   "faq_more": [
     {
       "q": "Wat doet {brand} automatisch?",
-      "a": "Na de start van een campagne vindt het potentiële klanten via je zoekaccount of gebruikt het je lijst, schrijft en verstuurt persoonlijke berichten, stuurt herinneringen, stopt die bij een reactie en respecteert afmeldingen."
+      "a": "Na de start van een campagne vindt het potentiële klanten via je zoekaccount of gebruikt het je lijst, schrijft en verstuurt persoonlijke berichten, stuurt herinneringen, stopt die bij een reactie, zet antwoorden klaar en respecteert afmeldingen."
     },
     {
       "q": "Beantwoordt {brand} reacties voor mij?",
-      "a": "Nog niet. Als iemand reageert, stoppen de herinneringen en verschijnt de reactie in je inbox zodat je kunt antwoorden. AI-antwoorden met overdracht aan jou zijn gepland."
+      "a": "Ja, als je dat aanzet. Standaard schrijft het een concept dat jij leest en verstuurt. In de automatische stand beantwoordt het routinereacties en meldt dat; gesprekken, prijzen, klachten en onduidelijkheden gaan naar jou."
     },
     {
       "q": "Wordt er iets verstuurd zonder mijn goedkeuring?",
-      "a": "Nee. Je controleert eerst de campagne en de berichten, en er wordt niets verstuurd tot je start. Daarna gaan herinneringen volgens schema uit en stoppen ze zodra iemand reageert."
+      "a": "Nee. Je controleert eerst de campagne en de berichten, en er wordt niets verzonden tot je start. Daarna gaan herinneringen volgens planning uit. Antwoorden wachten op je akkoord, tenzij je automatisch antwoorden aanzet."
     },
     {
       "q": "Heb ik eigen e-mail- en WhatsApp-accounts nodig?",
@@ -184,9 +184,9 @@
   "example_reply": "Donderdag komt ons goed uit. Stuur de details maar.",
   "auto_title": "Je acquisitie op de automatische piloot",
   "auto_text": "Beschrijf je bedrijf één keer. Na de start houdt {brand} de campagne gaande en laat het zien wie heeft geantwoord.",
-  "planned_label": "Hierna gepland",
-  "planned_title": "AI-antwoorden op reacties",
-  "planned_text": "Veelvoorkomende reacties voor je beantwoorden en het overdragen wanneer een mens of een gesprek nodig is. Dit is nog niet beschikbaar.",
+  "replies_label": "Reacties",
+  "replies_title": "Reacties worden afgehandeld en jij houdt de regie",
+  "replies_text": "{brand} schrijft een antwoord dat jij verstuurt. Als je wilt, beantwoordt het routinereacties zelf via e-mail en WhatsApp en meldt dat dit automatisch is. Gesprekken, prijzen, klachten en alles wat onduidelijk is komen bij jou.",
   "auto_steps": [
     {
       "who": "Jij",
@@ -210,8 +210,8 @@
     },
     {
       "who": "Jij",
-      "title": "Jij neemt het over bij antwoord",
-      "text": "Reacties komen samen in één inbox. Je antwoordt vanuit je mailbox en plant het gesprek."
+      "title": "Neem het over als het ertoe doet",
+      "text": "Antwoorden worden voor je klaargezet of, als je dat aanzet, routineantwoorden voor je verstuurd. Is er een gesprek of beslissing nodig, dan ben jij aan zet."
     }
   ]
 }

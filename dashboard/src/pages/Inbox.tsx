@@ -11,7 +11,9 @@
 import { Loader2, Mail, MessageSquare, Briefcase, Inbox as InboxIcon } from 'lucide-react';
 import * as React from 'react';
 
+import { ReplyBox, ReplyModeCard } from '../components/inbox/Replies';
 import { t } from '../i18n';
+import { label } from '../lib/labels';
 import { PageHeader } from '../components/ui/page-header';
 import {
   useInbox,
@@ -44,10 +46,12 @@ export default function Inbox(): React.ReactElement {
   >('all');
   const [unreadOnly, setUnreadOnly] = React.useState(false);
   const [selected, setSelected] = React.useState<string | undefined>(undefined);
+  const [attentionOnly, setAttentionOnly] = React.useState(false);
 
   const list = useInbox({
     channel: channel === 'all' ? undefined : channel,
     unread: unreadOnly,
+    attention: attentionOnly,
   });
   const thread = useInboxThread(selected);
 
@@ -61,6 +65,8 @@ export default function Inbox(): React.ReactElement {
         description={t('Every reply across email, LinkedIn, and WhatsApp — in one feed.')}
         icon={InboxIcon}
       />
+
+      <ReplyModeCard />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -77,6 +83,13 @@ export default function Inbox(): React.ReactElement {
             {c === 'all' ? t('All channels') : CHANNEL_META[c].label}
           </button>
         ))}
+        <label className="ms-2 flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" checked={attentionOnly} onChange={(e) => setAttentionOnly(e.target.checked)} />
+          {t('Needs you only')}
+          {list.data?.attention ? (
+            <span className="ms-1 rounded-full bg-amber-500 text-white text-[10px] px-1.5 py-0.5">{list.data.attention}</span>
+          ) : null}
+        </label>
         <label className="ms-2 flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
           <input
             type="checkbox"
@@ -166,6 +179,9 @@ function ConversationRow({
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <ChannelChip channel={c.channel} />
+          {c.needs_person_reason && (
+            <span className="shrink-0 rounded-full bg-amber-500/15 px-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{t('Needs you')}</span>
+          )}
           <span className="text-[11px] text-slate-400 truncate">
             {c.company_name} · {c.campaign_name}
           </span>
@@ -207,7 +223,7 @@ function ThreadView({
           </div>
           <div className="text-end text-[11px] text-slate-400">
             <div>{ct.campaign_name}</div>
-            <div className="uppercase tracking-wide">{ct.prospect_status}</div>
+            <div className="uppercase tracking-wide">{label(ct.prospect_status)}</div>
             {ct.service_line && (
               <div className="text-slate-500">
                 {ct.service_line.replace('_', ' ')}
@@ -243,39 +259,27 @@ function ThreadView({
                   <ChannelChip channel={m.channel} />
                   <span>{formatDateTime(m.sent_at)}</span>
                 </div>
-                <div className="whitespace-pre-wrap leading-relaxed">
+                <div className="whitespace-pre-wrap leading-relaxed" dir="auto">
                   {m.body}
                 </div>
+                {m.kind && (
+                  <div className="mt-1 text-[10px] opacity-80">
+                    {m.kind === 'ai_reply' ? t('Sent by the assistant') : t('Your team')}{m.delivery ? ` · ${label(m.delivery)}` : ''}
+                  </div>
+                )}
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Reply hint (manual for now) */}
-      <div className="border-t border-slate-100 p-3 text-[11px] text-slate-400">
-        {t('Reply from your')}{' '}
-        {ct.email && (
-          <a href={`mailto:${ct.email}`} className="text-brand underline">
-            {t('email')}
-          </a>
-        )}
-        {ct.linkedin_url && (
-          <>
-            {' · '}
-            <a
-              href={ct.linkedin_url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-brand underline"
-            >
-              LinkedIn
-            </a>
-          </>
-        )}
-        {ct.whatsapp_number && <>{' '}{t('· WhatsApp {whatsapp_number}', { whatsapp_number: ct.whatsapp_number })}</>}
-        {t('. Inbound replies are captured automatically.')}
-      </div>
+      {/* What can be done with each conversation (usually one) */}
+      {thread.conversations.map((state) => <ReplyBox key={state.conversation_id} state={state} />)}
+      {ct.linkedin_url && (
+        <p className="border-t border-border/60 p-3 text-[11px] text-muted-foreground">
+          <a href={ct.linkedin_url} target="_blank" rel="noreferrer" className="text-brand underline">LinkedIn</a>
+        </p>
+      )}
     </div>
   );
 }

@@ -23,6 +23,8 @@ export interface Organization {
   default_country: string | null;
   timezone: string;
   operator: boolean;
+  /** How replies are answered (V40). */
+  reply_mode?: 'off' | 'draft' | 'auto';
 }
 
 export type CredentialStatus = 'UNVERIFIED' | 'VERIFIED' | 'FAILED' | 'REVOKED';

@@ -23,7 +23,9 @@ confirmations are exempt: they go only to people who wrote to us.)
 
 Contact hours (profile rules.contact_hours, the prospect's local time) are
 checked here too, but a message outside the window is DEFERRED (`defer`),
-not blocked: it stays queued and goes out once the window opens.
+not blocked: it stays queued and goes out once the window opens. Answers to
+a reply (REPLY_KINDS) are not held for contact hours; every other check,
+suppression first, applies to them.
 
 Runs inside the campaign's tenant: suppression is per org (RLS).
 """
@@ -43,6 +45,8 @@ except ImportError:  # imported as src.compliance.send_gate
 
 CONFIRMATION_KIND = "opt_out_confirmation"
 CONFIRMATION_WINDOW_HOURS = 24
+# Answers to someone who just wrote to us (agents/conversation_agent.py, or a person from the inbox).
+REPLY_KINDS = ("ai_reply", "person_reply")
 
 
 @dataclass(frozen=True)
@@ -108,9 +112,10 @@ async def check_send(conn, message_id: str, now: Optional[dt.datetime] = None) -
         )
         if reason:
             return SendDecision(False, f"business profile: {reason}")
-        # Contact hours (the prospect's local time): wait, don't block.
+        # Contact hours (the prospect's local time): wait, don't block. An answer to someone who has
+        # just written to us goes at once: contact hours are for messages they did not ask for.
         in_hours, why = within_contact_hours(
-            rules.contact_hours,
+            None if row["kind"] in REPLY_KINDS else rules.contact_hours,
             countries=(row["contact_country"], row["country"]),
             org_timezone=row["org_timezone"],
             now=now,

@@ -22,7 +22,7 @@ import { validate } from '../middleware/validate';
 const router = Router();
 
 const COLUMNS = `id, name, slug, plan, status, channels,
-  default_language, default_country, timezone, created_at, updated_at`;
+  default_language, default_country, timezone, reply_mode, created_at, updated_at`;
 
 const TIMEZONES = new Set<string>(
   (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.('timeZone') ?? [],
@@ -35,6 +35,8 @@ const patchBody = z
     default_language: z.string().regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, 'use a language code like "en" or "es-MX"'),
     default_country: z.string().regex(/^[A-Z]{2}$/, 'use a 2-letter country code like "AE"').nullable(),
     timezone: z.string().refine((tz) => TIMEZONES.has(tz), 'unknown time zone (use an IANA name like "Asia/Dubai")'),
+    // How replies are answered (V40): collected only, drafted for a person, or sent by the assistant.
+    reply_mode: z.enum(['off', 'draft', 'auto']),
   })
   .partial()
   .strict()

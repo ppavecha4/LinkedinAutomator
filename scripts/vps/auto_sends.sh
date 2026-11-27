@@ -19,6 +19,11 @@ heartbeat auto_sends
 
 log "=== tick start ==="
 
+# Answer the replies that arrived (or ask a person), before the senders run, so queued answers go out
+# in this same tick. Never stops the sends below.
+log "answering replies"
+docker exec ai-sales-agent-orchestrator-1 python3 /app/src/scripts/answer_replies.py 2>&1     | tail -8 >> "$LOG" || log "  answering replies errored (see above)"
+
 # List ACTIVE campaign ids from the DB.
 CAMPAIGN_IDS=$(docker exec ai-sales-agent-postgres-1 psql -U agent -d salesagent -tA -c \
     "SELECT id::text FROM campaigns WHERE status='ACTIVE'" 2>/dev/null | tr -d ' ')

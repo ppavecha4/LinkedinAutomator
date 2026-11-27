@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import email
+import email.header
 import email.utils
 import imaplib
 import os
@@ -284,8 +285,19 @@ async def _match_contact(conn, sender_email: str, ref_ids: list[str]):
     )
 
 
+def _header_text(value: Optional[str]) -> Optional[str]:
+    """A header as readable text ("=?utf-8?…" decoded), or None."""
+    if not value:
+        return None
+    try:
+        return str(email.header.make_header(email.header.decode_header(value))).strip()[:500] or None
+    except Exception:  # noqa: BLE001 — a broken header is not worth losing the reply
+        return value.strip()[:500] or None
+
+
 async def _record_reply(
     conn, *, contact_id, campaign_id, prospect_id, body: str, dry_run: bool,
+    external_id: Optional[str] = None, subject: Optional[str] = None,
 ) -> None:
     if dry_run:
         return
@@ -305,10 +317,10 @@ async def _record_reply(
         await conn.execute(
             """
             INSERT INTO conversation_messages (conversation_id, direction,
-                                               body, channel, sent_at)
-            VALUES ($1, 'inbound', $2, 'email', now())
+                                               body, channel, sent_at, external_id, subject)
+            VALUES ($1, 'inbound', $2, 'email', now(), $3, $4)
             """,
-            conv_id, body[:8000],
+            conv_id, body[:8000], external_id, subject,
         )
         # most recent outbound email → REPLIED
         await conn.execute(
@@ -353,7 +365,8 @@ async def _record_reply(
         )
 
 
-async def handle_email_reply(conn, row, *, body: str, dry_run: bool) -> str:
+async def handle_email_reply(conn, row, *, body: str, dry_run: bool,
+                             external_id: Optional[str] = None, subject: Optional[str] = None) -> str:
     """Record an email reply; if it asks to stop (any language), suppress
     the contact on every channel. Returns 'opt_out' or 'reply'.
 
@@ -368,6 +381,8 @@ async def handle_email_reply(conn, row, *, body: str, dry_run: bool) -> str:
         prospect_id=row["prospect_id"],
         body=body,
         dry_run=dry_run,
+        external_id=external_id,
+        subject=subject,
     )
     opt = detect_opt_out(body)
     if not opt.is_opt_out:
@@ -468,6 +483,7 @@ async def poll_mailbox(
             async with pool.acquire() as conn:
                 outcome = await handle_email_reply(
                     conn, row, body=body or subj or "(empty reply)", dry_run=args.dry_run,
+                    external_id=(msg.get("Message-ID") or "").strip()[:500] or None, subject=_header_text(subj),
                 )
         if outcome == "opt_out":
             print(f"    ↳ opt-out: {sender} suppressed")

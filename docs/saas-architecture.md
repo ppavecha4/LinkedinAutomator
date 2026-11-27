@@ -1777,3 +1777,24 @@ The app, the website and the legal pages are in English, Spanish, Portuguese, Ge
 - **Emails**: verification, password reset and invitation follow the screen language
   (`services/api/src/lib/accountEmails.ts`). Account-problem and ownership emails are in English.
 - Translations were machine-made and have not been read by native speakers or a lawyer.
+
+## Automated replies (2026-11-27, V40)
+
+Each company chooses `organizations.reply_mode` (Inbox page): `draft` (default: the AI writes an answer, a
+person sends it), `auto`, or `off`.
+
+- `scripts/answer_replies.py` (run by `auto_sends.sh` before the senders) takes each new inbound message,
+  asks the model, and applies the rules in `agents/conversation_agent.py`. The model only writes text and
+  names the intent; the rules decide whether it is sent.
+- A person is asked for: calls, prices, complaints, anything unclear or flagged; drafts with a link,
+  address, price or figure the company did not provide; after 3 automatic answers in a row; paused
+  campaign; no AI available; WhatsApp past its 24-hour window; LinkedIn. A call request with a booking
+  link gets the link at once in `auto` mode, and a person is still told.
+- Opt-outs found by the model are recorded like any other. Automatic answers end with a line saying they
+  are automatic, in the person's language.
+- Answers are ordinary `messages` rows (`metadata.kind` `ai_reply` / `person_reply`) sent by the normal
+  senders through the send gate; contact hours do not apply to them. Waiting drafts live in
+  `reply_drafts`, where no sender can pick them up.
+- Companies are emailed (owners and admins, English) when conversations start waiting
+  (`api/src/lib/replyHandover.ts`).
+- Replies are read for email (IMAP) and WhatsApp. Voice and LinkedIn are not answered.

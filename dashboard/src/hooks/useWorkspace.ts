@@ -19,7 +19,7 @@ export function useOrganization() {
 export function useUpdateOrganization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<Pick<Organization, 'name' | 'default_language' | 'default_country' | 'timezone'>>) =>
+    mutationFn: async (patch: Partial<Pick<Organization, 'name' | 'default_language' | 'default_country' | 'timezone' | 'reply_mode'>>) =>
       (await api.patch<Organization>('/api/organization', patch)).data,
     onSuccess: (data) => qc.setQueryData(['organization'], data),
   });

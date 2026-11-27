@@ -3,12 +3,13 @@
  *
  *   useInbox(filters)          — conversation list (all channels)
  *   useInboxThread(contactId)  — full message thread for one contact
+ *   useSendReply / useDiscardDraft / useConversationState — what a person does with a reply
  *
  * Auto-refreshes every 20s so webhook/poller-driven replies surface
  * without a manual reload.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '../lib/api';
 
@@ -19,6 +20,8 @@ export interface InboxConversation {
   channel: 'email' | 'linkedin' | 'whatsapp';
   status: string;
   last_message_at: string | null;
+  handled_by: 'ai' | 'person';
+  needs_person_reason: string | null;
   full_name: string;
   title: string | null;
   email: string | null;
@@ -39,6 +42,19 @@ export interface InboxThreadMessage {
   body: string;
   channel: 'email' | 'linkedin' | 'whatsapp';
   sent_at: string;
+  /** For our answers: where the send stands, and whether the assistant or a person wrote it. */
+  delivery: string | null;
+  kind: 'ai_reply' | 'person_reply' | null;
+}
+
+export interface ConversationState {
+  conversation_id: string;
+  channel: 'email' | 'linkedin' | 'whatsapp';
+  status: string;
+  handled_by: 'ai' | 'person';
+  needs_person_reason: string | null;
+  draft_id: string | null;
+  draft_body: string | null;
 }
 
 export interface InboxThread {
@@ -59,17 +75,20 @@ export interface InboxThread {
     campaign_name: string;
   } | null;
   messages: InboxThreadMessage[];
+  conversations: ConversationState[];
 }
 
 interface InboxFilters {
   channel?: 'email' | 'linkedin' | 'whatsapp';
   unread?: boolean;
+  attention?: boolean;
 }
 
 export function useInbox(filters: InboxFilters = {}) {
   const params = new URLSearchParams();
   if (filters.channel) params.set('channel', filters.channel);
   if (filters.unread) params.set('unread', 'true');
+  if (filters.attention) params.set('attention', 'true');
   const qs = params.toString();
   return useQuery({
     queryKey: ['inbox', filters],
@@ -78,6 +97,7 @@ export function useInbox(filters: InboxFilters = {}) {
         conversations: InboxConversation[];
         total: number;
         unread: number;
+        attention: number;
       }>(`/api/inbox${qs ? `?${qs}` : ''}`);
       return data;
     },
@@ -94,5 +114,30 @@ export function useInboxThread(contactId: string | undefined) {
       return data;
     },
     refetchInterval: 20_000,
+  });
+}
+
+function useInboxAction<T>(run: (input: T) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSettled: () => qc.invalidateQueries({ queryKey: ['inbox'] }),
+  });
+}
+
+export function useSendReply() {
+  return useInboxAction((v: { id: string; body: string; draftId?: string }) =>
+    api.post(`/api/inbox/conversations/${v.id}/reply`, { body: v.body, ...(v.draftId ? { draft_id: v.draftId } : {}) }));
+}
+
+export function useDiscardDraft() {
+  return useInboxAction((v: { id: string; draftId: string }) =>
+    api.post(`/api/inbox/conversations/${v.id}/discard-draft`, { draft_id: v.draftId }));
+}
+
+export function useConversationState() {
+  return useInboxAction((v: { id: string; handled_by?: 'ai' | 'person'; handled?: true }) => {
+    const { id, ...change } = v;
+    return api.patch(`/api/inbox/conversations/${id}`, change);
   });
 }

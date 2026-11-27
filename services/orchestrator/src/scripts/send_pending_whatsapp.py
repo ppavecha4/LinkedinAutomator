@@ -74,7 +74,7 @@ try:
         AccountError, MetaTemplate, MetaWhatsAppAccount, WhatsAppAccount, meta_approved_templates,
         whatsapp_account, whatsapp_meta_account, whatsapp_provider,
     )
-    from compliance.send_gate import block_send, check_send
+    from compliance.send_gate import REPLY_KINDS, block_send, check_send
     from tools.whatsapp_meta import MetaCloud
 except ImportError:  # pragma: no cover
     from src.db.provider_keys import is_operator_org  # type: ignore
@@ -82,7 +82,7 @@ except ImportError:  # pragma: no cover
         AccountError, MetaTemplate, MetaWhatsAppAccount, WhatsAppAccount, meta_approved_templates,
         whatsapp_account, whatsapp_meta_account, whatsapp_provider,
     )
-    from src.compliance.send_gate import block_send, check_send  # type: ignore
+    from src.compliance.send_gate import REPLY_KINDS, block_send, check_send  # type: ignore
     from src.tools.whatsapp_meta import MetaCloud  # type: ignore
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
@@ -186,8 +186,32 @@ def send_text(
         return False, None, str(e)[:200]
 
 
-async def _record_result(pool, r, ok: bool, external_id: Optional[str], error: Optional[str], provider: str = "twilio") -> None:
-    """Persist a confirmation send: SENT + timeline event, or FAILED."""
+async def _whatsapp_window_open(conn, message_id: str) -> bool:
+    return bool(await conn.fetchval(
+        """
+        SELECT EXISTS (SELECT 1 FROM messages m
+                         JOIN conversations v ON v.contact_id = m.contact_id AND v.channel = 'whatsapp'
+                         JOIN conversation_messages cm ON cm.conversation_id = v.id AND cm.direction = 'inbound'
+                        WHERE m.id = $1 AND cm.sent_at > now() - interval '23 hours 50 minutes')
+        """, message_id))
+
+
+async def _window_closed(conn, message_id: str) -> None:
+    async with conn.transaction():
+        row = await conn.fetchrow(
+            "UPDATE messages SET status = 'SUPPRESSED', failure_reason = 'more than 24 hours since their last message'"
+            " WHERE id = $1 RETURNING contact_id", message_id)
+        if row:
+            await conn.execute(
+                "UPDATE conversations SET needs_person_reason = 'whatsapp_window',"
+                " needs_person_since = COALESCE(needs_person_since, now()),"
+                " notified_at = CASE WHEN needs_person_reason IS NULL THEN NULL ELSE notified_at END"
+                " WHERE contact_id = $1 AND channel = 'whatsapp'", row["contact_id"])
+
+
+async def _record_result(pool, r, ok: bool, external_id: Optional[str], error: Optional[str], provider: str = "twilio",
+                         kind: Optional[str] = None) -> None:
+    """Persist a free-text send (a confirmation or an answer): SENT + timeline event, or FAILED."""
     async with pool.acquire() as conn:
         async with conn.transaction():
             if not ok:
@@ -205,7 +229,7 @@ async def _record_result(pool, r, ok: bool, external_id: Optional[str], error: O
                 """,
                 external_id, r["message_id"],
             )
-            payload = {"via": "whatsapp_script", "kind": "opt_out_confirmation"}
+            payload = {"via": "whatsapp_script", "kind": kind or "opt_out_confirmation"}
             payload.update({"twilio_sid": external_id} if provider == "twilio" else {"provider": provider, "wa_message_id": external_id})
             await conn.execute(
                 """
@@ -386,10 +410,24 @@ async def main(args: argparse.Namespace) -> None:
             parts = (r["full_name"] or "").strip().split(" ", 1)
             first_name = parts[0] if parts else ""
 
-            if decision.is_confirmation:
+            meta = r["metadata"]
+            if isinstance(meta, str):
+                meta = json.loads(meta or "{}")
+            is_reply = (meta or {}).get("kind") in REPLY_KINDS
+            if is_reply:
+                # Free text is only allowed for 24 hours after their last message.
+                async with pool.acquire() as conn:
+                    if not await _whatsapp_window_open(conn, r["message_id"]):
+                        print(f"  not sent {r['full_name']:20s} — more than 24 hours since they wrote; a person must follow up")
+                        if not args.dry_run:
+                            await _window_closed(conn, r["message_id"])
+                        skipped += 1
+                        continue
+
+            if decision.is_confirmation or is_reply:
                 # Free-form text (they just messaged us, so we are inside
                 # WhatsApp's 24-hour session) — never a pitch template.
-                print(f"  {r['full_name']:24s} -> {to[:22]:22s} [opt-out confirmation]")
+                print(f"  {r['full_name']:24s} -> {to[:22]:22s} [{'answer' if is_reply else 'opt-out confirmation'}]")
                 if args.dry_run:
                     continue
                 if cloud is not None:
@@ -402,14 +440,15 @@ async def main(args: argparse.Namespace) -> None:
                         print(f"  waiting {r['full_name']:20s} — Meta is busy or limiting sends ({res.error}); will retry")
                         skipped += 1
                         continue
-                    await _record_result(pool, r, res.ok, res.message_id, res.error, provider="meta")
+                    await _record_result(pool, r, res.ok, res.message_id, res.error, provider="meta",
+                                         kind=(meta or {}).get("kind"))
                     sent += res.ok
                     failed += not res.ok
                     continue
                 ok, twilio_sid, error = send_text(
                     twilio, from_number=from_number, to_number=to, body=r["body"],
                 )
-                await _record_result(pool, r, ok, twilio_sid, error)
+                await _record_result(pool, r, ok, twilio_sid, error, kind=(meta or {}).get("kind"))
                 sent += ok
                 failed += not ok
                 continue

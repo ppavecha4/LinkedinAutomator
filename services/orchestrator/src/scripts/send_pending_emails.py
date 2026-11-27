@@ -63,14 +63,14 @@ try:
     from db.tenant import create_pool as create_tenant_pool, use_campaign_org
     from db.provider_keys import is_operator_org
     from db.accounts import AccountError, EmailAccount, email_account
-    from compliance.send_gate import block_send, check_send
+    from compliance.send_gate import REPLY_KINDS, block_send, check_send
 except ImportError:  # pragma: no cover
     from src.db.tenant import (  # type: ignore
         create_pool as create_tenant_pool, use_campaign_org,
     )
     from src.db.provider_keys import is_operator_org  # type: ignore
     from src.db.accounts import AccountError, EmailAccount, email_account  # type: ignore
-    from src.compliance.send_gate import block_send, check_send  # type: ignore
+    from src.compliance.send_gate import REPLY_KINDS, block_send, check_send  # type: ignore
 
 try:
     import aiosmtplib  # type: ignore
@@ -555,6 +555,10 @@ async def main(args: argparse.Namespace) -> None:
                 skipped += 1
                 continue
 
+            meta = r["metadata"]
+            if isinstance(meta, str):
+                meta = json.loads(meta or "{}")
+            meta = meta or {}
             subject = r["subject"] or _synth_subject(
                 r["body"], r["company_name"], from_name or from_email
             )
@@ -577,16 +581,14 @@ async def main(args: argparse.Namespace) -> None:
                 signature_text=signature_text,
                 logo_bytes=logo_bytes,
                 logo_mime=logo_mime,
-                meeting_url=meeting_url,
+                # An answer says what it needs to; no calendar block is bolted on.
+                meeting_url=None if meta.get("kind") in REPLY_KINDS else meeting_url,
                 footer=(None if account is None or decision.is_confirmation
                         else {**identity, "language": r["language"]}),
             )
 
-            # Follow-ups (slice 3.5) reply inside the original thread.
-            meta = r["metadata"]
-            if isinstance(meta, str):
-                meta = json.loads(meta or "{}")
-            if (meta or {}).get("kind") == "follow_up":
+            # Follow-ups (slice 3.5) and answers reply inside the original thread.
+            if meta.get("kind") == "follow_up" or meta.get("kind") in REPLY_KINDS:
                 if meta.get("in_reply_to"):
                     msg["In-Reply-To"] = meta["in_reply_to"]
                 if meta.get("references"):

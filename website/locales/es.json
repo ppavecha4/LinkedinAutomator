@@ -29,7 +29,7 @@
     },
     {
       "title": "Lanza y lee las respuestas",
-      "text": "Los mensajes salen desde tus cuentas y los recordatorios se envían por ti. Las respuestas llegan a una sola bandeja y los recordatorios paran cuando alguien contesta."
+      "text": "Los mensajes salen de tus cuentas y los recordatorios se envían por ti. Las respuestas llegan a una sola bandeja con una propuesta de contestación, y los recordatorios paran cuando alguien responde."
     }
   ],
   "features_title": "Qué obtienes",
@@ -158,15 +158,15 @@
   "faq_more": [
     {
       "q": "¿Qué hace {brand} automáticamente?",
-      "a": "Cuando lanzas una campaña, encuentra clientes potenciales con tu cuenta de búsqueda o usa tu lista, escribe y envía mensajes personales, manda recordatorios, los detiene cuando alguien responde y respeta las peticiones de baja."
+      "a": "Cuando lanzas una campaña, busca clientes potenciales con tu cuenta de búsqueda o usa tu lista, escribe y envía mensajes personales, envía recordatorios, los detiene cuando alguien responde, prepara respuestas y respeta las bajas."
     },
     {
       "q": "¿{brand} contesta las respuestas por mí?",
-      "a": "Todavía no. Cuando alguien responde, los recordatorios paran y la respuesta aparece en tu bandeja para que la contestes. Las respuestas con IA, con traspaso a ti, están previstas."
+      "a": "Sí, si lo activas. Por defecto redacta un borrador que lees y envías. En modo automático contesta las respuestas habituales y lo indica; las llamadas, los precios, las quejas y lo que no esté claro pasan a ti."
     },
     {
       "q": "¿Se envía algo sin mi aprobación?",
-      "a": "No. Primero revisas la campaña y sus mensajes, y no se envía nada hasta que la lanzas. Después, los recordatorios salen según el calendario y paran cuando alguien responde."
+      "a": "No. Revisas la campaña y sus mensajes antes, y no se envía nada hasta que la lanzas. Después, los recordatorios salen según el calendario. Las contestaciones esperan tu aprobación salvo que actives las respuestas automáticas."
     },
     {
       "q": "¿Necesito mis propias cuentas de correo y WhatsApp?",
@@ -184,9 +184,9 @@
   "example_reply": "El jueves nos viene bien. Envíanos los detalles.",
   "auto_title": "Tu captación comercial en piloto automático",
   "auto_text": "Describe tu negocio una vez. Cuando lanzas la campaña, {brand} la mantiene en marcha y te muestra quién ha respondido.",
-  "planned_label": "Próximamente en el plan",
-  "planned_title": "Respuestas con IA",
-  "planned_text": "Contestar por ti las respuestas habituales y pasarte la conversación cuando haga falta una persona o una llamada. Todavía no está disponible.",
+  "replies_label": "Respuestas",
+  "replies_title": "Las respuestas se atienden y tú mandas",
+  "replies_text": "{brand} redacta una respuesta para que la envíes. Si lo prefieres, contesta por correo y WhatsApp las respuestas habituales e indica que es automático. Las llamadas, los precios, las quejas y lo que no esté claro te llegan a ti.",
   "auto_steps": [
     {
       "who": "Tú",
@@ -210,8 +210,8 @@
     },
     {
       "who": "Tú",
-      "title": "Tomas el relevo cuando responden",
-      "text": "Las respuestas se reúnen en una sola bandeja. Contestas desde tu correo y concretas la llamada."
+      "title": "Intervienes cuando importa",
+      "text": "Te prepara borradores de respuesta o, si lo activas, envía las habituales por ti. Cuando hace falta una llamada o una decisión, es tu turno."
     }
   ]
 }

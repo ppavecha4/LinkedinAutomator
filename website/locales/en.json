@@ -29,7 +29,7 @@
     },
     {
       "title": "Launch and read the replies",
-      "text": "Messages go out from your accounts and follow-ups are sent for you. Replies arrive in one inbox, and follow-ups stop when someone answers."
+      "text": "Messages go out from your accounts and follow-ups are sent for you. Replies arrive in one inbox with a suggested answer, and follow-ups stop when someone answers."
     }
   ],
   "features_title": "What you get",
@@ -158,15 +158,15 @@
   "faq_more": [
     {
       "q": "What does {brand} do automatically?",
-      "a": "After you launch a campaign, it finds potential customers through your lead-search account or uses your list, writes and sends personal messages, sends follow-ups, stops them when someone replies and honours requests to stop."
+      "a": "After you launch a campaign, it finds potential customers through your lead-search account or uses your list, writes and sends personal messages, sends follow-ups, stops them when someone replies, drafts answers and honours requests to stop."
     },
     {
       "q": "Does {brand} answer replies for me?",
-      "a": "Not yet. When someone replies, follow-ups stop and the reply appears in your inbox for you to answer. AI answers with a handover to you are planned."
+      "a": "Yes, if you switch it on. By default it writes a draft that you read and send. In automatic mode it answers routine replies and says so; calls, prices, complaints and anything unclear are handed to you."
     },
     {
       "q": "Is anything sent without my approval?",
-      "a": "No. You check the campaign and its messages first, and nothing is sent until you launch. After that, follow-ups go out on schedule and stop when someone replies."
+      "a": "No. You check the campaign and its messages first, and nothing is sent until you launch. After that, follow-ups go out on schedule. Answers to replies wait for your approval unless you turn on automatic answers."
     },
     {
       "q": "Do I need my own email and WhatsApp accounts?",
@@ -184,9 +184,9 @@
   "example_reply": "Thursday works for us. Please send the details.",
   "auto_title": "Your sales outreach, on autopilot",
   "auto_text": "Describe your business once. After you launch, {brand} keeps the campaign moving and shows you who answered.",
-  "planned_label": "Planned next",
-  "planned_title": "AI answers to replies",
-  "planned_text": "Answering routine replies for you, and handing over when a person or a call is needed. This is not available yet.",
+  "replies_label": "Replies",
+  "replies_title": "Replies get answered, and you stay in charge",
+  "replies_text": "{brand} writes an answer for you to send. If you choose, it answers routine replies by email and WhatsApp itself and says the reply is automatic. Calls, prices, complaints and anything unclear come to you.",
   "auto_steps": [
     {
       "who": "You",
@@ -210,8 +210,8 @@
     },
     {
       "who": "You",
-      "title": "Take over when they answer",
-      "text": "Replies are collected in one inbox. You answer from your mailbox and set up the call."
+      "title": "Take over when it matters",
+      "text": "Answers are drafted for you, or routine ones are sent for you if you switch that on. When a call or a decision is needed, it is your turn."
     }
   ]
 }
